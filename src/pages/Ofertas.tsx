@@ -171,19 +171,26 @@ export function Ofertas() {
       message,
       affiliate_url:
         product.affiliate_url || product.product_url || null,
-      status: "pending",
+      status: "draft",
       scheduled_at: null,
       published_at: null,
     });
 
     if (error) {
-      console.error(error);
-      setError(
-        "Não foi possível gerar a oferta. Verifique as permissões da tabela offers."
-      );
-      setGenerating(null);
-      return;
-    }
+  console.error("Erro ao gerar oferta:", error);
+
+  setError(
+    `Erro ao gerar oferta: ${
+      error.message ||
+      error.details ||
+      error.hint ||
+      JSON.stringify(error)
+    }`
+  );
+
+  setGenerating(null);
+  return;
+}
 
     setSuccess("Oferta gerada com sucesso.");
 
