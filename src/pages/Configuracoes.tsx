@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import {
   CheckCircle2,
   ExternalLink,
+  Plus,
   RefreshCw,
   ShoppingCart,
+  Trash2,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
-
 import { supabase } from "../lib/supabase";
 
 interface MarketplaceStatus {
@@ -13,91 +16,247 @@ interface MarketplaceStatus {
   marketplace?: string;
   external_user_id?: string;
   token_expires_at?: string;
-  error?: string;
+}
+
+interface SearchTerm {
+  id: string;
+  term: string;
+  active: boolean;
+  created_at: string;
 }
 
 export function Configuracoes() {
-  const [status, setStatus] =
-    useState<MarketplaceStatus | null>(null);
-
+  const [status, setStatus] = useState<MarketplaceStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  const [searchTerms, setSearchTerms] = useState<SearchTerm[]>([]);
+  const [termsLoading, setTermsLoading] = useState(true);
+  const [newTerm, setNewTerm] = useState("");
+  const [savingTerm, setSavingTerm] = useState(false);
 
   async function loadMarketplaceStatus() {
-    setLoading(true);
-    setError(null);
+    try {
+      setLoading(true);
+      setError("");
 
-    const { data, error } = await supabase.functions.invoke(
-      "marketplace-status",
-      {
-        body: {},
-      }
-    );
-
-    if (error) {
-      console.error("Erro ao consultar marketplace:", error);
-
-      setStatus(null);
-      setError(
-        "Não foi possível verificar a conexão com o Mercado Livre."
+      const { data, error } = await supabase.functions.invoke(
+        "marketplace-status",
+        {
+          body: {},
+        }
       );
 
+      if (error) {
+        throw error;
+      }
+
+      setStatus(data);
+    } catch (err: any) {
+      console.error("Erro ao carregar status do Mercado Livre:", err);
+
+      setError(
+        err?.message ||
+          err?.details ||
+          err?.hint ||
+          "Não foi possível carregar o status do Mercado Livre."
+      );
+    } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadSearchTerms() {
+    try {
+      setTermsLoading(true);
+
+      const { data, error } = await supabase
+        .from("search_terms")
+        .select("id, term, active, created_at")
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+
+      setSearchTerms(data || []);
+    } catch (err: any) {
+      console.error("Erro ao carregar buscas automáticas:", err);
+
+      setError(
+        err?.message ||
+          err?.details ||
+          err?.hint ||
+          "Não foi possível carregar os termos de busca."
+      );
+    } finally {
+      setTermsLoading(false);
+    }
+  }
+
+  async function addSearchTerm() {
+    const term = newTerm.trim();
+
+    if (!term) {
       return;
     }
 
-    if (!data) {
-      setStatus({
-        connected: false,
-      });
+    try {
+      setSavingTerm(true);
+      setError("");
 
-      setLoading(false);
+      const alreadyExists = searchTerms.some(
+        (item) => item.term.toLowerCase() === term.toLowerCase()
+      );
+
+      if (alreadyExists) {
+        setError("Esse termo já está cadastrado.");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("search_terms")
+        .insert({
+          term,
+          active: true,
+        })
+        .select("id, term, active, created_at")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      if (data) {
+        setSearchTerms((current) => [...current, data]);
+      }
+
+      setNewTerm("");
+    } catch (err: any) {
+      console.error("Erro ao adicionar termo:", err);
+
+      setError(
+        err?.message ||
+          err?.details ||
+          err?.hint ||
+          "Não foi possível adicionar o termo."
+      );
+    } finally {
+      setSavingTerm(false);
+    }
+  }
+
+  async function toggleSearchTerm(searchTerm: SearchTerm) {
+    try {
+      setError("");
+
+      const { error } = await supabase
+        .from("search_terms")
+        .update({
+          active: !searchTerm.active,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", searchTerm.id);
+
+      if (error) {
+        throw error;
+      }
+
+      setSearchTerms((current) =>
+        current.map((item) =>
+          item.id === searchTerm.id
+            ? {
+                ...item,
+                active: !item.active,
+              }
+            : item
+        )
+      );
+    } catch (err: any) {
+      console.error("Erro ao alterar status do termo:", err);
+
+      setError(
+        err?.message ||
+          err?.details ||
+          err?.hint ||
+          "Não foi possível alterar o status do termo."
+      );
+    }
+  }
+
+  async function deleteSearchTerm(searchTerm: SearchTerm) {
+    const confirmed = window.confirm(
+      `Deseja realmente excluir a busca "${searchTerm.term}"?`
+    );
+
+    if (!confirmed) {
       return;
     }
 
-    setStatus(data as MarketplaceStatus);
-    setLoading(false);
+    try {
+      setError("");
+
+      const { error } = await supabase
+        .from("search_terms")
+        .delete()
+        .eq("id", searchTerm.id);
+
+      if (error) {
+        throw error;
+      }
+
+      setSearchTerms((current) =>
+        current.filter((item) => item.id !== searchTerm.id)
+      );
+    } catch (err: any) {
+      console.error("Erro ao excluir termo:", err);
+
+      setError(
+        err?.message ||
+          err?.details ||
+          err?.hint ||
+          "Não foi possível excluir o termo."
+      );
+    }
+  }
+
+  function conectarMercadoLivre() {
+    window.open(
+      "https://pndbombvfrxpyqnraqsy.supabase.co/functions/v1/mercado-livre-oauth?action=start",
+      "_blank"
+    );
+  }
+
+  function abrirMercadoLivre() {
+    window.open("https://www.mercadolivre.com.br/", "_blank");
+  }
+
+  function formatExpiration(dateString?: string) {
+    if (!dateString) {
+      return "Não informado";
+    }
+
+    const date = new Date(dateString);
+
+    if (Number.isNaN(date.getTime())) {
+      return "Não informado";
+    }
+
+    return date.toLocaleString("pt-BR");
   }
 
   useEffect(() => {
     loadMarketplaceStatus();
+    loadSearchTerms();
   }, []);
-
-  function conectarMercadoLivre() {
-    window.location.href =
-      "https://pndbombvfrxpyqnraqsy.supabase.co/functions/v1/mercado-livre-oauth?action=start";
-  }
-
-  function abrirMercadoLivre() {
-    window.open(
-      "https://www.mercadolivre.com.br",
-      "_blank",
-      "noopener,noreferrer"
-    );
-  }
-
-  function formatExpiration(date: string | undefined) {
-    if (!date) {
-      return "Não informado";
-    }
-
-    return new Intl.DateTimeFormat("pt-BR", {
-      dateStyle: "short",
-      timeStyle: "short",
-    }).format(new Date(date));
-  }
 
   return (
     <div className="page">
       <div className="page-header">
         <div>
-          <p className="eyebrow">SISTEMA</p>
-
           <h1>Configurações</h1>
-
-          <p className="page-description">
-            Configure as integrações e o funcionamento do
-            Ofertix.
+          <p>
+            Configure as integrações e o funcionamento automático do Ofertix.
           </p>
         </div>
       </div>
@@ -105,172 +264,108 @@ export function Configuracoes() {
       {error && (
         <div
           style={{
-            marginBottom: "16px",
-            padding: "12px 14px",
-            borderRadius: "8px",
-            background: "#2a1820",
-            border: "1px solid #5a2735",
-            color: "#fca5a5",
-            fontSize: "12px",
+            marginBottom: 20,
+            padding: 14,
+            borderRadius: 10,
+            background: "#fff1f2",
+            border: "1px solid #fecdd3",
+            color: "#be123c",
           }}
         >
           {error}
         </div>
       )}
 
-      <div className="panel">
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "16px",
-            marginBottom: "24px",
-          }}
-        >
-          <div>
-            <p className="eyebrow">INTEGRAÇÕES</p>
-
-            <h2
-              style={{
-                margin: "6px 0 0",
-                color: "#e8edf5",
-                fontSize: "17px",
-              }}
-            >
-              Marketplaces
-            </h2>
-
-            <p
-              style={{
-                margin: "6px 0 0",
-                color: "#687386",
-                fontSize: "11px",
-              }}
-            >
-              Gerencie as conexões utilizadas pelo Ofertix.
-            </p>
-          </div>
-
-          <button
-            className="text-button"
-            onClick={loadMarketplaceStatus}
-            title="Atualizar conexão"
-            disabled={loading}
-          >
-            <RefreshCw
-              size={16}
-              style={{
-                animation: loading
-                  ? "spin 1s linear infinite"
-                  : "none",
-              }}
-            />
-          </button>
-        </div>
-
-        <div
-          style={{
-            border: "1px solid #202734",
-            borderRadius: "10px",
-            padding: "18px",
-            background: "#0b0f16",
-          }}
-        >
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 24,
+        }}
+      >
+        {/* MERCADO LIVRE */}
+        <div className="card">
           <div
             style={{
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              gap: "18px",
-              flexWrap: "wrap",
+              marginBottom: 20,
+              gap: 16,
             }}
           >
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "14px",
+                gap: 12,
               }}
             >
               <div
                 style={{
-                  width: "46px",
-                  height: "46px",
-                  borderRadius: "10px",
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: "#171d29",
-                  color: "#60a5fa",
+                  background: "#fff7ed",
+                  color: "#ea580c",
                 }}
               >
-                <ShoppingCart size={23} />
+                <ShoppingCart size={22} />
               </div>
 
               <div>
-                <div
+                <h2
                   style={{
-                    color: "#e8edf5",
-                    fontSize: "14px",
-                    fontWeight: 600,
+                    margin: 0,
+                    fontSize: 18,
                   }}
                 >
                   Mercado Livre
-                </div>
+                </h2>
 
-                <div
+                <p
                   style={{
-                    color: "#687386",
-                    fontSize: "11px",
-                    marginTop: "4px",
+                    margin: "4px 0 0",
+                    color: "#64748b",
+                    fontSize: 14,
                   }}
                 >
-                  Integração para busca e sincronização de
-                  produtos.
-                </div>
+                  Integração com a conta do Mercado Livre
+                </p>
               </div>
             </div>
 
             {loading ? (
               <span
                 style={{
-                  padding: "6px 10px",
-                  borderRadius: "20px",
-                  background: "#171d29",
-                  color: "#8d98aa",
-                  fontSize: "10px",
-                  fontWeight: 600,
+                  color: "#64748b",
+                  fontSize: 14,
                 }}
               >
                 Verificando...
               </span>
             ) : status?.connected ? (
-              <span
+              <div
                 style={{
-                  display: "inline-flex",
+                  display: "flex",
                   alignItems: "center",
-                  gap: "6px",
-                  padding: "6px 10px",
-                  borderRadius: "20px",
-                  background: "#132a21",
-                  color: "#6ee7b7",
-                  fontSize: "10px",
+                  gap: 7,
+                  color: "#16a34a",
+                  fontSize: 14,
                   fontWeight: 600,
                 }}
               >
-                <CheckCircle2 size={13} />
+                <CheckCircle2 size={18} />
                 Conectado
-              </span>
+              </div>
             ) : (
               <span
                 style={{
-                  padding: "6px 10px",
-                  borderRadius: "20px",
-                  background: "#29202a",
-                  color: "#a7adba",
-                  fontSize: "10px",
-                  fontWeight: 600,
+                  color: "#64748b",
+                  fontSize: 14,
                 }}
               >
                 Não conectado
@@ -278,65 +373,83 @@ export function Configuracoes() {
             )}
           </div>
 
-          {status?.connected && (
-            <div
-              style={{
-                marginTop: "18px",
-                paddingTop: "18px",
-                borderTop: "1px solid #202734",
-              }}
-            >
+          {status?.connected ? (
+            <div>
               <div
                 style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    "repeat(auto-fit, minmax(180px, 1fr))",
-                  gap: "14px",
+                  padding: 16,
+                  borderRadius: 10,
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  marginBottom: 16,
                 }}
               >
-                <div>
-                  <div
-                    style={{
-                      color: "#687386",
-                      fontSize: "10px",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Conta Mercado Livre
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fit, minmax(220px, 1fr))",
+                    gap: 16,
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#64748b",
+                        marginBottom: 5,
+                      }}
+                    >
+                      Marketplace
+                    </div>
+
+                    <div
+                      style={{
+                        fontWeight: 600,
+                      }}
+                    >
+                      {status.marketplace || "Mercado Livre"}
+                    </div>
                   </div>
 
-                  <div
-                    style={{
-                      color: "#cbd3df",
-                      fontSize: "12px",
-                      marginTop: "5px",
-                    }}
-                  >
-                    {status.external_user_id}
-                  </div>
-                </div>
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#64748b",
+                        marginBottom: 5,
+                      }}
+                    >
+                      Usuário
+                    </div>
 
-                <div>
-                  <div
-                    style={{
-                      color: "#687386",
-                      fontSize: "10px",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Token válido até
+                    <div
+                      style={{
+                        fontWeight: 600,
+                      }}
+                    >
+                      {status.external_user_id || "Não informado"}
+                    </div>
                   </div>
 
-                  <div
-                    style={{
-                      color: "#cbd3df",
-                      fontSize: "12px",
-                      marginTop: "5px",
-                    }}
-                  >
-                    {formatExpiration(
-                      status.token_expires_at
-                    )}
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#64748b",
+                        marginBottom: 5,
+                      }}
+                    >
+                      Token válido até
+                    </div>
+
+                    <div
+                      style={{
+                        fontWeight: 600,
+                      }}
+                    >
+                      {formatExpiration(status.token_expires_at)}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -344,49 +457,318 @@ export function Configuracoes() {
               <div
                 style={{
                   display: "flex",
-                  gap: "8px",
-                  marginTop: "18px",
                   flexWrap: "wrap",
+                  gap: 10,
                 }}
               >
                 <button
-                  className="primary-button"
+                  className="button secondary"
                   onClick={abrirMercadoLivre}
                 >
-                  <ExternalLink size={15} />
+                  <ExternalLink size={16} />
                   Abrir Mercado Livre
                 </button>
 
                 <button
-                  className="secondary-button"
-                  onClick={loadMarketplaceStatus}
+                  className="button secondary"
+                  onClick={conectarMercadoLivre}
                 >
-                  <RefreshCw size={15} />
-                  Atualizar
+                  <RefreshCw size={16} />
+                  Atualizar conexão
                 </button>
               </div>
             </div>
-          )}
-
-          {!loading && !status?.connected && (
-            <div
-              style={{
-                marginTop: "18px",
-                paddingTop: "18px",
-                borderTop: "1px solid #202734",
-              }}
-            >
-              <button
-                className="primary-button"
-                onClick={conectarMercadoLivre}
+          ) : (
+            <div>
+              <p
+                style={{
+                  marginTop: 0,
+                  color: "#64748b",
+                  lineHeight: 1.6,
+                }}
               >
+                Conecte sua conta do Mercado Livre para permitir que o Ofertix
+                consulte produtos e ofertas automaticamente.
+              </p>
+
+              <button className="button primary" onClick={conectarMercadoLivre}>
                 <ShoppingCart size={16} />
                 Conectar Mercado Livre
               </button>
             </div>
           )}
         </div>
+
+        {/* BUSCAS AUTOMÁTICAS */}
+        <div className="card">
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: 16,
+              marginBottom: 20,
+            }}
+          >
+            <div>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: 18,
+                }}
+              >
+                Buscas automáticas
+              </h2>
+
+              <p
+                style={{
+                  margin: "6px 0 0",
+                  color: "#64748b",
+                  fontSize: 14,
+                  lineHeight: 1.5,
+                }}
+              >
+                Defina os termos que o Ofertix utilizará para procurar novos
+                produtos automaticamente no Mercado Livre.
+              </p>
+            </div>
+
+            <button
+              className="button secondary"
+              onClick={loadSearchTerms}
+              disabled={termsLoading}
+              title="Atualizar buscas"
+            >
+              <RefreshCw
+                size={16}
+                style={{
+                  animation: termsLoading
+                    ? "spin 1s linear infinite"
+                    : undefined,
+                }}
+              />
+              Atualizar
+            </button>
+          </div>
+
+          {/* ADICIONAR TERMO */}
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              marginBottom: 20,
+              flexWrap: "wrap",
+            }}
+          >
+            <input
+              type="text"
+              value={newTerm}
+              onChange={(event) => setNewTerm(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  addSearchTerm();
+                }
+              }}
+              placeholder="Ex.: Pneus aro 15"
+              disabled={savingTerm}
+              style={{
+                flex: 1,
+                minWidth: 240,
+                height: 42,
+                padding: "0 14px",
+                borderRadius: 9,
+                border: "1px solid #cbd5e1",
+                outline: "none",
+                fontSize: 14,
+              }}
+            />
+
+            <button
+              className="button primary"
+              onClick={addSearchTerm}
+              disabled={savingTerm || !newTerm.trim()}
+            >
+              <Plus size={17} />
+              {savingTerm ? "Adicionando..." : "Adicionar"}
+            </button>
+          </div>
+
+          {/* LISTA */}
+          {termsLoading ? (
+            <div
+              style={{
+                padding: 30,
+                textAlign: "center",
+                color: "#64748b",
+              }}
+            >
+              Carregando buscas...
+            </div>
+          ) : searchTerms.length === 0 ? (
+            <div
+              style={{
+                padding: 30,
+                textAlign: "center",
+                color: "#64748b",
+                border: "1px dashed #cbd5e1",
+                borderRadius: 10,
+              }}
+            >
+              Nenhum termo de busca cadastrado.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              {searchTerms.map((searchTerm) => (
+                <div
+                  key={searchTerm.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    padding: "12px 14px",
+                    borderRadius: 10,
+                    border: "1px solid #e2e8f0",
+                    background: searchTerm.active ? "#ffffff" : "#f8fafc",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      minWidth: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 9,
+                        height: 9,
+                        minWidth: 9,
+                        borderRadius: "50%",
+                        background: searchTerm.active
+                          ? "#22c55e"
+                          : "#94a3b8",
+                      }}
+                    />
+
+                    <div
+                      style={{
+                        minWidth: 0,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          color: searchTerm.active ? "#0f172a" : "#64748b",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {searchTerm.term}
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: 3,
+                          fontSize: 12,
+                          color: "#94a3b8",
+                        }}
+                      >
+                        {searchTerm.active ? "Busca ativa" : "Busca pausada"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <button
+                      onClick={() => toggleSearchTerm(searchTerm)}
+                      title={
+                        searchTerm.active
+                          ? "Desativar busca"
+                          : "Ativar busca"
+                      }
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        padding: 6,
+                        color: searchTerm.active ? "#16a34a" : "#94a3b8",
+                      }}
+                    >
+                      {searchTerm.active ? (
+                        <ToggleRight size={28} />
+                      ) : (
+                        <ToggleLeft size={28} />
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => deleteSearchTerm(searchTerm)}
+                      title="Excluir busca"
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        padding: 6,
+                        color: "#ef4444",
+                      }}
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div
+            style={{
+              marginTop: 16,
+              padding: 12,
+              borderRadius: 9,
+              background: "#f8fafc",
+              color: "#64748b",
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            <strong>Como funciona:</strong> somente os termos ativos serão
+            utilizados pelo sincronizador automático do Mercado Livre. Ao
+            adicionar um novo termo aqui, não é necessário alterar o código do
+            sistema.
+          </div>
+        </div>
       </div>
+
+      <style>
+        {`
+          @keyframes spin {
+            from {
+              transform: rotate(0deg);
+            }
+
+            to {
+              transform: rotate(360deg);
+            }
+          }
+        `}
+      </style>
     </div>
   );
 }
