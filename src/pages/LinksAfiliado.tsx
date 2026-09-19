@@ -19,6 +19,13 @@ type Marketplace = {
   slug: string;
 };
 
+type AvailabilityStatus =
+  | "unknown"
+  | "checking"
+  | "available"
+  | "unavailable"
+  | "error";
+
 type Product = {
   id: string;
   marketplace_id: string;
@@ -31,6 +38,9 @@ type Product = {
   product_url: string | null;
   affiliate_url: string | null;
   active: boolean;
+  availability_status: AvailabilityStatus | null;
+  last_availability_check: string | null;
+  availability_error: string | null;
   marketplaces: Marketplace[] | null;
 };
 
@@ -54,20 +64,32 @@ type AffiliateForm = {
 
 export function LinksAfiliado() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [affiliateLinks, setAffiliateLinks] = useState<AffiliateLink[]>([]);
-  const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
+  const [affiliateLinks, setAffiliateLinks] = useState<
+    AffiliateLink[]
+  >([]);
+  const [marketplaces, setMarketplaces] = useState<
+    Marketplace[]
+  >([]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [search, setSearch] = useState("");
-  const [marketplaceFilter, setMarketplaceFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [marketplaceFilter, setMarketplaceFilter] =
+    useState("all");
+  const [statusFilter, setStatusFilter] =
+    useState("all");
+  const [availabilityFilter, setAvailabilityFilter] =
+    useState("all");
 
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>(
+    []
+  );
   const [showModal, setShowModal] = useState(false);
 
-  const [forms, setForms] = useState<Record<string, AffiliateForm>>({});
+  const [forms, setForms] = useState<
+    Record<string, AffiliateForm>
+  >({});
 
   async function loadData() {
     setLoading(true);
@@ -80,26 +102,27 @@ export function LinksAfiliado() {
       ] = await Promise.all([
         supabase
           .from("products")
-          .select(
-            `
+          .select(`
+            id,
+            marketplace_id,
+            external_id,
+            title,
+            price,
+            original_price,
+            discount_percent,
+            image_url,
+            product_url,
+            affiliate_url,
+            active,
+            availability_status,
+            last_availability_check,
+            availability_error,
+            marketplaces (
               id,
-              marketplace_id,
-              external_id,
-              title,
-              price,
-              original_price,
-              discount_percent,
-              image_url,
-              product_url,
-              affiliate_url,
-              active,
-              marketplaces (
-                id,
-                name,
-                slug
-              )
-            `
-          )
+              name,
+              slug
+            )
+          `)
           .eq("active", true)
           .order("created_at", {
             ascending: false,
@@ -193,6 +216,13 @@ export function LinksAfiliado() {
         marketplaceFilter === "all" ||
         product.marketplace_id === marketplaceFilter;
 
+      const availability =
+        product.availability_status || "unknown";
+
+      const matchesAvailability =
+        availabilityFilter === "all" ||
+        availability === availabilityFilter;
+
       const link =
         linksByProduct.get(product.id);
 
@@ -209,6 +239,7 @@ export function LinksAfiliado() {
       return (
         matchesSearch &&
         matchesMarketplace &&
+        matchesAvailability &&
         matchesStatus
       );
     });
@@ -217,6 +248,7 @@ export function LinksAfiliado() {
     search,
     marketplaceFilter,
     statusFilter,
+    availabilityFilter,
     linksByProduct,
   ]);
 
@@ -229,22 +261,29 @@ export function LinksAfiliado() {
         "ready"
     ).length;
 
-    const pending = products.filter(
-      (product) =>
-        linksByProduct.get(product.id)?.status ===
-        "pending"
-    ).length;
-
     const without = products.filter(
       (product) =>
         !linksByProduct.has(product.id)
     ).length;
 
+    const available = products.filter(
+      (product) =>
+        product.availability_status ===
+        "available"
+    ).length;
+
+    const unknown = products.filter(
+      (product) =>
+        !product.availability_status ||
+        product.availability_status === "unknown"
+    ).length;
+
     return {
       total,
       ready,
-      pending,
       without,
+      available,
+      unknown,
     };
   }, [products, linksByProduct]);
 
@@ -260,9 +299,7 @@ export function LinksAfiliado() {
     [selectedIds, products]
   );
 
-  function formatPrice(
-    value: number | null
-  ) {
+  function formatPrice(value: number | null) {
     if (
       value === null ||
       value === undefined
@@ -280,11 +317,14 @@ export function LinksAfiliado() {
     product: Product
   ) {
     return (
-      product.marketplaces?.[0]?.name || "—"
+      product.marketplaces?.[0]?.name ||
+      "—"
     );
   }
 
-  function getStatus(product: Product) {
+  function getAffiliateStatus(
+    product: Product
+  ) {
     const link =
       linksByProduct.get(product.id);
 
@@ -313,6 +353,44 @@ export function LinksAfiliado() {
       label: "Inválido",
       type: "invalid",
     };
+  }
+
+  function getAvailabilityStatus(
+    product: Product
+  ) {
+    switch (
+      product.availability_status
+    ) {
+      case "available":
+        return {
+          label: "Disponível",
+          type: "ready",
+        };
+
+      case "unavailable":
+        return {
+          label: "Indisponível",
+          type: "invalid",
+        };
+
+      case "checking":
+        return {
+          label: "Verificando",
+          type: "pending",
+        };
+
+      case "error":
+        return {
+          label: "Erro na verificação",
+          type: "invalid",
+        };
+
+      default:
+        return {
+          label: "Não verificado",
+          type: "without",
+        };
+    }
   }
 
   function toggleProduct(
@@ -437,7 +515,6 @@ export function LinksAfiliado() {
         alert(
           `Informe o link de afiliado para:\n\n${product.title}`
         );
-
         return;
       }
 
@@ -455,7 +532,6 @@ export function LinksAfiliado() {
         alert(
           `Informe uma URL válida para:\n\n${product.title}`
         );
-
         return;
       }
     }
@@ -469,10 +545,7 @@ export function LinksAfiliado() {
       for (const product of selectedProducts) {
         const form = forms[product.id];
 
-        const {
-          data,
-          error,
-        } =
+        const { data, error } =
           await supabase.functions.invoke(
             "affiliate-link-associate",
             {
@@ -555,10 +628,9 @@ export function LinksAfiliado() {
         <div className="page-header">
           <div>
             <h1>Links de Afiliado</h1>
-
             <p>
-              Selecione produtos e associe os
-              links oficiais dos marketplaces.
+              Associe os links oficiais dos
+              marketplaces aos produtos.
             </p>
           </div>
         </div>
@@ -577,9 +649,10 @@ export function LinksAfiliado() {
           <h1>Links de Afiliado</h1>
 
           <p>
-            Selecione os produtos, gere os links
-            na plataforma do marketplace e salve
-            tudo de uma vez.
+            Produtos ativos podem receber
+            links de afiliado mesmo enquanto
+            a verificação de disponibilidade
+            estiver pendente.
           </p>
         </div>
 
@@ -593,7 +666,7 @@ export function LinksAfiliado() {
           >
             <Link2 size={16} />
 
-            Gerar links (
+            Associar links (
             {selectedIds.length})
           </button>
         )}
@@ -602,11 +675,21 @@ export function LinksAfiliado() {
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-card-label">
-            Produtos
+            Produtos ativos
           </div>
 
           <div className="stat-card-value">
             {stats.total}
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-card-label">
+            Disponíveis
+          </div>
+
+          <div className="stat-card-value">
+            {stats.available}
           </div>
         </div>
 
@@ -622,21 +705,21 @@ export function LinksAfiliado() {
 
         <div className="stat-card">
           <div className="stat-card-label">
-            Pendentes
-          </div>
-
-          <div className="stat-card-value">
-            {stats.pending}
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-label">
             Sem link
           </div>
 
           <div className="stat-card-value">
             {stats.without}
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-card-label">
+            Não verificados
+          </div>
+
+          <div className="stat-card-value">
+            {stats.unknown}
           </div>
         </div>
       </div>
@@ -691,7 +774,7 @@ export function LinksAfiliado() {
             }
           >
             <option value="all">
-              Todos os status
+              Todos os links
             </option>
 
             <option value="without">
@@ -708,6 +791,39 @@ export function LinksAfiliado() {
 
             <option value="invalid">
               Inválido
+            </option>
+          </select>
+
+          <select
+            value={availabilityFilter}
+            onChange={(event) =>
+              setAvailabilityFilter(
+                event.target.value
+              )
+            }
+          >
+            <option value="all">
+              Toda disponibilidade
+            </option>
+
+            <option value="available">
+              Disponível
+            </option>
+
+            <option value="unknown">
+              Não verificado
+            </option>
+
+            <option value="checking">
+              Verificando
+            </option>
+
+            <option value="unavailable">
+              Indisponível
+            </option>
+
+            <option value="error">
+              Erro
             </option>
           </select>
         </div>
@@ -761,15 +877,11 @@ export function LinksAfiliado() {
                 </th>
 
                 <th>Produto</th>
-
                 <th>Marketplace</th>
-
                 <th>Preço</th>
-
                 <th>Desconto</th>
-
-                <th>Status</th>
-
+                <th>Disponibilidade</th>
+                <th>Afiliado</th>
                 <th />
               </tr>
             </thead>
@@ -779,7 +891,7 @@ export function LinksAfiliado() {
               0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="table-empty"
                   >
                     Nenhum produto encontrado.
@@ -788,8 +900,15 @@ export function LinksAfiliado() {
               ) : (
                 filteredProducts.map(
                   (product) => {
-                    const status =
-                      getStatus(product);
+                    const affiliateStatus =
+                      getAffiliateStatus(
+                        product
+                      );
+
+                    const availability =
+                      getAvailabilityStatus(
+                        product
+                      );
 
                     const link =
                       linksByProduct.get(
@@ -813,11 +932,6 @@ export function LinksAfiliado() {
                               toggleProduct(
                                 product.id
                               )
-                            }
-                            title={
-                              selected
-                                ? "Desmarcar produto"
-                                : "Selecionar produto"
                             }
                           >
                             {selected ? (
@@ -889,30 +1003,63 @@ export function LinksAfiliado() {
 
                         <td>
                           <span
-                            className={`status-badge status-${status.type}`}
+                            className={`status-badge status-${availability.type}`}
+                            title={
+                              product.availability_error ||
+                              ""
+                            }
                           >
-                            {status.type ===
+                            {availability.type ===
                               "ready" && (
                               <CheckCircle2
                                 size={14}
                               />
                             )}
 
-                            {status.type ===
+                            {availability.type ===
                               "pending" && (
                               <Clock3
                                 size={14}
                               />
                             )}
 
-                            {status.type ===
+                            {availability.type ===
                               "invalid" && (
                               <AlertCircle
                                 size={14}
                               />
                             )}
 
-                            {status.label}
+                            {availability.label}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span
+                            className={`status-badge status-${affiliateStatus.type}`}
+                          >
+                            {affiliateStatus.type ===
+                              "ready" && (
+                              <CheckCircle2
+                                size={14}
+                              />
+                            )}
+
+                            {affiliateStatus.type ===
+                              "pending" && (
+                              <Clock3
+                                size={14}
+                              />
+                            )}
+
+                            {affiliateStatus.type ===
+                              "invalid" && (
+                              <AlertCircle
+                                size={14}
+                              />
+                            )}
+
+                            {affiliateStatus.label}
                           </span>
                         </td>
 
@@ -926,7 +1073,7 @@ export function LinksAfiliado() {
                                 target="_blank"
                                 rel="noreferrer"
                                 className="icon-button"
-                                title="Abrir produto no marketplace"
+                                title="Abrir produto"
                               >
                                 <ExternalLink
                                   size={17}
@@ -942,7 +1089,7 @@ export function LinksAfiliado() {
                                 target="_blank"
                                 rel="noreferrer"
                                 className="icon-button"
-                                title="Abrir link de afiliado"
+                                title="Abrir afiliado"
                               >
                                 <Link2
                                   size={17}
@@ -994,13 +1141,12 @@ export function LinksAfiliado() {
             <div className="modal-header">
               <div>
                 <h2>
-                  Gerar links de afiliado
+                  Associar links de afiliado
                 </h2>
 
                 <p>
-                  Abra os produtos no
-                  marketplace, gere os links
-                  oficiais e cole-os abaixo.
+                  Gere os links oficiais no
+                  marketplace e cole-os abaixo.
                 </p>
               </div>
 
@@ -1108,8 +1254,7 @@ export function LinksAfiliado() {
                                 updateForm(
                                   product.id,
                                   "affiliateUrl",
-                                  event.target
-                                    .value
+                                  event.target.value
                                 )
                               }
                               placeholder="https://meli.la/..."
@@ -1131,8 +1276,7 @@ export function LinksAfiliado() {
                                 updateForm(
                                   product.id,
                                   "affiliateTag",
-                                  event.target
-                                    .value
+                                  event.target.value
                                 )
                               }
                               placeholder="ofertixauto"
@@ -1147,12 +1291,11 @@ export function LinksAfiliado() {
               </div>
 
               <div className="settings-note">
-                O link normal serve apenas
-                para acessar o produto no
-                marketplace. As ofertas e
-                publicações futuras usarão
-                exclusivamente o link de
-                afiliado salvo.
+                A disponibilidade do produto
+                não impede a associação do
+                afiliado. Depois de salvar,
+                o Ofertix cria automaticamente
+                a oferta quando aplicável.
               </div>
             </div>
 
