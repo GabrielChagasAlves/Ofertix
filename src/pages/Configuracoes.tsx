@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   ExternalLink,
+  FolderKanban,
   Plus,
   RefreshCw,
   ShoppingCart,
@@ -22,18 +25,35 @@ interface SearchTerm {
   id: string;
   term: string;
   active: boolean;
+  category_id: string | null;
   created_at: string;
+}
+
+interface OfferCategory {
+  id: string;
+  name: string;
+  slug: string;
+  priority: number;
+  active: boolean;
 }
 
 export function Configuracoes() {
   const [status, setStatus] = useState<MarketplaceStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
   const [searchTerms, setSearchTerms] = useState<SearchTerm[]>([]);
+  const [categories, setCategories] = useState<OfferCategory[]>([]);
   const [termsLoading, setTermsLoading] = useState(true);
+
   const [newTerm, setNewTerm] = useState("");
+  const [newCategoryId, setNewCategoryId] = useState("");
   const [savingTerm, setSavingTerm] = useState(false);
+
+  const [error, setError] = useState("");
+
+  const [openCategories, setOpenCategories] = useState<
+    Record<string, boolean>
+  >({});
 
   async function loadMarketplaceStatus() {
     try {
@@ -53,7 +73,10 @@ export function Configuracoes() {
 
       setStatus(data);
     } catch (err: any) {
-      console.error("Erro ao carregar status do Mercado Livre:", err);
+      console.error(
+        "Erro ao carregar status do Mercado Livre:",
+        err
+      );
 
       setError(
         err?.message ||
@@ -69,19 +92,77 @@ export function Configuracoes() {
   async function loadSearchTerms() {
     try {
       setTermsLoading(true);
+      setError("");
 
-      const { data, error } = await supabase
-        .from("search_terms")
-        .select("id, term, active, created_at")
-        .order("created_at", { ascending: true });
+      const [termsResult, categoriesResult] = await Promise.all([
+        supabase
+          .from("search_terms")
+          .select(
+            "id, term, active, category_id, created_at"
+          )
+          .order("created_at", {
+            ascending: true,
+          }),
 
-      if (error) {
-        throw error;
+        supabase
+          .from("offer_categories")
+          .select(
+            "id, name, slug, priority, active"
+          )
+          .eq("active", true)
+          .order("priority", {
+            ascending: true,
+          })
+          .order("name", {
+            ascending: true,
+          }),
+      ]);
+
+      if (termsResult.error) {
+        throw termsResult.error;
       }
 
-      setSearchTerms(data || []);
+      if (categoriesResult.error) {
+        throw categoriesResult.error;
+      }
+
+      const loadedTerms = termsResult.data || [];
+      const loadedCategories =
+        categoriesResult.data || [];
+
+      setSearchTerms(loadedTerms);
+      setCategories(loadedCategories);
+
+      setNewCategoryId((current) => {
+        if (
+          current &&
+          loadedCategories.some(
+            (category) => category.id === current
+          )
+        ) {
+          return current;
+        }
+
+        return loadedCategories[0]?.id || "";
+      });
+
+      const initialOpenState: Record<
+        string,
+        boolean
+      > = {};
+
+      loadedCategories.forEach((category) => {
+        initialOpenState[category.id] = true;
+      });
+
+      initialOpenState.uncategorized = true;
+
+      setOpenCategories(initialOpenState);
     } catch (err: any) {
-      console.error("Erro ao carregar buscas automáticas:", err);
+      console.error(
+        "Erro ao carregar buscas automáticas:",
+        err
+      );
 
       setError(
         err?.message ||
@@ -101,16 +182,27 @@ export function Configuracoes() {
       return;
     }
 
+    if (!newCategoryId) {
+      setError(
+        "Selecione uma categoria para a busca."
+      );
+      return;
+    }
+
     try {
       setSavingTerm(true);
       setError("");
 
       const alreadyExists = searchTerms.some(
-        (item) => item.term.toLowerCase() === term.toLowerCase()
+        (item) =>
+          item.term.toLowerCase() ===
+          term.toLowerCase()
       );
 
       if (alreadyExists) {
-        setError("Esse termo já está cadastrado.");
+        setError(
+          "Esse termo já está cadastrado."
+        );
         return;
       }
 
@@ -119,8 +211,11 @@ export function Configuracoes() {
         .insert({
           term,
           active: true,
+          category_id: newCategoryId,
         })
-        .select("id, term, active, created_at")
+        .select(
+          "id, term, active, category_id, created_at"
+        )
         .single();
 
       if (error) {
@@ -128,12 +223,23 @@ export function Configuracoes() {
       }
 
       if (data) {
-        setSearchTerms((current) => [...current, data]);
+        setSearchTerms((current) => [
+          ...current,
+          data,
+        ]);
+
+        setOpenCategories((current) => ({
+          ...current,
+          [newCategoryId]: true,
+        }));
       }
 
       setNewTerm("");
     } catch (err: any) {
-      console.error("Erro ao adicionar termo:", err);
+      console.error(
+        "Erro ao adicionar termo:",
+        err
+      );
 
       setError(
         err?.message ||
@@ -146,7 +252,9 @@ export function Configuracoes() {
     }
   }
 
-  async function toggleSearchTerm(searchTerm: SearchTerm) {
+  async function toggleSearchTerm(
+    searchTerm: SearchTerm
+  ) {
     try {
       setError("");
 
@@ -154,7 +262,8 @@ export function Configuracoes() {
         .from("search_terms")
         .update({
           active: !searchTerm.active,
-          updated_at: new Date().toISOString(),
+          updated_at:
+            new Date().toISOString(),
         })
         .eq("id", searchTerm.id);
 
@@ -173,7 +282,10 @@ export function Configuracoes() {
         )
       );
     } catch (err: any) {
-      console.error("Erro ao alterar status do termo:", err);
+      console.error(
+        "Erro ao alterar status do termo:",
+        err
+      );
 
       setError(
         err?.message ||
@@ -184,7 +296,9 @@ export function Configuracoes() {
     }
   }
 
-  async function deleteSearchTerm(searchTerm: SearchTerm) {
+  async function deleteSearchTerm(
+    searchTerm: SearchTerm
+  ) {
     const confirmed = window.confirm(
       `Deseja realmente excluir a busca "${searchTerm.term}"?`
     );
@@ -206,10 +320,15 @@ export function Configuracoes() {
       }
 
       setSearchTerms((current) =>
-        current.filter((item) => item.id !== searchTerm.id)
+        current.filter(
+          (item) => item.id !== searchTerm.id
+        )
       );
     } catch (err: any) {
-      console.error("Erro ao excluir termo:", err);
+      console.error(
+        "Erro ao excluir termo:",
+        err
+      );
 
       setError(
         err?.message ||
@@ -220,6 +339,13 @@ export function Configuracoes() {
     }
   }
 
+  function toggleCategory(categoryId: string) {
+    setOpenCategories((current) => ({
+      ...current,
+      [categoryId]: !current[categoryId],
+    }));
+  }
+
   function conectarMercadoLivre() {
     window.open(
       "https://pndbombvfrxpyqnraqsy.supabase.co/functions/v1/mercado-livre-oauth?action=start",
@@ -228,10 +354,15 @@ export function Configuracoes() {
   }
 
   function abrirMercadoLivre() {
-    window.open("https://www.mercadolivre.com.br/", "_blank");
+    window.open(
+      "https://www.mercadolivre.com.br/",
+      "_blank"
+    );
   }
 
-  function formatExpiration(dateString?: string) {
+  function formatExpiration(
+    dateString?: string
+  ) {
     if (!dateString) {
       return "Não informado";
     }
@@ -245,225 +376,154 @@ export function Configuracoes() {
     return date.toLocaleString("pt-BR");
   }
 
+  const groupedCategories = useMemo(() => {
+    const groups = categories.map(
+      (category) => ({
+        category,
+        terms: searchTerms.filter(
+          (term) =>
+            term.category_id ===
+            category.id
+        ),
+      })
+    );
+
+    const uncategorized =
+      searchTerms.filter(
+        (term) =>
+          !term.category_id ||
+          !categories.some(
+            (category) =>
+              category.id ===
+              term.category_id
+          )
+      );
+
+    if (uncategorized.length > 0) {
+      groups.push({
+        category: {
+          id: "uncategorized",
+          name: "Sem categoria",
+          slug: "sem-categoria",
+          priority: 999,
+          active: true,
+        },
+        terms: uncategorized,
+      });
+    }
+
+    return groups.filter(
+      (group) => group.terms.length > 0
+    );
+  }, [categories, searchTerms]);
+
   useEffect(() => {
     loadMarketplaceStatus();
     loadSearchTerms();
   }, []);
 
   return (
-    <div className="page">
+    <div className="page settings-page">
       <div className="page-header">
         <div>
+          <p className="eyebrow">
+            CONFIGURAÇÕES
+          </p>
+
           <h1>Configurações</h1>
-          <p>
-            Configure as integrações e o funcionamento automático do Ofertix.
+
+          <p className="page-description">
+            Configure as integrações e o
+            funcionamento automático do
+            Ofertix.
           </p>
         </div>
       </div>
 
       {error && (
-        <div
-          style={{
-            marginBottom: 20,
-            padding: 14,
-            borderRadius: 10,
-            background: "#fff1f2",
-            border: "1px solid #fecdd3",
-            color: "#be123c",
-          }}
-        >
+        <div className="settings-alert">
           {error}
         </div>
       )}
 
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 24,
-        }}
-      >
+      <div className="settings-stack">
         {/* MERCADO LIVRE */}
-        <div className="card">
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 20,
-              gap: 16,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 12,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: "#fff7ed",
-                  color: "#ea580c",
-                }}
-              >
-                <ShoppingCart size={22} />
+
+        <section className="card settings-card">
+          <div className="settings-section-header">
+            <div className="settings-title-area">
+              <div className="settings-icon marketplace-icon">
+                <ShoppingCart size={21} />
               </div>
 
               <div>
-                <h2
-                  style={{
-                    margin: 0,
-                    fontSize: 18,
-                  }}
-                >
-                  Mercado Livre
-                </h2>
+                <h2>Mercado Livre</h2>
 
-                <p
-                  style={{
-                    margin: "4px 0 0",
-                    color: "#64748b",
-                    fontSize: 14,
-                  }}
-                >
-                  Integração com a conta do Mercado Livre
+                <p>
+                  Integração com a conta do
+                  Mercado Livre
                 </p>
               </div>
             </div>
 
             {loading ? (
-              <span
-                style={{
-                  color: "#64748b",
-                  fontSize: 14,
-                }}
-              >
+              <span className="settings-connection checking">
                 Verificando...
               </span>
             ) : status?.connected ? (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 7,
-                  color: "#16a34a",
-                  fontSize: 14,
-                  fontWeight: 600,
-                }}
-              >
-                <CheckCircle2 size={18} />
+              <span className="settings-connection connected">
+                <CheckCircle2 size={17} />
                 Conectado
-              </div>
+              </span>
             ) : (
-              <span
-                style={{
-                  color: "#64748b",
-                  fontSize: 14,
-                }}
-              >
+              <span className="settings-connection disconnected">
                 Não conectado
               </span>
             )}
           </div>
 
           {status?.connected ? (
-            <div>
-              <div
-                style={{
-                  padding: 16,
-                  borderRadius: 10,
-                  background: "#f8fafc",
-                  border: "1px solid #e2e8f0",
-                  marginBottom: 16,
-                }}
-              >
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "repeat(auto-fit, minmax(220px, 1fr))",
-                    gap: 16,
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#64748b",
-                        marginBottom: 5,
-                      }}
-                    >
-                      Marketplace
-                    </div>
+            <>
+              <div className="connection-info">
+                <div>
+                  <span>
+                    Marketplace
+                  </span>
 
-                    <div
-                      style={{
-                        fontWeight: 600,
-                      }}
-                    >
-                      {status.marketplace || "Mercado Livre"}
-                    </div>
-                  </div>
+                  <strong>
+                    {status.marketplace ||
+                      "Mercado Livre"}
+                  </strong>
+                </div>
 
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#64748b",
-                        marginBottom: 5,
-                      }}
-                    >
-                      Usuário
-                    </div>
+                <div>
+                  <span>Usuário</span>
 
-                    <div
-                      style={{
-                        fontWeight: 600,
-                      }}
-                    >
-                      {status.external_user_id || "Não informado"}
-                    </div>
-                  </div>
+                  <strong>
+                    {status.external_user_id ||
+                      "Não informado"}
+                  </strong>
+                </div>
 
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#64748b",
-                        marginBottom: 5,
-                      }}
-                    >
-                      Token válido até
-                    </div>
+                <div>
+                  <span>
+                    Token válido até
+                  </span>
 
-                    <div
-                      style={{
-                        fontWeight: 600,
-                      }}
-                    >
-                      {formatExpiration(status.token_expires_at)}
-                    </div>
-                  </div>
+                  <strong>
+                    {formatExpiration(
+                      status.token_expires_at
+                    )}
+                  </strong>
                 </div>
               </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 10,
-                }}
-              >
+              <div className="settings-actions">
                 <button
                   className="button secondary"
-                  onClick={abrirMercadoLivre}
+                  onClick={
+                    abrirMercadoLivre
+                  }
                 >
                   <ExternalLink size={16} />
                   Abrir Mercado Livre
@@ -471,304 +531,373 @@ export function Configuracoes() {
 
                 <button
                   className="button secondary"
-                  onClick={conectarMercadoLivre}
+                  onClick={
+                    conectarMercadoLivre
+                  }
                 >
                   <RefreshCw size={16} />
                   Atualizar conexão
                 </button>
               </div>
-            </div>
+            </>
           ) : (
-            <div>
-              <p
-                style={{
-                  marginTop: 0,
-                  color: "#64748b",
-                  lineHeight: 1.6,
-                }}
-              >
-                Conecte sua conta do Mercado Livre para permitir que o Ofertix
-                consulte produtos e ofertas automaticamente.
+            <div className="connection-empty">
+              <p>
+                Conecte sua conta do Mercado
+                Livre para permitir que o
+                Ofertix consulte produtos e
+                ofertas automaticamente.
               </p>
 
-              <button className="button primary" onClick={conectarMercadoLivre}>
-                <ShoppingCart size={16} />
+              <button
+                className="primary-button"
+                onClick={
+                  conectarMercadoLivre
+                }
+              >
+                <ShoppingCart size={17} />
                 Conectar Mercado Livre
               </button>
             </div>
           )}
-        </div>
+        </section>
 
         {/* BUSCAS AUTOMÁTICAS */}
-        <div className="card">
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              justifyContent: "space-between",
-              gap: 16,
-              marginBottom: 20,
-            }}
-          >
-            <div>
-              <h2
-                style={{
-                  margin: 0,
-                  fontSize: 18,
-                }}
-              >
-                Buscas automáticas
-              </h2>
 
-              <p
-                style={{
-                  margin: "6px 0 0",
-                  color: "#64748b",
-                  fontSize: 14,
-                  lineHeight: 1.5,
-                }}
-              >
-                Defina os termos que o Ofertix utilizará para procurar novos
-                produtos automaticamente no Mercado Livre.
-              </p>
+        <section className="card settings-card">
+          <div className="settings-section-header">
+            <div className="settings-title-area">
+              <div className="settings-icon category-icon">
+                <FolderKanban size={21} />
+              </div>
+
+              <div>
+                <h2>
+                  Buscas automáticas
+                </h2>
+
+                <p>
+                  Organize os termos de
+                  pesquisa por categoria.
+                  Somente buscas ativas serão
+                  utilizadas pelo
+                  sincronizador.
+                </p>
+              </div>
             </div>
 
             <button
               className="button secondary"
-              onClick={loadSearchTerms}
+              onClick={
+                loadSearchTerms
+              }
               disabled={termsLoading}
-              title="Atualizar buscas"
             >
               <RefreshCw
                 size={16}
-                style={{
-                  animation: termsLoading
-                    ? "spin 1s linear infinite"
-                    : undefined,
-                }}
+                className={
+                  termsLoading
+                    ? "spin"
+                    : ""
+                }
               />
+
               Atualizar
             </button>
           </div>
 
-          {/* ADICIONAR TERMO */}
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              marginBottom: 20,
-              flexWrap: "wrap",
-            }}
-          >
-            <input
-              type="text"
-              value={newTerm}
-              onChange={(event) => setNewTerm(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  addSearchTerm();
+          {/* NOVA BUSCA */}
+
+          <div className="search-term-form">
+            <div className="settings-field">
+              <label htmlFor="search-term">
+                Nova busca
+              </label>
+
+              <input
+                id="search-term"
+                type="text"
+                value={newTerm}
+                onChange={(event) =>
+                  setNewTerm(
+                    event.target.value
+                  )
                 }
-              }}
-              placeholder="Ex.: Pneus aro 15"
-              disabled={savingTerm}
-              style={{
-                flex: 1,
-                minWidth: 240,
-                height: 42,
-                padding: "0 14px",
-                borderRadius: 9,
-                border: "1px solid #cbd5e1",
-                outline: "none",
-                fontSize: 14,
-              }}
-            />
+                onKeyDown={(event) => {
+                  if (
+                    event.key === "Enter"
+                  ) {
+                    addSearchTerm();
+                  }
+                }}
+                placeholder="Ex.: Vara de pesca"
+                disabled={savingTerm}
+              />
+            </div>
+
+            <div className="settings-field category-field">
+              <label htmlFor="search-category">
+                Categoria
+              </label>
+
+              <select
+                id="search-category"
+                value={newCategoryId}
+                onChange={(event) =>
+                  setNewCategoryId(
+                    event.target.value
+                  )
+                }
+                disabled={
+                  savingTerm ||
+                  categories.length === 0
+                }
+              >
+                {categories.length === 0 ? (
+                  <option value="">
+                    Nenhuma categoria
+                    disponível
+                  </option>
+                ) : (
+                  categories.map(
+                    (category) => (
+                      <option
+                        key={
+                          category.id
+                        }
+                        value={
+                          category.id
+                        }
+                      >
+                        {category.name}
+                      </option>
+                    )
+                  )
+                )}
+              </select>
+            </div>
 
             <button
-              className="button primary"
-              onClick={addSearchTerm}
-              disabled={savingTerm || !newTerm.trim()}
+              className="primary-button add-search-button"
+              onClick={
+                addSearchTerm
+              }
+              disabled={
+                savingTerm ||
+                !newTerm.trim() ||
+                !newCategoryId
+              }
             >
               <Plus size={17} />
-              {savingTerm ? "Adicionando..." : "Adicionar"}
+
+              {savingTerm
+                ? "Adicionando..."
+                : "Adicionar busca"}
             </button>
           </div>
 
-          {/* LISTA */}
-          {termsLoading ? (
-            <div
-              style={{
-                padding: 30,
-                textAlign: "center",
-                color: "#64748b",
-              }}
-            >
-              Carregando buscas...
-            </div>
-          ) : searchTerms.length === 0 ? (
-            <div
-              style={{
-                padding: 30,
-                textAlign: "center",
-                color: "#64748b",
-                border: "1px dashed #cbd5e1",
-                borderRadius: 10,
-              }}
-            >
-              Nenhum termo de busca cadastrado.
-            </div>
-          ) : (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-              }}
-            >
-              {searchTerms.map((searchTerm) => (
-                <div
-                  key={searchTerm.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    padding: "12px 14px",
-                    borderRadius: 10,
-                    border: "1px solid #e2e8f0",
-                    background: searchTerm.active ? "#ffffff" : "#f8fafc",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      minWidth: 0,
-                    }}
-                  >
+          {/* CATEGORIAS */}
+
+          <div className="category-list">
+            {termsLoading ? (
+              <div className="settings-empty">
+                <RefreshCw
+                  size={20}
+                  className="spin"
+                />
+
+                <span>
+                  Carregando categorias
+                  e buscas...
+                </span>
+              </div>
+            ) : groupedCategories.length ===
+              0 ? (
+              <div className="settings-empty">
+                <FolderKanban
+                  size={24}
+                />
+
+                <strong>
+                  Nenhuma busca
+                  cadastrada
+                </strong>
+
+                <span>
+                  Adicione uma busca e
+                  escolha a categoria
+                  correspondente.
+                </span>
+              </div>
+            ) : (
+              groupedCategories.map(
+                ({
+                  category,
+                  terms,
+                }) => {
+                  const isOpen =
+                    openCategories[
+                      category.id
+                    ] !== false;
+
+                  const activeCount =
+                    terms.filter(
+                      (term) =>
+                        term.active
+                    ).length;
+
+                  return (
                     <div
-                      style={{
-                        width: 9,
-                        height: 9,
-                        minWidth: 9,
-                        borderRadius: "50%",
-                        background: searchTerm.active
-                          ? "#22c55e"
-                          : "#94a3b8",
-                      }}
-                    />
-
-                    <div
-                      style={{
-                        minWidth: 0,
-                      }}
+                      className="category-group"
+                      key={category.id}
                     >
-                      <div
-                        style={{
-                          fontWeight: 600,
-                          color: searchTerm.active ? "#0f172a" : "#64748b",
-                          wordBreak: "break-word",
-                        }}
+                      <button
+                        className="category-header"
+                        onClick={() =>
+                          toggleCategory(
+                            category.id
+                          )
+                        }
                       >
-                        {searchTerm.term}
-                      </div>
+                        <div className="category-heading">
+                          <div className="category-dot" />
 
-                      <div
-                        style={{
-                          marginTop: 3,
-                          fontSize: 12,
-                          color: "#94a3b8",
-                        }}
-                      >
-                        {searchTerm.active ? "Busca ativa" : "Busca pausada"}
-                      </div>
-                    </div>
-                  </div>
+                          <div>
+                            <strong>
+                              {category.name}
+                            </strong>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <button
-                      onClick={() => toggleSearchTerm(searchTerm)}
-                      title={
-                        searchTerm.active
-                          ? "Desativar busca"
-                          : "Ativar busca"
-                      }
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        padding: 6,
-                        color: searchTerm.active ? "#16a34a" : "#94a3b8",
-                      }}
-                    >
-                      {searchTerm.active ? (
-                        <ToggleRight size={28} />
-                      ) : (
-                        <ToggleLeft size={28} />
+                            <span>
+                              {terms.length}{" "}
+                              {terms.length ===
+                              1
+                                ? "busca"
+                                : "buscas"}{" "}
+                              ·{" "}
+                              {activeCount}{" "}
+                              ativas
+                            </span>
+                          </div>
+                        </div>
+
+                        {isOpen ? (
+                          <ChevronUp
+                            size={19}
+                          />
+                        ) : (
+                          <ChevronDown
+                            size={19}
+                          />
+                        )}
+                      </button>
+
+                      {isOpen && (
+                        <div className="category-terms">
+                          {terms.map(
+                            (
+                              searchTerm
+                            ) => (
+                              <div
+                                className="search-term-row"
+                                key={
+                                  searchTerm.id
+                                }
+                              >
+                                <div className="search-term-main">
+                                  <span
+                                    className={
+                                      searchTerm.active
+                                        ? "term-status active"
+                                        : "term-status"
+                                    }
+                                  />
+
+                                  <div>
+                                    <strong>
+                                      {
+                                        searchTerm.term
+                                      }
+                                    </strong>
+
+                                    <span>
+                                      {searchTerm.active
+                                        ? "Busca ativa"
+                                        : "Busca pausada"}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="search-term-actions">
+                                  <button
+                                    onClick={() =>
+                                      toggleSearchTerm(
+                                        searchTerm
+                                      )
+                                    }
+                                    title={
+                                      searchTerm.active
+                                        ? "Desativar busca"
+                                        : "Ativar busca"
+                                    }
+                                    className="term-action"
+                                  >
+                                    {searchTerm.active ? (
+                                      <ToggleRight
+                                        size={
+                                          27
+                                        }
+                                      />
+                                    ) : (
+                                      <ToggleLeft
+                                        size={
+                                          27
+                                        }
+                                      />
+                                    )}
+                                  </button>
+
+                                  <button
+                                    onClick={() =>
+                                      deleteSearchTerm(
+                                        searchTerm
+                                      )
+                                    }
+                                    title="Excluir busca"
+                                    className="term-action danger"
+                                  >
+                                    <Trash2
+                                      size={
+                                        17
+                                      }
+                                    />
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          )}
+                        </div>
                       )}
-                    </button>
-
-                    <button
-                      onClick={() => deleteSearchTerm(searchTerm)}
-                      title="Excluir busca"
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        padding: 6,
-                        color: "#ef4444",
-                      }}
-                    >
-                      <Trash2 size={17} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div
-            style={{
-              marginTop: 16,
-              padding: 12,
-              borderRadius: 9,
-              background: "#f8fafc",
-              color: "#64748b",
-              fontSize: 13,
-              lineHeight: 1.5,
-            }}
-          >
-            <strong>Como funciona:</strong> somente os termos ativos serão
-            utilizados pelo sincronizador automático do Mercado Livre. Ao
-            adicionar um novo termo aqui, não é necessário alterar o código do
-            sistema.
+                    </div>
+                  );
+                }
+              )
+            )}
           </div>
-        </div>
+
+          <div className="settings-note">
+            <strong>
+              Organização por categoria:
+            </strong>{" "}
+            cada busca pertence a uma
+            categoria. Isso permite que o
+            Ofertix use a mesma estrutura
+            depois para direcionar ofertas
+            para canais específicos, como
+            Automotivo, Pesca e outras
+            categorias.
+          </div>
+        </section>
       </div>
-
-      <style>
-        {`
-          @keyframes spin {
-            from {
-              transform: rotate(0deg);
-            }
-
-            to {
-              transform: rotate(360deg);
-            }
-          }
-        `}
-      </style>
     </div>
   );
 }

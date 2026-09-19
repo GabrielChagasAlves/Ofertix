@@ -463,3 +463,673 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================================================
+   OFERTIX - SIDEBAR E CONFIGURAÇÕES
+   ========================================================= */
+
+.sidebar-logo .logo-icon {
+  flex-shrink: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.sidebar-logo strong {
+  color: #f4f7fb;
+}
+
+.sidebar-logo span {
+  color: #7d8798;
+}
+
+.nav-item {
+  text-decoration: none;
+}
+
+.nav-item svg {
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   CONFIGURAÇÕES
+   ========================================================= */
+
+.settings-page {
+  max-width: 1500px;
+}
+
+.settings-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.settings-card {
+  padding: 22px;
+}
+
+.settings-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.settings-title-area {
+  display: flex;
+  align-items: center;
+
+  gap: 13px;
+  min-width: 0;
+}
+
+.settings-title-area h2 {
+  margin: 0;
+
+  color: #edf2f8;
+
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.settings-title-area p {
+  margin: 5px 0 0;
+
+  color: #687386;
+
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-icon {
+  width: 42px;
+  height: 42px;
+
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 10px;
+
+  background: #17243a;
+  color: #60a5fa;
+}
+
+.marketplace-icon {
+  color: #fb923c;
+  background: #2a2119;
+}
+
+.category-icon {
+  color: #60a5fa;
+}
+
+/* =========================================================
+   STATUS DA CONEXÃO
+   ========================================================= */
+
+.settings-connection {
+  display: inline-flex;
+  align-items: center;
+
+  gap: 7px;
+
+  white-space: nowrap;
+
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.settings-connection.connected {
+  color: #22c55e;
+}
+
+.settings-connection.disconnected,
+.settings-connection.checking {
+  color: #7d8798;
+}
+
+.connection-info {
+  display: grid;
+
+  grid-template-columns: repeat(3, 1fr);
+
+  gap: 14px;
+
+  padding: 16px;
+
+  border: 1px solid #202734;
+  border-radius: 10px;
+
+  background: #0d121a;
+}
+
+.connection-info div {
+  min-width: 0;
+}
+
+.connection-info span {
+  display: block;
+
+  margin-bottom: 5px;
+
+  color: #667184;
+
+  font-size: 10px;
+}
+
+.connection-info strong {
+  display: block;
+
+  overflow: hidden;
+
+  color: #dfe5ee;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+
+  gap: 9px;
+
+  margin-top: 13px;
+}
+
+.button.secondary {
+  display: inline-flex;
+  align-items: center;
+
+  gap: 7px;
+
+  min-height: 36px;
+
+  padding: 8px 12px;
+
+  border: 1px solid #283243;
+  border-radius: 8px;
+
+  background: #151b26;
+  color: #cbd5e1;
+
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.button.secondary:hover {
+  background: #1a2230;
+  border-color: #344158;
+}
+
+.button.secondary:disabled,
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.connection-empty {
+  padding: 16px;
+
+  border: 1px dashed #293345;
+  border-radius: 10px;
+
+  background: #0d121a;
+}
+
+.connection-empty p {
+  margin: 0 0 14px;
+
+  color: #737e90;
+
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* =========================================================
+   ALERTA
+   ========================================================= */
+
+.settings-alert {
+  margin-bottom: 18px;
+
+  padding: 12px 14px;
+
+  border: 1px solid #4c252c;
+  border-radius: 9px;
+
+  background: #241418;
+  color: #fda4af;
+
+  font-size: 12px;
+}
+
+/* =========================================================
+   NOVA BUSCA
+   ========================================================= */
+
+.search-term-form {
+  display: grid;
+
+  grid-template-columns:
+    minmax(260px, 1fr)
+    230px
+    auto;
+
+  align-items: end;
+
+  gap: 10px;
+
+  margin-bottom: 18px;
+
+  padding: 15px;
+
+  border: 1px solid #202734;
+  border-radius: 10px;
+
+  background: #0d121a;
+}
+
+.settings-field {
+  min-width: 0;
+}
+
+.settings-field label {
+  display: block;
+
+  margin-bottom: 7px;
+
+  color: #8d98aa;
+
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.settings-field input,
+.settings-field select {
+  width: 100%;
+  height: 39px;
+
+  padding: 0 11px;
+
+  border: 1px solid #283243;
+  border-radius: 8px;
+
+  outline: none;
+
+  background: #111722;
+  color: #dfe5ee;
+
+  font-size: 12px;
+}
+
+.settings-field input::placeholder {
+  color: #4f5b6e;
+}
+
+.settings-field input:focus,
+.settings-field select:focus {
+  border-color: #3b82f6;
+
+  box-shadow:
+    0 0 0 2px
+    rgba(59, 130, 246, 0.1);
+}
+
+.add-search-button {
+  height: 39px;
+
+  white-space: nowrap;
+}
+
+/* =========================================================
+   LISTA DE CATEGORIAS
+   ========================================================= */
+
+.category-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 10px;
+}
+
+.category-group {
+  overflow: hidden;
+
+  border: 1px solid #202734;
+  border-radius: 10px;
+
+  background: #0d121a;
+}
+
+.category-header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  width: 100%;
+
+  padding: 13px 15px;
+
+  border: 0;
+
+  background: transparent;
+  color: #dfe5ee;
+
+  text-align: left;
+
+  cursor: pointer;
+}
+
+.category-header:hover {
+  background: #111722;
+}
+
+.category-heading {
+  display: flex;
+
+  align-items: center;
+
+  gap: 11px;
+}
+
+.category-dot {
+  width: 8px;
+  height: 8px;
+
+  flex-shrink: 0;
+
+  border-radius: 50%;
+
+  background: #3b82f6;
+
+  box-shadow:
+    0 0 0 4px
+    rgba(59, 130, 246, 0.08);
+}
+
+.category-heading strong {
+  display: block;
+
+  color: #e9edf4;
+
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.category-heading span {
+  display: block;
+
+  margin-top: 3px;
+
+  color: #667184;
+
+  font-size: 10px;
+}
+
+.category-header > svg {
+  color: #64748b;
+
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   TERMOS DENTRO DA CATEGORIA
+   ========================================================= */
+
+.category-terms {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 7px;
+
+  padding: 0 10px 10px;
+}
+
+.search-term-row {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  min-width: 0;
+  min-height: 50px;
+
+  padding: 9px 10px;
+
+  border: 1px solid #1d2633;
+  border-radius: 8px;
+
+  background: #111722;
+}
+
+.search-term-row:hover {
+  border-color: #29364a;
+
+  background: #131a25;
+}
+
+.search-term-main {
+  display: flex;
+
+  align-items: center;
+
+  gap: 9px;
+
+  min-width: 0;
+}
+
+.term-status {
+  width: 7px;
+  height: 7px;
+
+  flex-shrink: 0;
+
+  border-radius: 50%;
+
+  background: #64748b;
+}
+
+.term-status.active {
+  background: #22c55e;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(34, 197, 94, 0.08);
+}
+
+.search-term-main strong {
+  display: block;
+
+  overflow: hidden;
+
+  color: #dfe5ee;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-term-main span:not(.term-status) {
+  display: block;
+
+  margin-top: 3px;
+
+  color: #667184;
+
+  font-size: 9px;
+}
+
+.search-term-actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 1px;
+
+  flex-shrink: 0;
+}
+
+.term-action {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 5px;
+
+  border: 0;
+  border-radius: 6px;
+
+  background: transparent;
+
+  color: #22c55e;
+
+  cursor: pointer;
+}
+
+.term-action:hover {
+  background: #17251e;
+}
+
+.term-action.danger {
+  color: #ef4444;
+}
+
+.term-action.danger:hover {
+  background: #28191d;
+}
+
+/* =========================================================
+   OBSERVAÇÃO
+   ========================================================= */
+
+.settings-note {
+  margin-top: 14px;
+
+  padding: 11px 13px;
+
+  border: 1px solid #202734;
+  border-radius: 8px;
+
+  background: #0d121a;
+  color: #687386;
+
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.settings-note strong {
+  color: #a8b2c2;
+}
+
+/* =========================================================
+   ESTADO VAZIO
+   ========================================================= */
+
+.settings-empty {
+  display: flex;
+
+  min-height: 130px;
+
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  border: 1px dashed #293345;
+  border-radius: 10px;
+
+  background: #0d121a;
+  color: #667184;
+
+  font-size: 11px;
+
+  text-align: center;
+}
+
+.settings-empty strong {
+  color: #aeb8c7;
+
+  font-size: 12px;
+}
+
+/* =========================================================
+   ANIMAÇÃO
+   ========================================================= */
+
+.spin {
+  animation:
+    settings-spin 1s linear infinite;
+}
+
+@keyframes settings-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =========================================================
+   RESPONSIVO
+   ========================================================= */
+
+@media (max-width: 900px) {
+  .search-term-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .add-search-button {
+    width: 100%;
+
+    grid-column: 1 / -1;
+  }
+
+  .category-terms {
+    grid-template-columns: 1fr;
+  }
+
+  .connection-info {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .settings-section-header {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+
+  .search-term-form {
+    grid-template-columns: 1fr;
+  }
+
+  .add-search-button {
+    grid-column: auto;
+  }
+
+  .settings-card {
+    padding: 15px;
+  }
+}
