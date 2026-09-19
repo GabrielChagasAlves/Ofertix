@@ -60,29 +60,32 @@ export function Ofertas() {
     setLoading(true);
     setError(null);
 
-    const [productsResult, marketplacesResult, offersResult] =
-      await Promise.all([
-        supabase
-          .from("products")
-          .select("*")
-          .eq("active", true)
-          .order("created_at", {
-            ascending: false,
-          }),
+    const [
+      productsResult,
+      marketplacesResult,
+      offersResult,
+    ] = await Promise.all([
+      supabase
+        .from("products")
+        .select("*")
+        .eq("active", true)
+        .order("created_at", {
+          ascending: false,
+        }),
 
-        supabase
-          .from("marketplaces")
-          .select("id, name, slug, active")
-          .eq("active", true)
-          .order("name"),
+      supabase
+        .from("marketplaces")
+        .select("id, name, slug, active")
+        .eq("active", true)
+        .order("name"),
 
-        supabase
-          .from("offers")
-          .select("*")
-          .order("created_at", {
-            ascending: false,
-          }),
-      ]);
+      supabase
+        .from("offers")
+        .select("*")
+        .order("created_at", {
+          ascending: false,
+        }),
+    ]);
 
     if (productsResult.error) {
       console.error(productsResult.error);
@@ -148,8 +151,22 @@ export function Ofertas() {
       return;
     }
 
+    /*
+     * Uma oferta só pode ser criada depois que
+     * o produto possuir um link oficial de afiliado.
+     */
+    if (!product.affiliate_url) {
+      setError(
+        "Este produto ainda não possui um link de afiliado. Associe o link oficial antes de gerar a oferta."
+      );
+
+      setGenerating(null);
+      return;
+    }
+
     const title =
-      product.discount_percent && product.discount_percent > 0
+      product.discount_percent &&
+      product.discount_percent > 0
         ? `${product.title} — ${product.discount_percent}% OFF`
         : product.title;
 
@@ -164,33 +181,42 @@ export function Ofertas() {
             product.price
           )}`;
 
-    const { error } = await supabase.from("offers").insert({
-      product_id: product.id,
-      rule_id: null,
-      title,
-      message,
-      affiliate_url:
-        product.affiliate_url || product.product_url || null,
-      status: "draft",
-      scheduled_at: null,
-      published_at: null,
-    });
+    const { error } = await supabase
+      .from("offers")
+      .insert({
+        product_id: product.id,
+        rule_id: null,
+        title,
+        message,
+
+        /*
+         * IMPORTANTE:
+         * Nunca utilizar product_url como fallback.
+         * A oferta precisa utilizar o link oficial
+         * de afiliado.
+         */
+        affiliate_url: product.affiliate_url,
+
+        status: "draft",
+        scheduled_at: null,
+        published_at: null,
+      });
 
     if (error) {
-  console.error("Erro ao gerar oferta:", error);
+      console.error("Erro ao gerar oferta:", error);
 
-  setError(
-    `Erro ao gerar oferta: ${
-      error.message ||
-      error.details ||
-      error.hint ||
-      JSON.stringify(error)
-    }`
-  );
+      setError(
+        `Erro ao gerar oferta: ${
+          error.message ||
+          error.details ||
+          error.hint ||
+          JSON.stringify(error)
+        }`
+      );
 
-  setGenerating(null);
-  return;
-}
+      setGenerating(null);
+      return;
+    }
 
     setSuccess("Oferta gerada com sucesso.");
 
@@ -212,7 +238,9 @@ export function Ofertas() {
         <div className="page-header">
           <div>
             <p className="eyebrow">OFERTAS</p>
+
             <h1>Ofertas</h1>
+
             <p className="page-description">
               Transforme produtos encontrados em ofertas
               prontas para publicação.
@@ -223,6 +251,7 @@ export function Ofertas() {
         <div className="panel">
           <div className="empty-state">
             <RefreshCw size={30} />
+
             <h3>Carregando ofertas...</h3>
           </div>
         </div>
@@ -258,6 +287,7 @@ export function Ofertas() {
           }}
         >
           <RefreshCw size={15} />
+
           Atualizar
         </button>
       </div>
@@ -444,8 +474,8 @@ export function Ofertas() {
                             }}
                           >
                             <Tag size={11} />
-                            {product.discount_percent}%
-                            OFF
+
+                            {product.discount_percent}% OFF
                           </span>
                         )}
                     </div>
@@ -480,15 +510,13 @@ export function Ofertas() {
                             fontWeight: 600,
                           }}
                         >
-                          {offer.status ===
-                          "published" ? (
+                          {offer.status === "published" ? (
                             <CheckCircle2 size={12} />
                           ) : (
                             <Clock3 size={12} />
                           )}
 
-                          {offer.status ===
-                          "published"
+                          {offer.status === "published"
                             ? "Publicada"
                             : "Pendente"}
                         </span>
@@ -531,10 +559,19 @@ export function Ofertas() {
                             generateOffer(product)
                           }
                           disabled={
-                            generating === product.id
+                            generating === product.id ||
+                            !product.affiliate_url
+                          }
+                          title={
+                            !product.affiliate_url
+                              ? "Associe um link de afiliado antes de gerar a oferta."
+                              : "Gerar oferta"
                           }
                           style={{
                             minWidth: "130px",
+                            opacity: product.affiliate_url
+                              ? 1
+                              : 0.55,
                           }}
                         >
                           {generating === product.id ? (
@@ -546,12 +583,20 @@ export function Ofertas() {
                                     "spin 1s linear infinite",
                                 }}
                               />
+
                               Gerando...
+                            </>
+                          ) : product.affiliate_url ? (
+                            <>
+                              <Tag size={14} />
+
+                              Gerar oferta
                             </>
                           ) : (
                             <>
-                              <Tag size={14} />
-                              Gerar oferta
+                              <Clock3 size={14} />
+
+                              Aguardando afiliado
                             </>
                           )}
                         </button>
