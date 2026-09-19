@@ -9,36 +9,82 @@ import {
   MousePointerClick,
   Settings,
   Link2,
+  LogOut,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
+import { supabase } from "../lib/supabase";
+
 export function Sidebar() {
   const menuItems = [
-    { label: "Dashboard", icon: BarChart3, path: "/" },
-    { label: "Produtos", icon: ShoppingBag, path: "/produtos" },
-    { label: "Ofertas", icon: Tags, path: "/ofertas" },
-    { label: "Marketplaces", icon: Store, path: "/marketplaces" },
-    { label: "Regras", icon: ListFilter, path: "/regras" },
-    { label: "Links de Afiliado", icon: Link2, path: "/links-afiliado" },
-    { label: "Publicações", icon: Send, path: "/publicacoes" },
-    { label: "WhatsApp", icon: MessageCircle, path: "/whatsapp" },
-    { label: "Cliques", icon: MousePointerClick, path: "/cliques" },
+    {
+      label: "Dashboard",
+      icon: BarChart3,
+      path: "/",
+    },
+    {
+      label: "Produtos",
+      icon: ShoppingBag,
+      path: "/produtos",
+    },
+    {
+      label: "Ofertas",
+      icon: Tags,
+      path: "/ofertas",
+    },
+    {
+      label: "Marketplaces",
+      icon: Store,
+      path: "/marketplaces",
+    },
+    {
+      label: "Regras",
+      icon: ListFilter,
+      path: "/regras",
+    },
+    {
+      label: "Links de Afiliado",
+      icon: Link2,
+      path: "/links-afiliado",
+    },
+    {
+      label: "Publicações",
+      icon: Send,
+      path: "/publicacoes",
+    },
+    {
+      label: "WhatsApp",
+      icon: MessageCircle,
+      path: "/whatsapp",
+    },
+    {
+      label: "Cliques",
+      icon: MousePointerClick,
+      path: "/cliques",
+    },
   ];
+
+  async function handleLogout() {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error("Erro ao sair:", error);
+      alert("Não foi possível sair da conta.");
+    }
+  }
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-logo">
-        <div className="logo-icon">O</div>
+      <div className="sidebar-header">
+        <div className="sidebar-logo">O</div>
 
-        <div>
+        <div className="sidebar-brand">
           <strong>Ofertix</strong>
-          <span>Automação de Ofertas</span>
+          <span>Automação de ofertas</span>
         </div>
       </div>
 
       <nav className="sidebar-nav">
-        <div className="nav-section-title">MENU</div>
-
         {menuItems.map((item) => {
           const Icon = item.icon;
 
@@ -48,7 +94,7 @@ export function Sidebar() {
               to={item.path}
               end={item.path === "/"}
               className={({ isActive }) =>
-                `nav-item ${isActive ? "active" : ""}`
+                `sidebar-link ${isActive ? "active" : ""}`
               }
             >
               <Icon size={18} strokeWidth={2} />
@@ -62,12 +108,21 @@ export function Sidebar() {
         <NavLink
           to="/configuracoes"
           className={({ isActive }) =>
-            `nav-item ${isActive ? "active" : ""}`
+            `sidebar-link ${isActive ? "active" : ""}`
           }
         >
           <Settings size={18} strokeWidth={2} />
           <span>Configurações</span>
         </NavLink>
+
+        <button
+          type="button"
+          className="sidebar-logout"
+          onClick={handleLogout}
+        >
+          <LogOut size={18} strokeWidth={2} />
+          <span>Sair</span>
+        </button>
       </div>
     </aside>
   );
