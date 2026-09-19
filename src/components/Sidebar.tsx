@@ -12,7 +12,6 @@ import {
   LogOut,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
-
 import { supabase } from "../lib/supabase";
 
 export function Sidebar() {
@@ -75,10 +74,12 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-header">
-        <div className="sidebar-logo">O</div>
+      <div className="sidebar-logo">
+        <div className="logo-icon">
+          <span>O</span>
+        </div>
 
-        <div className="sidebar-brand">
+        <div>
           <strong>Ofertix</strong>
           <span>Automação de ofertas</span>
         </div>
@@ -94,10 +95,11 @@ export function Sidebar() {
               to={item.path}
               end={item.path === "/"}
               className={({ isActive }) =>
-                `sidebar-link ${isActive ? "active" : ""}`
+                `nav-item ${isActive ? "active" : ""}`
               }
             >
               <Icon size={18} strokeWidth={2} />
+
               <span>{item.label}</span>
             </NavLink>
           );
@@ -108,10 +110,11 @@ export function Sidebar() {
         <NavLink
           to="/configuracoes"
           className={({ isActive }) =>
-            `sidebar-link ${isActive ? "active" : ""}`
+            `nav-item ${isActive ? "active" : ""}`
           }
         >
           <Settings size={18} strokeWidth={2} />
+
           <span>Configurações</span>
         </NavLink>
 
@@ -121,6 +124,7 @@ export function Sidebar() {
           onClick={handleLogout}
         >
           <LogOut size={18} strokeWidth={2} />
+
           <span>Sair</span>
         </button>
       </div>

@@ -19,7 +19,9 @@ export function Login() {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
     setErrorMessage("");
@@ -38,7 +40,9 @@ export function Login() {
     }
 
     if (password.length < 6) {
-      setErrorMessage("A senha deve ter pelo menos 6 caracteres.");
+      setErrorMessage(
+        "A senha deve ter pelo menos 6 caracteres."
+      );
       return;
     }
 
@@ -46,57 +50,88 @@ export function Login() {
 
     try {
       if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({
-          email: normalizedEmail,
-          password,
-        });
+        const redirectUrl = window.location.origin;
+
+        const { data, error } =
+          await supabase.auth.signUp({
+            email: normalizedEmail,
+            password,
+            options: {
+              emailRedirectTo: redirectUrl,
+            },
+          });
 
         if (error) {
           throw error;
         }
 
         if (data.session) {
-          setSuccessMessage("Conta criada com sucesso.");
+          setSuccessMessage(
+            "Conta criada com sucesso."
+          );
         } else {
           setSuccessMessage(
-            "Conta criada! Verifique seu e-mail para confirmar o cadastro."
+            "Conta criada! Enviamos um link de confirmação para seu e-mail."
           );
         }
 
         setPassword("");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: normalizedEmail,
-          password,
-        });
+        const { error } =
+          await supabase.auth.signInWithPassword({
+            email: normalizedEmail,
+            password,
+          });
 
         if (error) {
           throw error;
         }
       }
     } catch (error) {
-      console.error("Erro na autenticação:", error);
+      console.error(
+        "Erro na autenticação:",
+        error
+      );
 
       const message =
         error instanceof Error
           ? error.message
           : "Não foi possível realizar a autenticação.";
 
+      const normalizedMessage =
+        message.toLowerCase();
+
       if (
-        message.toLowerCase().includes("invalid login credentials")
+        normalizedMessage.includes(
+          "invalid login credentials"
+        )
       ) {
-        setErrorMessage("E-mail ou senha incorretos.");
+        setErrorMessage(
+          "E-mail ou senha incorretos."
+        );
       } else if (
-        message.toLowerCase().includes("email not confirmed")
+        normalizedMessage.includes(
+          "email not confirmed"
+        )
       ) {
         setErrorMessage(
           "Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada."
         );
       } else if (
-        message.toLowerCase().includes("user already registered")
+        normalizedMessage.includes(
+          "user already registered"
+        )
       ) {
         setErrorMessage(
           "Este e-mail já possui uma conta. Faça login."
+        );
+      } else if (
+        normalizedMessage.includes(
+          "redirect"
+        )
+      ) {
+        setErrorMessage(
+          "A URL de confirmação não está autorizada no Supabase. Verifique a configuração de Redirect URLs."
         );
       } else {
         setErrorMessage(message);
@@ -123,13 +158,17 @@ export function Login() {
 
           <div>
             <strong>Ofertix</strong>
-            <span>Automação de ofertas</span>
+            <span>
+              Automação de ofertas
+            </span>
           </div>
         </div>
 
         <div className="auth-header">
           <h1>
-            {isSignUp ? "Criar sua conta" : "Bem-vindo de volta"}
+            {isSignUp
+              ? "Criar sua conta"
+              : "Bem-vindo de volta"}
           </h1>
 
           <p>
@@ -139,9 +178,14 @@ export function Login() {
           </p>
         </div>
 
-        <form className="auth-form" onSubmit={handleSubmit}>
+        <form
+          className="auth-form"
+          onSubmit={handleSubmit}
+        >
           <div className="auth-field">
-            <label htmlFor="email">E-mail</label>
+            <label htmlFor="email">
+              E-mail
+            </label>
 
             <div className="auth-input-wrapper">
               <Mail size={18} />
@@ -150,7 +194,9 @@ export function Login() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) =>
+                  setEmail(event.target.value)
+                }
                 placeholder="seu@email.com"
                 autoComplete="email"
                 disabled={loading}
@@ -159,19 +205,31 @@ export function Login() {
           </div>
 
           <div className="auth-field">
-            <label htmlFor="password">Senha</label>
+            <label htmlFor="password">
+              Senha
+            </label>
 
             <div className="auth-input-wrapper">
               <LockKeyhole size={18} />
 
               <input
                 id="password"
-                type={showPassword ? "text" : "password"}
+                type={
+                  showPassword
+                    ? "text"
+                    : "password"
+                }
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) =>
+                  setPassword(
+                    event.target.value
+                  )
+                }
                 placeholder="Digite sua senha"
                 autoComplete={
-                  isSignUp ? "new-password" : "current-password"
+                  isSignUp
+                    ? "new-password"
+                    : "current-password"
                 }
                 disabled={loading}
               />
@@ -179,7 +237,11 @@ export function Login() {
               <button
                 type="button"
                 className="auth-password-toggle"
-                onClick={() => setShowPassword((current) => !current)}
+                onClick={() =>
+                  setShowPassword(
+                    (current) => !current
+                  )
+                }
                 aria-label={
                   showPassword
                     ? "Ocultar senha"
@@ -216,6 +278,7 @@ export function Login() {
             {loading ? (
               <span className="auth-submit-loading">
                 <span className="auth-spinner" />
+
                 {isSignUp
                   ? "Criando conta..."
                   : "Entrando..."}
@@ -248,7 +311,9 @@ export function Login() {
             onClick={toggleMode}
             disabled={loading}
           >
-            {isSignUp ? "Fazer login" : "Criar conta"}
+            {isSignUp
+              ? "Fazer login"
+              : "Criar conta"}
           </button>
         </div>
       </div>
