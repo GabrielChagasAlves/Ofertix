@@ -1,4 +1,3 @@
-import { NavLink } from "react-router-dom";
 import {
   BarChart3,
   ShoppingBag,
@@ -9,69 +8,72 @@ import {
   MessageCircle,
   MousePointerClick,
   Settings,
-  Zap,
+  Link2,
 } from "lucide-react";
 
-const menuItems = [
-  {
-    label: "Dashboard",
-    path: "/",
-    icon: BarChart3,
-  },
-  {
-    label: "Produtos",
-    path: "/produtos",
-    icon: ShoppingBag,
-  },
-  {
-    label: "Ofertas",
-    path: "/ofertas",
-    icon: Tags,
-  },
-  {
-    label: "Marketplaces",
-    path: "/marketplaces",
-    icon: Store,
-  },
-  {
-    label: "Regras",
-    path: "/regras",
-    icon: ListFilter,
-  },
-  {
-    label: "Publicações",
-    path: "/publicacoes",
-    icon: Send,
-  },
-  {
-    label: "WhatsApp",
-    path: "/whatsapp",
-    icon: MessageCircle,
-  },
-  {
-    label: "Cliques",
-    path: "/cliques",
-    icon: MousePointerClick,
-  },
-];
+import { NavLink } from "react-router-dom";
 
 export function Sidebar() {
+  const menuItems = [
+    {
+      label: "Dashboard",
+      icon: BarChart3,
+      path: "/",
+    },
+    {
+      label: "Produtos",
+      icon: ShoppingBag,
+      path: "/produtos",
+    },
+    {
+      label: "Ofertas",
+      icon: Tags,
+      path: "/ofertas",
+    },
+    {
+      label: "Marketplaces",
+      icon: Store,
+      path: "/marketplaces",
+    },
+    {
+      label: "Regras",
+      icon: ListFilter,
+      path: "/regras",
+    },
+    {
+      label: "Links de Afiliado",
+      icon: Link2,
+      path: "/links-afiliado",
+    },
+    {
+      label: "Publicações",
+      icon: Send,
+      path: "/publicacoes",
+    },
+    {
+      label: "WhatsApp",
+      icon: MessageCircle,
+      path: "/whatsapp",
+    },
+    {
+      label: "Cliques",
+      icon: MousePointerClick,
+      path: "/cliques",
+    },
+  ];
+
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
-        <div className="logo-icon">
-          <Zap size={21} />
-        </div>
+        <div className="sidebar-logo-mark">O</div>
 
         <div>
-          <strong>Ofertix</strong>
-          <span>Ofertas inteligentes</span>
+          <div className="sidebar-logo-title">Ofertix</div>
+          <div className="sidebar-logo-subtitle">Automação de Ofertas</div>
         </div>
       </div>
 
       <nav className="sidebar-nav">
-        <div className="nav-section-title">MENU</div>
-
         {menuItems.map((item) => {
           const Icon = item.icon;
 
@@ -81,10 +83,11 @@ export function Sidebar() {
               to={item.path}
               end={item.path === "/"}
               className={({ isActive }) =>
-                `nav-item ${isActive ? "active" : ""}`
+                `sidebar-link ${isActive ? "active" : ""}`
               }
             >
-              <Icon size={19} />
+              <Icon size={19} strokeWidth={2} />
+
               <span>{item.label}</span>
             </NavLink>
           );
@@ -95,16 +98,13 @@ export function Sidebar() {
         <NavLink
           to="/configuracoes"
           className={({ isActive }) =>
-            `nav-item ${isActive ? "active" : ""}`
+            `sidebar-link ${isActive ? "active" : ""}`
           }
         >
-          <Settings size={19} />
+          <Settings size={19} strokeWidth={2} />
+
           <span>Configurações</span>
         </NavLink>
-
-        <div className="sidebar-version">
-          Ofertix v0.1.0
-        </div>
       </div>
     </aside>
   );

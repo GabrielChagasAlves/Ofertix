@@ -10,6 +10,7 @@ import { Publicacoes } from "./pages/Publicacoes";
 import { WhatsApp } from "./pages/WhatsApp";
 import { Cliques } from "./pages/Cliques";
 import { Configuracoes } from "./pages/Configuracoes";
+import { LinksAfiliado } from "./pages/LinksAfiliado";
 
 function App() {
   return (
@@ -20,23 +21,24 @@ function App() {
         <main className="main-content">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+
             <Route path="/produtos" element={<Produtos />} />
+
             <Route path="/ofertas" element={<Ofertas />} />
-            <Route
-              path="/marketplaces"
-              element={<Marketplaces />}
-            />
+
+            <Route path="/marketplaces" element={<Marketplaces />} />
+
             <Route path="/regras" element={<Regras />} />
-            <Route
-              path="/publicacoes"
-              element={<Publicacoes />}
-            />
+
+            <Route path="/links-afiliado" element={<LinksAfiliado />} />
+
+            <Route path="/publicacoes" element={<Publicacoes />} />
+
             <Route path="/whatsapp" element={<WhatsApp />} />
+
             <Route path="/cliques" element={<Cliques />} />
-            <Route
-              path="/configuracoes"
-              element={<Configuracoes />}
-            />
+
+            <Route path="/configuracoes" element={<Configuracoes />} />
           </Routes>
         </main>
       </div>
