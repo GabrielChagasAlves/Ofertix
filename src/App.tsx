@@ -17,6 +17,7 @@ import { Marketplaces } from "./pages/Marketplaces";
 import { Regras } from "./pages/Regras";
 import { Publicacoes } from "./pages/Publicacoes";
 import { WhatsApp } from "./pages/WhatsApp";
+import { Canais } from "./pages/Canais";
 import { Cliques } from "./pages/Cliques";
 import { Configuracoes } from "./pages/Configuracoes";
 import { LinksAfiliado } from "./pages/LinksAfiliado";
@@ -26,37 +27,30 @@ function App() {
   const [session, setSession] =
     useState<Session | null>(null);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
 
-    async function loadSession() {
-      const { data, error } =
-        await supabase.auth.getSession();
-
-      if (error) {
-        console.error(
-          "Erro ao carregar sessão:",
-          error
-        );
-      }
+    const loadSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
       if (mounted) {
-        setSession(data.session);
+        setSession(session);
         setLoading(false);
       }
-    }
+    };
 
     loadSession();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
-      (_event, currentSession) => {
+      (_event, session) => {
         if (mounted) {
-          setSession(currentSession);
+          setSession(session);
         }
       }
     );
@@ -69,14 +63,10 @@ function App() {
 
   if (loading) {
     return (
-      <div className="auth-loading">
-        <div className="auth-loading-logo">
-          O
-        </div>
+      <div className="app-loading">
+        <div className="loading-spinner" />
 
-        <span>
-          Carregando Ofertix...
-        </span>
+        <p>Carregando Ofertix...</p>
       </div>
     );
   }
@@ -102,11 +92,15 @@ function App() {
               element={<Produtos />}
             />
 
+            {/* Mantida por compatibilidade.
+                Não aparece no menu principal. */}
             <Route
               path="/ofertas"
               element={<Ofertas />}
             />
 
+            {/* Página atual de integrações/marketplaces.
+                O menu já apresenta como "Integrações". */}
             <Route
               path="/marketplaces"
               element={<Marketplaces />}
@@ -132,6 +126,13 @@ function App() {
               element={<Publicacoes />}
             />
 
+            <Route
+              path="/canais"
+              element={<Canais />}
+            />
+
+            {/* Mantida por compatibilidade.
+                A configuração principal agora é feita em Canais. */}
             <Route
               path="/whatsapp"
               element={<WhatsApp />}

@@ -1,166 +1,183 @@
 import {
-  BarChart3,
-  ShoppingBag,
-  Tags,
-  Store,
-  ListFilter,
-  Send,
-  MessageCircle,
-  MousePointerClick,
-  Settings,
+  Boxes,
+  Cable,
+  ChevronRight,
+  Gauge,
+  Globe2,
   Link2,
   LogOut,
-  Activity,
+  Megaphone,
+  MousePointerClick,
+  PlayCircle,
+  Settings,
+  Tags,
 } from "lucide-react";
 
-import { NavLink } from "react-router-dom";
+import {
+  NavLink,
+  useNavigate,
+} from "react-router-dom";
+
 import { supabase } from "../lib/supabase";
 
+const menuItems = [
+  {
+    label: "Dashboard",
+    path: "/",
+    icon: Gauge,
+  },
+  {
+    label: "Produtos",
+    path: "/produtos",
+    icon: Boxes,
+  },
+  {
+    label: "Integrações",
+    path: "/marketplaces",
+    icon: Cable,
+  },
+  {
+    label: "Regras",
+    path: "/regras",
+    icon: Tags,
+  },
+  {
+    label: "Links de Afiliado",
+    path: "/links-afiliado",
+    icon: Link2,
+  },
+  {
+    label: "Execuções",
+    path: "/execucoes",
+    icon: PlayCircle,
+  },
+  {
+    label: "Publicações",
+    path: "/publicacoes",
+    icon: Megaphone,
+  },
+  {
+    label: "Canais",
+    path: "/canais",
+    icon: Globe2,
+  },
+  {
+    label: "Cliques",
+    path: "/cliques",
+    icon: MousePointerClick,
+  },
+];
+
 export function Sidebar() {
-  const menuItems = [
-    {
-      label: "Dashboard",
-      icon: BarChart3,
-      path: "/",
-    },
-    {
-      label: "Produtos",
-      icon: ShoppingBag,
-      path: "/produtos",
-    },
-    {
-      label: "Ofertas",
-      icon: Tags,
-      path: "/ofertas",
-    },
-    {
-      label: "Marketplaces",
-      icon: Store,
-      path: "/marketplaces",
-    },
-    {
-      label: "Regras",
-      icon: ListFilter,
-      path: "/regras",
-    },
-    {
-      label: "Links de Afiliado",
-      icon: Link2,
-      path: "/links-afiliado",
-    },
-    {
-      label: "Execuções",
-      icon: Activity,
-      path: "/execucoes",
-    },
-    {
-      label: "Publicações",
-      icon: Send,
-      path: "/publicacoes",
-    },
-    {
-      label: "WhatsApp",
-      icon: MessageCircle,
-      path: "/whatsapp",
-    },
-    {
-      label: "Cliques",
-      icon: MousePointerClick,
-      path: "/cliques",
-    },
-  ];
+  const navigate = useNavigate();
 
-  async function handleLogout() {
-    const { error } =
-      await supabase.auth.signOut();
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
 
-    if (error) {
-      console.error(
-        "Erro ao sair:",
-        error
-      );
-
-      alert(
-        "Não foi possível sair da conta."
-      );
-    }
-  }
+    navigate("/");
+  };
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-logo">
-        <div className="logo-icon">
-          <span>O</span>
+      <div className="sidebar-top">
+        <div className="sidebar-brand">
+          <div className="brand-mark">
+            <span>O</span>
+          </div>
+
+          <div className="brand-content">
+            <strong>Ofertix</strong>
+
+            <span>
+              Automação de ofertas
+            </span>
+          </div>
         </div>
 
-        <div>
-          <strong>Ofertix</strong>
+        <nav className="sidebar-nav">
+          <div className="sidebar-section-label">
+            PRINCIPAL
+          </div>
 
-          <span>
-            Automação de ofertas
-          </span>
-        </div>
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.path === "/"}
+                className={({ isActive }) =>
+                  `sidebar-link ${
+                    isActive ? "active" : ""
+                  }`
+                }
+              >
+                <Icon
+                  size={18}
+                  strokeWidth={1.9}
+                />
+
+                <span>{item.label}</span>
+
+                <ChevronRight
+                  className="sidebar-link-arrow"
+                  size={15}
+                  strokeWidth={1.8}
+                />
+              </NavLink>
+            );
+          })}
+        </nav>
       </div>
 
-      <nav className="sidebar-nav">
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.path === "/"}
-              className={({ isActive }) =>
-                `nav-item ${
-                  isActive ? "active" : ""
-                }`
-              }
-            >
-              <Icon
-                size={18}
-                strokeWidth={2}
-              />
-
-              <span>
-                {item.label}
-              </span>
-            </NavLink>
-          );
-        })}
-      </nav>
-
       <div className="sidebar-bottom">
+        <div className="sidebar-section-label">
+          SISTEMA
+        </div>
+
         <NavLink
           to="/configuracoes"
           className={({ isActive }) =>
-            `nav-item ${
+            `sidebar-link ${
               isActive ? "active" : ""
             }`
           }
         >
           <Settings
             size={18}
-            strokeWidth={2}
+            strokeWidth={1.9}
           />
 
-          <span>
-            Configurações
-          </span>
+          <span>Configurações</span>
+
+          <ChevronRight
+            className="sidebar-link-arrow"
+            size={15}
+            strokeWidth={1.8}
+          />
         </NavLink>
 
         <button
           type="button"
-          className="sidebar-logout"
+          className="sidebar-link sidebar-logout"
           onClick={handleLogout}
         >
           <LogOut
             size={18}
-            strokeWidth={2}
+            strokeWidth={1.9}
           />
 
           <span>Sair</span>
         </button>
+
+        <div className="sidebar-version">
+          <div>
+            <span>Ofertix</span>
+
+            <small>v1.0</small>
+          </div>
+        </div>
       </div>
     </aside>
   );
