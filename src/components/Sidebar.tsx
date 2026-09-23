@@ -10,7 +10,9 @@ import {
   Settings,
   Link2,
   LogOut,
+  Activity,
 } from "lucide-react";
+
 import { NavLink } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
@@ -47,6 +49,11 @@ export function Sidebar() {
       path: "/links-afiliado",
     },
     {
+      label: "Execuções",
+      icon: Activity,
+      path: "/execucoes",
+    },
+    {
       label: "Publicações",
       icon: Send,
       path: "/publicacoes",
@@ -64,11 +71,18 @@ export function Sidebar() {
   ];
 
   async function handleLogout() {
-    const { error } = await supabase.auth.signOut();
+    const { error } =
+      await supabase.auth.signOut();
 
     if (error) {
-      console.error("Erro ao sair:", error);
-      alert("Não foi possível sair da conta.");
+      console.error(
+        "Erro ao sair:",
+        error
+      );
+
+      alert(
+        "Não foi possível sair da conta."
+      );
     }
   }
 
@@ -81,7 +95,10 @@ export function Sidebar() {
 
         <div>
           <strong>Ofertix</strong>
-          <span>Automação de ofertas</span>
+
+          <span>
+            Automação de ofertas
+          </span>
         </div>
       </div>
 
@@ -95,12 +112,19 @@ export function Sidebar() {
               to={item.path}
               end={item.path === "/"}
               className={({ isActive }) =>
-                `nav-item ${isActive ? "active" : ""}`
+                `nav-item ${
+                  isActive ? "active" : ""
+                }`
               }
             >
-              <Icon size={18} strokeWidth={2} />
+              <Icon
+                size={18}
+                strokeWidth={2}
+              />
 
-              <span>{item.label}</span>
+              <span>
+                {item.label}
+              </span>
             </NavLink>
           );
         })}
@@ -110,12 +134,19 @@ export function Sidebar() {
         <NavLink
           to="/configuracoes"
           className={({ isActive }) =>
-            `nav-item ${isActive ? "active" : ""}`
+            `nav-item ${
+              isActive ? "active" : ""
+            }`
           }
         >
-          <Settings size={18} strokeWidth={2} />
+          <Settings
+            size={18}
+            strokeWidth={2}
+          />
 
-          <span>Configurações</span>
+          <span>
+            Configurações
+          </span>
         </NavLink>
 
         <button
@@ -123,7 +154,10 @@ export function Sidebar() {
           className="sidebar-logout"
           onClick={handleLogout}
         >
-          <LogOut size={18} strokeWidth={2} />
+          <LogOut
+            size={18}
+            strokeWidth={2}
+          />
 
           <span>Sair</span>
         </button>
