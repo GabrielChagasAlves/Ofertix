@@ -12,6 +12,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 
 type ChannelType =
@@ -60,19 +61,14 @@ function getChannelLabel(type: ChannelType) {
   switch (type) {
     case "facebook":
       return "Facebook";
-
     case "instagram":
       return "Instagram";
-
     case "tiktok":
       return "TikTok";
-
     case "telegram":
       return "Telegram";
-
     case "whatsapp":
       return "WhatsApp";
-
     default:
       return type;
   }
@@ -123,6 +119,9 @@ export function Canais() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [testingTelegram, setTestingTelegram] = useState<string | null>(
+    null
+  );
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -370,6 +369,79 @@ export function Canais() {
     }
   };
 
+  const handleTestTelegram = async (channel: Channel) => {
+    if (channel.type !== "telegram") {
+      return;
+    }
+
+    if (!channel.identifier) {
+      setMessage({
+        type: "error",
+        text: "O canal Telegram não possui identificador.",
+      });
+      return;
+    }
+
+    setTestingTelegram(channel.id);
+    setMessage(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "telegram-publisher",
+        {
+          body: {
+            test: true,
+            channel_id: channel.id,
+          },
+        }
+      );
+
+      if (error instanceof FunctionsHttpError) {
+        let errorMessage = error.message;
+
+        try {
+          const details = await error.context.json();
+
+          if (details?.error) {
+            errorMessage = details.error;
+          }
+        } catch {
+          // Mantém a mensagem original caso o corpo não seja JSON.
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.ok) {
+        throw new Error(
+          data?.error || "O Telegram não confirmou o teste."
+        );
+      }
+
+      setMessage({
+        type: "success",
+        text:
+          "Teste enviado com sucesso! Verifique o canal OfertixOfertas no Telegram.",
+      });
+    } catch (error) {
+      console.error("Erro no teste do Telegram:", error);
+
+      setMessage({
+        type: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível testar o Telegram.",
+      });
+    } finally {
+      setTestingTelegram(null);
+    }
+  };
+
   const handleDelete = async (channel: Channel) => {
     const confirmed = window.confirm(
       `Deseja realmente excluir o canal "${channel.name}"?`
@@ -533,9 +605,7 @@ export function Canais() {
           <div className="panel-header">
             <div>
               <h2>
-                {editingId
-                  ? "Editar canal"
-                  : "Novo canal"}
+                {editingId ? "Editar canal" : "Novo canal"}
               </h2>
 
               <p>
@@ -576,9 +646,7 @@ export function Canais() {
             </div>
 
             <div className="form-field">
-              <label htmlFor="channel-type">
-                Tipo
-              </label>
+              <label htmlFor="channel-type">Tipo</label>
 
               <div className="select-wrapper">
                 <select
@@ -591,25 +659,15 @@ export function Canais() {
                     }))
                   }
                 >
-                  <option value="telegram">
-                    Telegram
-                  </option>
+                  <option value="telegram">Telegram</option>
 
-                  <option value="whatsapp">
-                    WhatsApp
-                  </option>
+                  <option value="whatsapp">WhatsApp</option>
 
-                  <option value="instagram">
-                    Instagram
-                  </option>
+                  <option value="instagram">Instagram</option>
 
-                  <option value="facebook">
-                    Facebook
-                  </option>
+                  <option value="facebook">Facebook</option>
 
-                  <option value="tiktok">
-                    TikTok
-                  </option>
+                  <option value="tiktok">TikTok</option>
                 </select>
 
                 <ChevronDown size={16} />
@@ -671,8 +729,8 @@ export function Canais() {
               />
 
               <small>
-                Identificador usado futuramente pela integração
-                para localizar o canal.
+                Identificador usado pela integração para localizar
+                o canal.
               </small>
             </div>
           </div>
@@ -770,18 +828,13 @@ export function Canais() {
             </p>
           </div>
 
-          <span className="panel-count">
-            {channels.length}
-          </span>
+          <span className="panel-count">{channels.length}</span>
         </div>
 
         {loading ? (
           <div className="empty-state">
             <div className="empty-icon">
-              <RefreshCw
-                size={22}
-                className="spin"
-              />
+              <RefreshCw size={22} className="spin" />
             </div>
 
             <h3>Carregando canais...</h3>
@@ -830,9 +883,10 @@ export function Canais() {
 
               <tbody>
                 {channels.map((channel) => {
-                  const Icon = getChannelIcon(
-                    channel.type
-                  );
+                  const Icon = getChannelIcon(channel.type);
+
+                  const testing =
+                    testingTelegram === channel.id;
 
                   return (
                     <tr key={channel.id}>
@@ -843,14 +897,10 @@ export function Canais() {
                           </div>
 
                           <div>
-                            <strong>
-                              {channel.name}
-                            </strong>
+                            <strong>{channel.name}</strong>
 
                             <span>
-                              {getChannelLabel(
-                                channel.type
-                              )}
+                              {getChannelLabel(channel.type)}
                             </span>
                           </div>
                         </div>
@@ -858,9 +908,7 @@ export function Canais() {
 
                       <td>
                         <span className="category-badge">
-                          {getChannelLabel(
-                            channel.type
-                          )}
+                          {getChannelLabel(channel.type)}
                         </span>
                       </td>
 
@@ -909,9 +957,7 @@ export function Canais() {
                               : "muted"
                           }`}
                           onClick={() =>
-                            handleToggleAutoPublish(
-                              channel
-                            )
+                            handleToggleAutoPublish(channel)
                           }
                           title="Alterar publicação automática"
                         >
@@ -925,6 +971,26 @@ export function Canais() {
 
                       <td>
                         <div className="table-actions">
+                          {channel.type === "telegram" && (
+                            <button
+                              type="button"
+                              className="icon-button"
+                              onClick={() =>
+                                handleTestTelegram(channel)
+                              }
+                              disabled={testing}
+                              title="Testar Telegram"
+                              aria-label="Testar Telegram"
+                            >
+                              <Send
+                                size={16}
+                                className={
+                                  testing ? "spin" : ""
+                                }
+                              />
+                            </button>
+                          )}
+
                           <button
                             type="button"
                             className="icon-button"

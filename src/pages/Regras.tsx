@@ -1,14 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import {
   Check,
-  ChevronDown,
   Edit3,
   Plus,
   RefreshCw,
   Save,
   Trash2,
   X,
-  Search,
+  Sparkles,
 } from "lucide-react";
 
 import { supabase } from "../lib/supabase";
@@ -28,11 +27,10 @@ interface Category {
   priority: number;
 }
 
-interface SearchTerm {
-  id: string;
-  term: string;
-  active: boolean;
+interface SearchTermStat {
   category_id: string | null;
+  source: "manual" | "discovered" | "trend";
+  active: boolean;
 }
 
 interface OfferRule {
@@ -61,11 +59,17 @@ interface RuleForm {
   active: boolean;
 }
 
+interface TermStats {
+  total: number;
+  discovered: number;
+  trends: number;
+}
+
 const emptyForm: RuleForm = {
   name: "",
   marketplace_id: "",
   category: "",
-  min_discount_percent: "",
+  min_discount_percent: "0",
   min_price: "",
   max_price: "",
   auto_approve: false,
@@ -74,181 +78,95 @@ const emptyForm: RuleForm = {
 };
 
 export function Regras() {
-  const [rules, setRules] =
-    useState<OfferRule[]>([]);
-
-  const [marketplaces, setMarketplaces] =
-    useState<Marketplace[]>([]);
-
-  const [categories, setCategories] =
-    useState<Category[]>([]);
-
-  const [searchTerms, setSearchTerms] =
-    useState<SearchTerm[]>([]);
-
-  const [selectedTerms, setSelectedTerms] =
-    useState<string[]>([]);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [saving, setSaving] =
-    useState(false);
-
-  const [deleting, setDeleting] =
-    useState<string | null>(null);
-
-  const [showForm, setShowForm] =
-    useState(false);
-
-  const [editingId, setEditingId] =
-    useState<string | null>(null);
-
-  const [form, setForm] =
-    useState<RuleForm>(emptyForm);
-
-  const [error, setError] =
-    useState<string | null>(null);
-
-  const [success, setSuccess] =
-    useState<string | null>(null);
-
-  const [termsLoading, setTermsLoading] =
-    useState(false);
+  const [rules, setRules] = useState<OfferRule[]>([]);
+  const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [termStats, setTermStats] = useState<Record<string, TermStats>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<RuleForm>(emptyForm);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   async function loadData() {
     setLoading(true);
     setError(null);
 
-    const [
-      rulesResult,
-      marketplacesResult,
-      categoriesResult,
-      termsResult,
-    ] = await Promise.all([
-      supabase
-        .from("offer_rules")
-        .select("*")
-        .order("created_at", {
-          ascending: false,
-        }),
-
-      supabase
-        .from("marketplaces")
-        .select(
-          "id, name, slug, active"
-        )
-        .eq("active", true)
-        .order("name"),
-
-      supabase
-        .from("offer_categories")
-        .select(
-          "id, name, slug, active, priority"
-        )
-        .eq("active", true)
-        .order("priority", {
-          ascending: true,
-        })
-        .order("name", {
-          ascending: true,
-        }),
-
-      supabase
-        .from("search_terms")
-        .select(
-          "id, term, active, category_id"
-        )
-        .eq("active", true)
-        .order("term"),
-    ]);
+    const [rulesResult, marketplacesResult, categoriesResult, termsResult] =
+      await Promise.all([
+        supabase
+          .from("offer_rules")
+          .select("*")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("marketplaces")
+          .select("id,name,slug,active")
+          .eq("active", true)
+          .order("name"),
+        supabase
+          .from("offer_categories")
+          .select("id,name,slug,active,priority")
+          .eq("active", true)
+          .order("priority", { ascending: true })
+          .order("name", { ascending: true }),
+        supabase
+          .from("search_terms")
+          .select("category_id,source,active")
+          .eq("active", true),
+      ]);
 
     if (rulesResult.error) {
-      console.error(
-        "Erro ao carregar regras:",
-        rulesResult.error
-      );
-
-      setError(
-        `Não foi possível carregar as regras: ${rulesResult.error.message}`
-      );
+      setError(`Não foi possível carregar as regras: ${rulesResult.error.message}`);
     } else {
-      setRules(
-        rulesResult.data ?? []
-      );
+      setRules((rulesResult.data ?? []) as OfferRule[]);
     }
 
     if (marketplacesResult.error) {
-      console.error(
-        "Erro ao carregar marketplaces:",
-        marketplacesResult.error
-      );
+      console.error("Erro ao carregar marketplaces:", marketplacesResult.error);
     } else {
-      setMarketplaces(
-        marketplacesResult.data ?? []
-      );
+      setMarketplaces((marketplacesResult.data ?? []) as Marketplace[]);
     }
 
     if (categoriesResult.error) {
-      console.error(
-        "Erro ao carregar categorias:",
-        categoriesResult.error
-      );
+      console.error("Erro ao carregar categorias:", categoriesResult.error);
     } else {
-      setCategories(
-        categoriesResult.data ?? []
-      );
+      setCategories((categoriesResult.data ?? []) as Category[]);
     }
 
     if (termsResult.error) {
-      console.error(
-        "Erro ao carregar termos:",
-        termsResult.error
-      );
+      console.error("Erro ao carregar descoberta de termos:", termsResult.error);
     } else {
-      setSearchTerms(
-        termsResult.data ?? []
-      );
+      const stats: Record<string, TermStats> = {};
+
+      for (const term of (termsResult.data ?? []) as SearchTermStat[]) {
+        if (!term.category_id) continue;
+
+        if (!stats[term.category_id]) {
+          stats[term.category_id] = {
+            total: 0,
+            discovered: 0,
+            trends: 0,
+          };
+        }
+
+        stats[term.category_id].total += 1;
+
+        if (term.source === "discovered") {
+          stats[term.category_id].discovered += 1;
+        }
+
+        if (term.source === "trend") {
+          stats[term.category_id].trends += 1;
+        }
+      }
+
+      setTermStats(stats);
     }
 
     setLoading(false);
-  }
-
-  async function loadRuleTerms(
-    ruleId: string
-  ) {
-    setTermsLoading(true);
-
-    const { data, error } =
-      await supabase
-        .from("offer_rule_search_terms")
-        .select(
-          "search_term_id"
-        )
-        .eq("rule_id", ruleId)
-        .eq("active", true);
-
-    if (error) {
-      console.error(
-        "Erro ao carregar termos da regra:",
-        error
-      );
-
-      setError(
-        `Não foi possível carregar os termos da regra: ${error.message}`
-      );
-
-      setSelectedTerms([]);
-    } else {
-      setSelectedTerms(
-        (data ?? []).map(
-          (item) =>
-            item.search_term_id
-        )
-      );
-    }
-
-    setTermsLoading(false);
   }
 
   useEffect(() => {
@@ -261,50 +179,33 @@ export function Regras() {
     setForm({
       ...emptyForm,
       marketplace_id:
-        marketplaces.length === 1
-          ? marketplaces[0].id
-          : "",
+        marketplaces.length === 1 ? marketplaces[0].id : "",
     });
-
-    setSelectedTerms([]);
 
     setError(null);
     setSuccess(null);
     setShowForm(true);
   }
 
-  async function openEditForm(
-    rule: OfferRule
-  ) {
+  function openEditForm(rule: OfferRule) {
     setEditingId(rule.id);
 
     setForm({
       name: rule.name,
-      marketplace_id:
-        rule.marketplace_id ?? "",
-      category:
-        rule.category ?? "",
+      marketplace_id: rule.marketplace_id ?? "",
+      category: rule.category ?? "",
       min_discount_percent:
         rule.min_discount_percent !== null
-          ? String(
-              rule.min_discount_percent
-            )
-          : "",
+          ? String(rule.min_discount_percent)
+          : "0",
       min_price:
-        rule.min_price !== null
-          ? String(rule.min_price)
-          : "",
+        rule.min_price !== null ? String(rule.min_price) : "",
       max_price:
-        rule.max_price !== null
-          ? String(rule.max_price)
-          : "",
-      auto_approve:
-        rule.auto_approve,
+        rule.max_price !== null ? String(rule.max_price) : "",
+      auto_approve: rule.auto_approve,
       auto_approve_max_price:
         rule.auto_approve_max_price !== null
-          ? String(
-              rule.auto_approve_max_price
-            )
+          ? String(rule.auto_approve_max_price)
           : "500",
       active: rule.active,
     });
@@ -312,157 +213,36 @@ export function Regras() {
     setError(null);
     setSuccess(null);
     setShowForm(true);
-
-    await loadRuleTerms(rule.id);
   }
 
   function closeForm() {
-    if (saving) {
-      return;
-    }
+    if (saving) return;
 
     setShowForm(false);
     setEditingId(null);
     setForm(emptyForm);
-    setSelectedTerms([]);
   }
 
   function updateField(
     field: keyof RuleForm,
-    value: string | boolean
+    value: string | boolean,
   ) {
     setForm((current) => ({
       ...current,
       [field]: value,
     }));
-
-    if (
-      field === "category" &&
-      typeof value === "string"
-    ) {
-      const category = categories.find(
-        (item) =>
-          item.name === value
-      );
-
-      if (category) {
-        const categoryTerms =
-          searchTerms
-            .filter(
-              (term) =>
-                term.active &&
-                term.category_id ===
-                  category.id
-            )
-            .map(
-              (term) => term.id
-            );
-
-        setSelectedTerms(
-          categoryTerms
-        );
-      } else {
-        setSelectedTerms([]);
-      }
-    }
   }
 
-  function numberOrNull(
-    value: string
-  ) {
-    const trimmed =
-      value.trim();
+  function numberOrNull(value: string) {
+    const trimmed = value.trim();
 
     if (!trimmed) {
       return null;
     }
 
-    const number =
-      Number(trimmed);
+    const number = Number(trimmed);
 
-    return Number.isFinite(number)
-      ? number
-      : null;
-  }
-
-  function toggleTerm(
-    termId: string
-  ) {
-    setSelectedTerms(
-      (current) =>
-        current.includes(termId)
-          ? current.filter(
-              (id) => id !== termId
-            )
-          : [...current, termId]
-    );
-  }
-
-  function selectAllCategoryTerms() {
-    if (!form.category) {
-      return;
-    }
-
-    const category =
-      categories.find(
-        (item) =>
-          item.name ===
-          form.category
-      );
-
-    if (!category) {
-      return;
-    }
-
-    const ids =
-      searchTerms
-        .filter(
-          (term) =>
-            term.active &&
-            term.category_id ===
-              category.id
-        )
-        .map(
-          (term) => term.id
-        );
-
-    setSelectedTerms(ids);
-  }
-
-  function clearCategoryTerms() {
-    if (!form.category) {
-      return;
-    }
-
-    const category =
-      categories.find(
-        (item) =>
-          item.name ===
-          form.category
-      );
-
-    if (!category) {
-      return;
-    }
-
-    const categoryIds =
-      searchTerms
-        .filter(
-          (term) =>
-            term.category_id ===
-            category.id
-        )
-        .map(
-          (term) => term.id
-        );
-
-    setSelectedTerms(
-      (current) =>
-        current.filter(
-          (id) =>
-            !categoryIds.includes(id)
-        )
-    );
+    return Number.isFinite(number) ? number : null;
   }
 
   async function saveRule() {
@@ -470,101 +250,65 @@ export function Regras() {
     setSuccess(null);
 
     if (!form.name.trim()) {
-      setError(
-        "Informe um nome para a regra."
-      );
+      setError("Informe um nome para a regra.");
       return;
     }
 
     if (
       form.category &&
       !categories.some(
-        (category) =>
-          category.name ===
-          form.category
+        (category) => category.name === form.category,
       )
     ) {
+      setError("Selecione uma categoria válida.");
+      return;
+    }
+
+    const discount = numberOrNull(form.min_discount_percent);
+    const minPrice = numberOrNull(form.min_price);
+    const maxPrice = numberOrNull(form.max_price);
+    const autoApproveMax = numberOrNull(
+      form.auto_approve_max_price,
+    );
+
+    if (
+      discount !== null &&
+      (discount < 0 || discount > 100)
+    ) {
       setError(
-        "Selecione uma categoria válida."
+        "O desconto mínimo deve estar entre 0% e 100%.",
       );
       return;
     }
 
-    if (
-      form.min_discount_percent.trim() &&
-      Number(
-        form.min_discount_percent
-      ) < 0
-    ) {
-      setError(
-        "O desconto mínimo não pode ser negativo."
-      );
+    if (minPrice !== null && minPrice < 0) {
+      setError("O preço mínimo não pode ser negativo.");
+      return;
+    }
+
+    if (maxPrice !== null && maxPrice < 0) {
+      setError("O preço máximo não pode ser negativo.");
       return;
     }
 
     if (
-      form.min_discount_percent.trim() &&
-      Number(
-        form.min_discount_percent
-      ) > 100
+      minPrice !== null &&
+      maxPrice !== null &&
+      maxPrice < minPrice
     ) {
       setError(
-        "O desconto mínimo não pode ser maior que 100%."
-      );
-      return;
-    }
-
-    if (
-      form.min_price.trim() &&
-      Number(form.min_price) < 0
-    ) {
-      setError(
-        "O preço mínimo não pode ser negativo."
-      );
-      return;
-    }
-
-    if (
-      form.max_price.trim() &&
-      Number(form.max_price) < 0
-    ) {
-      setError(
-        "O preço máximo não pode ser negativo."
-      );
-      return;
-    }
-
-    if (
-      form.min_price.trim() &&
-      form.max_price.trim() &&
-      Number(form.max_price) <
-        Number(form.min_price)
-    ) {
-      setError(
-        "O preço máximo não pode ser menor que o preço mínimo."
+        "O preço máximo não pode ser menor que o preço mínimo.",
       );
       return;
     }
 
     if (
       form.auto_approve &&
-      form.auto_approve_max_price.trim() &&
-      Number(
-        form.auto_approve_max_price
-      ) < 0
+      autoApproveMax !== null &&
+      autoApproveMax < 0
     ) {
       setError(
-        "O limite de aprovação automática não pode ser negativo."
-      );
-      return;
-    }
-
-    if (
-      form.category &&
-      selectedTerms.length === 0
-    ) {
-      setError(
-        "Selecione pelo menos um termo de busca para esta regra."
+        "O limite de aprovação automática não pode ser negativo.",
       );
       return;
     }
@@ -573,243 +317,127 @@ export function Regras() {
 
     const payload = {
       name: form.name.trim(),
-
-      marketplace_id:
-        form.marketplace_id ||
-        null,
-
-      category:
-        form.category.trim() ||
-        null,
-
-      min_discount_percent:
-        numberOrNull(
-          form.min_discount_percent
-        ) ?? 0,
-
-      min_price:
-        numberOrNull(
-          form.min_price
-        ),
-
-      max_price:
-        numberOrNull(
-          form.max_price
-        ),
-
-      auto_approve:
-        form.auto_approve,
-
-      auto_approve_max_price:
-        form.auto_approve
-          ? numberOrNull(
-              form.auto_approve_max_price
-            )
-          : null,
-
-      active:
-        form.active,
+      marketplace_id: form.marketplace_id || null,
+      category: form.category.trim() || null,
+      min_discount_percent: discount ?? 0,
+      min_price: minPrice,
+      max_price: maxPrice,
+      auto_approve: form.auto_approve,
+      auto_approve_max_price: form.auto_approve
+        ? autoApproveMax
+        : null,
+      active: form.active,
     };
 
-    let ruleId =
-      editingId;
+    let ruleId = editingId;
 
     if (editingId) {
-      const result =
-        await supabase
-          .from("offer_rules")
-          .update(payload)
-          .eq(
-            "id",
-            editingId
-          )
-          .select("id")
-          .single();
+      const result = await supabase
+        .from("offer_rules")
+        .update(payload)
+        .eq("id", editingId)
+        .select("id")
+        .single();
 
       if (result.error) {
         setError(
-          `Erro ao atualizar regra: ${result.error.message}`
+          `Erro ao atualizar regra: ${result.error.message}`,
         );
-
         setSaving(false);
         return;
       }
     } else {
-      const result =
-        await supabase
-          .from("offer_rules")
-          .insert(payload)
-          .select("id")
-          .single();
+      const result = await supabase
+        .from("offer_rules")
+        .insert(payload)
+        .select("id")
+        .single();
 
       if (result.error) {
         setError(
-          `Erro ao criar regra: ${result.error.message}`
+          `Erro ao criar regra: ${result.error.message}`,
         );
-
         setSaving(false);
         return;
       }
 
-      ruleId =
-        result.data.id;
+      ruleId = result.data.id;
     }
 
     if (!ruleId) {
-      setError(
-        "Não foi possível identificar a regra."
-      );
-
+      setError("Não foi possível identificar a regra.");
       setSaving(false);
       return;
-    }
-
-    /*
-     * Os termos ficam vinculados diretamente
-     * à regra.
-     *
-     * Primeiro removemos os vínculos antigos
-     * e depois recriamos os atuais.
-     */
-
-    const deleteTerms =
-      await supabase
-        .from(
-          "offer_rule_search_terms"
-        )
-        .delete()
-        .eq(
-          "rule_id",
-          ruleId
-        );
-
-    if (deleteTerms.error) {
-      setError(
-        `Regra salva, mas não foi possível atualizar os termos: ${deleteTerms.error.message}`
-      );
-
-      setSaving(false);
-      return;
-    }
-
-    if (selectedTerms.length > 0) {
-      const rows =
-        selectedTerms.map(
-          (searchTermId) => ({
-            rule_id:
-              ruleId,
-            search_term_id:
-              searchTermId,
-            active:
-              true,
-          })
-        );
-
-      const insertTerms =
-        await supabase
-          .from(
-            "offer_rule_search_terms"
-          )
-          .insert(rows);
-
-      if (insertTerms.error) {
-        setError(
-          `Regra salva, mas não foi possível vincular os termos: ${insertTerms.error.message}`
-        );
-
-        setSaving(false);
-        return;
-      }
     }
 
     setSuccess(
       editingId
-        ? "Regra atualizada com sucesso."
-        : "Regra criada com sucesso."
+        ? "Regra atualizada. A busca automática continuará usando a categoria e os termos descobertos pelo Ofertix."
+        : "Regra criada. O Ofertix fará a descoberta automática de produtos e termos para essa categoria.",
     );
 
     setShowForm(false);
     setEditingId(null);
     setForm(emptyForm);
-    setSelectedTerms([]);
 
     await loadData();
 
     setSaving(false);
   }
 
-  async function toggleRule(
-    rule: OfferRule
-  ) {
+  async function toggleRule(rule: OfferRule) {
     setError(null);
     setSuccess(null);
 
-    const { error } =
-      await supabase
-        .from("offer_rules")
-        .update({
-          active:
-            !rule.active,
-        })
-        .eq(
-          "id",
-          rule.id
-        );
+    const { error } = await supabase
+      .from("offer_rules")
+      .update({
+        active: !rule.active,
+      })
+      .eq("id", rule.id);
 
     if (error) {
       setError(
-        `Não foi possível alterar a regra: ${error.message}`
+        `Não foi possível alterar a regra: ${error.message}`,
       );
-
       return;
     }
 
     setSuccess(
       rule.active
         ? "Regra desativada."
-        : "Regra ativada."
+        : "Regra ativada.",
     );
 
     await loadData();
   }
 
-  async function deleteRule(
-    rule: OfferRule
-  ) {
-    const confirmed =
-      window.confirm(
-        `Excluir a regra "${rule.name}"?\n\nOs vínculos dessa regra também serão removidos.`
-      );
+  async function deleteRule(rule: OfferRule) {
+    const confirmed = window.confirm(
+      `Excluir a regra "${rule.name}"?\n\nOs vínculos dessa regra também serão removidos.`,
+    );
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     setDeleting(rule.id);
     setError(null);
     setSuccess(null);
 
-    const { error } =
-      await supabase
-        .from("offer_rules")
-        .delete()
-        .eq(
-          "id",
-          rule.id
-        );
+    const { error } = await supabase
+      .from("offer_rules")
+      .delete()
+      .eq("id", rule.id);
 
     if (error) {
       setError(
-        `Não foi possível excluir a regra: ${error.message}`
+        `Não foi possível excluir a regra: ${error.message}`,
       );
 
       setDeleting(null);
       return;
     }
 
-    setSuccess(
-      "Regra excluída com sucesso."
-    );
+    setSuccess("Regra excluída com sucesso.");
 
     await loadData();
 
@@ -817,7 +445,7 @@ export function Regras() {
   }
 
   function getMarketplaceName(
-    marketplaceId: string | null
+    marketplaceId: string | null,
   ) {
     if (!marketplaceId) {
       return "Todos os marketplaces";
@@ -825,83 +453,84 @@ export function Regras() {
 
     return (
       marketplaces.find(
-        (marketplace) =>
-          marketplace.id ===
-          marketplaceId
-      )?.name ??
-      "Marketplace"
+        (marketplace) => marketplace.id === marketplaceId,
+      )?.name ?? "Marketplace"
     );
   }
 
-  function formatNumber(
-    value: number | null
-  ) {
-    if (value === null) {
-      return null;
+  function getCategoryStats(
+    categoryName: string | null,
+  ): TermStats {
+    if (!categoryName) {
+      return {
+        total: 0,
+        discovered: 0,
+        trends: 0,
+      };
     }
 
-    return new Intl.NumberFormat(
-      "pt-BR",
-      {
-        maximumFractionDigits: 2,
-      }
-    ).format(value);
-  }
-
-  function formatPrice(
-    value: number | null
-  ) {
-    if (value === null) {
-      return null;
-    }
-
-    return new Intl.NumberFormat(
-      "pt-BR",
-      {
-        style: "currency",
-        currency: "BRL",
-      }
-    ).format(value);
-  }
-
-  const currentCategory =
-    categories.find(
-      (category) =>
-        category.name ===
-        form.category
+    const category = categories.find(
+      (item) => item.name === categoryName,
     );
 
-  const currentCategoryTerms =
-    currentCategory
-      ? searchTerms.filter(
-          (term) =>
-            term.active &&
-            term.category_id ===
-              currentCategory.id
-        )
-      : [];
+    if (!category) {
+      return {
+        total: 0,
+        discovered: 0,
+        trends: 0,
+      };
+    }
+
+    return (
+      termStats[category.id] ?? {
+        total: 0,
+        discovered: 0,
+        trends: 0,
+      }
+    );
+  }
+
+  function formatNumber(value: number | null) {
+    if (value === null) return null;
+
+    return new Intl.NumberFormat("pt-BR", {
+      maximumFractionDigits: 2,
+    }).format(value);
+  }
+
+  function formatPrice(value: number | null) {
+    if (value === null) return null;
+
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+  }
+
+  const activeRules = useMemo(
+    () => rules.filter((rule) => rule.active).length,
+    [rules],
+  );
 
   return (
     <div className="page">
       <div className="page-header">
         <div>
-          <p className="eyebrow">
-            AUTOMAÇÃO
-          </p>
+          <p className="eyebrow">AUTOMAÇÃO</p>
 
           <h1>Regras</h1>
 
           <p className="page-description">
-            Defina o que o Ofertix deve
-            procurar e quais critérios um
-            produto precisa atender.
+            Defina o que o Ofertix deve procurar. A descoberta de
+            termos e a seleção dos melhores produtos são feitas
+            automaticamente pelo sistema.
           </p>
         </div>
 
         <div
           style={{
             display: "flex",
-            gap: "8px",
+            gap: 8,
             alignItems: "center",
           }}
         >
@@ -911,26 +540,20 @@ export function Regras() {
             disabled={loading}
             title="Atualizar regras"
             style={{
-              display:
-                "inline-flex",
-              alignItems:
-                "center",
-              gap: "7px",
-              padding:
-                "8px 12px",
-              border:
-                "1px solid #202734",
-              borderRadius:
-                "8px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              padding: "8px 12px",
+              border: "1px solid #202734",
+              borderRadius: 8,
             }}
           >
             <RefreshCw
               size={15}
               style={{
-                animation:
-                  loading
-                    ? "spin 1s linear infinite"
-                    : "none",
+                animation: loading
+                  ? "spin 1s linear infinite"
+                  : "none",
               }}
             />
 
@@ -939,9 +562,7 @@ export function Regras() {
 
           <button
             className="primary-button"
-            onClick={
-              openCreateForm
-            }
+            onClick={openCreateForm}
           >
             <Plus size={16} />
             Nova regra
@@ -949,19 +570,124 @@ export function Regras() {
         </div>
       </div>
 
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 10,
+          marginBottom: 16,
+        }}
+      >
+        <div
+          className="panel"
+          style={{ padding: 14 }}
+        >
+          <div
+            style={{
+              color: "#687386",
+              fontSize: 9,
+              textTransform: "uppercase",
+            }}
+          >
+            Regras ativas
+          </div>
+
+          <div
+            style={{
+              color: "#e8edf5",
+              fontSize: 20,
+              fontWeight: 700,
+              marginTop: 4,
+            }}
+          >
+            {activeRules}
+          </div>
+        </div>
+
+        <div
+          className="panel"
+          style={{ padding: 14 }}
+        >
+          <div
+            style={{
+              color: "#687386",
+              fontSize: 9,
+              textTransform: "uppercase",
+            }}
+          >
+            Descoberta automática
+          </div>
+
+          <div
+            style={{
+              color: "#60a5fa",
+              fontSize: 12,
+              fontWeight: 600,
+              marginTop: 7,
+            }}
+          >
+            Ativa
+          </div>
+
+          <div
+            style={{
+              color: "#687386",
+              fontSize: 10,
+              marginTop: 3,
+            }}
+          >
+            Termos são aprendidos pelo sincronizador.
+          </div>
+        </div>
+
+        <div
+          className="panel"
+          style={{ padding: 14 }}
+        >
+          <div
+            style={{
+              color: "#687386",
+              fontSize: 9,
+              textTransform: "uppercase",
+            }}
+          >
+            Qualidade
+          </div>
+
+          <div
+            style={{
+              color: "#6ee7b7",
+              fontSize: 12,
+              fontWeight: 600,
+              marginTop: 7,
+            }}
+          >
+            Automática
+          </div>
+
+          <div
+            style={{
+              color: "#687386",
+              fontSize: 10,
+              marginTop: 3,
+            }}
+          >
+            Vendedor + vendas + reputação.
+          </div>
+        </div>
+      </div>
+
       {error && (
         <div
           style={{
-            marginBottom: "16px",
-            padding:
-              "12px 14px",
-            borderRadius: "8px",
-            background:
-              "#2a1820",
-            border:
-              "1px solid #5a2735",
+            marginBottom: 16,
+            padding: "12px 14px",
+            borderRadius: 8,
+            background: "#2a1820",
+            border: "1px solid #5a2735",
             color: "#fca5a5",
-            fontSize: "12px",
+            fontSize: 12,
           }}
         >
           {error}
@@ -971,16 +697,13 @@ export function Regras() {
       {success && (
         <div
           style={{
-            marginBottom: "16px",
-            padding:
-              "12px 14px",
-            borderRadius: "8px",
-            background:
-              "#132a21",
-            border:
-              "1px solid #24553f",
+            marginBottom: 16,
+            padding: "12px 14px",
+            borderRadius: 8,
+            background: "#132a21",
+            border: "1px solid #24553f",
             color: "#6ee7b7",
-            fontSize: "12px",
+            fontSize: 12,
           }}
         >
           {success}
@@ -990,68 +713,48 @@ export function Regras() {
       {showForm && (
         <div
           className="panel"
-          style={{
-            marginBottom: "16px",
-          }}
+          style={{ marginBottom: 16 }}
         >
           <div
             style={{
               display: "flex",
-              alignItems:
-                "center",
-              justifyContent:
-                "space-between",
-              gap: "12px",
-              marginBottom:
-                "20px",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              marginBottom: 18,
             }}
           >
             <div>
-              <p className="eyebrow">
-                CONFIGURAÇÃO
-              </p>
-
-              <h2
+              <div
                 style={{
-                  margin:
-                    "6px 0 0",
-                  color:
-                    "#e8edf5",
-                  fontSize:
-                    "17px",
+                  color: "#e8edf5",
+                  fontSize: 14,
+                  fontWeight: 600,
                 }}
               >
                 {editingId
                   ? "Editar regra"
                   : "Nova regra"}
-              </h2>
+              </div>
 
-              <p
+              <div
                 style={{
-                  margin:
-                    "6px 0 0",
-                  color:
-                    "#687386",
-                  fontSize:
-                    "11px",
+                  color: "#687386",
+                  fontSize: 10,
+                  marginTop: 4,
                 }}
               >
-                A regra define a busca,
-                os critérios e o
-                comportamento da
-                aprovação.
-              </p>
+                Você define a intenção. O Ofertix cuida da
+                descoberta dos produtos.
+              </div>
             </div>
 
             <button
               className="text-button"
-              onClick={
-                closeForm
-              }
+              onClick={closeForm}
               disabled={saving}
-              title="Fechar"
             >
-              <X size={18} />
+              <X size={15} />
             </button>
           </div>
 
@@ -1059,975 +762,235 @@ export function Regras() {
             style={{
               display: "grid",
               gridTemplateColumns:
-                "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: "14px",
+                "repeat(2, minmax(0, 1fr))",
+              gap: 14,
             }}
           >
-            {/* NOME */}
-
-            <div
-              style={{
-                gridColumn:
-                  "1 / -1",
-              }}
-            >
-              <label
-                style={{
-                  display:
-                    "block",
-                  color:
-                    "#aeb7c6",
-                  fontSize:
-                    "11px",
-                  marginBottom:
-                    "6px",
-                }}
-              >
-                Nome da regra *
-              </label>
-
+            <Field label="Nome da regra">
               <input
                 value={form.name}
-                onChange={(
-                  event
-                ) =>
+                onChange={(event) =>
                   updateField(
                     "name",
-                    event.target
-                      .value
+                    event.target.value,
                   )
                 }
                 placeholder="Ex.: Ofertas de perfumes"
-                style={{
-                  width:
-                    "100%",
-                  boxSizing:
-                    "border-box",
-                  padding:
-                    "10px 11px",
-                  border:
-                    "1px solid #202734",
-                  borderRadius:
-                    "8px",
-                  background:
-                    "#0b0f16",
-                  color:
-                    "#e8edf5",
-                  outline:
-                    "none",
-                  fontSize:
-                    "12px",
-                }}
+                style={inputStyle}
               />
-            </div>
+            </Field>
 
-            {/* MARKETPLACE */}
-
-            <div>
-              <label
-                style={{
-                  display:
-                    "block",
-                  color:
-                    "#aeb7c6",
-                  fontSize:
-                    "11px",
-                  marginBottom:
-                    "6px",
-                }}
+            <Field label="Marketplace">
+              <select
+                value={form.marketplace_id}
+                onChange={(event) =>
+                  updateField(
+                    "marketplace_id",
+                    event.target.value,
+                  )
+                }
+                style={inputStyle}
               >
-                Marketplace
-              </label>
+                <option value="">
+                  Todos os marketplaces
+                </option>
 
-              <div
-                style={{
-                  position:
-                    "relative",
-                }}
-              >
-                <select
-                  value={
-                    form.marketplace_id
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    updateField(
-                      "marketplace_id",
-                      event.target
-                        .value
-                    )
-                  }
-                  style={{
-                    width:
-                      "100%",
-                    boxSizing:
-                      "border-box",
-                    appearance:
-                      "none",
-                    padding:
-                      "10px 34px 10px 11px",
-                    border:
-                      "1px solid #202734",
-                    borderRadius:
-                      "8px",
-                    background:
-                      "#0b0f16",
-                    color:
-                      "#e8edf5",
-                    outline:
-                      "none",
-                    fontSize:
-                      "12px",
-                  }}
-                >
-                  <option value="">
-                    Todos os marketplaces
+                {marketplaces.map((marketplace) => (
+                  <option
+                    key={marketplace.id}
+                    value={marketplace.id}
+                  >
+                    {marketplace.name}
                   </option>
+                ))}
+              </select>
+            </Field>
 
-                  {marketplaces.map(
-                    (
-                      marketplace
-                    ) => (
-                      <option
-                        key={
-                          marketplace.id
-                        }
-                        value={
-                          marketplace.id
-                        }
-                      >
-                        {
-                          marketplace.name
-                        }
-                      </option>
-                    )
-                  )}
-                </select>
-
-                <ChevronDown
-                  size={15}
-                  style={{
-                    position:
-                      "absolute",
-                    right:
-                      "10px",
-                    top:
-                      "50%",
-                    transform:
-                      "translateY(-50%)",
-                    pointerEvents:
-                      "none",
-                    color:
-                      "#687386",
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* CATEGORIA */}
-
-            <div>
-              <label
-                style={{
-                  display:
-                    "block",
-                  color:
-                    "#aeb7c6",
-                  fontSize:
-                    "11px",
-                  marginBottom:
-                    "6px",
-                }}
+            <Field label="Categoria">
+              <select
+                value={form.category}
+                onChange={(event) =>
+                  updateField(
+                    "category",
+                    event.target.value,
+                  )
+                }
+                style={inputStyle}
               >
-                Categoria *
-              </label>
+                <option value="">
+                  Todas as categorias
+                </option>
 
-              <div
-                style={{
-                  position:
-                    "relative",
-                }}
-              >
-                <select
-                  value={
-                    form.category
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    updateField(
-                      "category",
-                      event.target
-                        .value
-                    )
-                  }
-                  style={{
-                    width:
-                      "100%",
-                    boxSizing:
-                      "border-box",
-                    appearance:
-                      "none",
-                    padding:
-                      "10px 34px 10px 11px",
-                    border:
-                      "1px solid #202734",
-                    borderRadius:
-                      "8px",
-                    background:
-                      "#0b0f16",
-                    color:
-                      "#e8edf5",
-                    outline:
-                      "none",
-                    fontSize:
-                      "12px",
-                  }}
-                >
-                  <option value="">
-                    Selecione uma categoria
+                {categories.map((category) => (
+                  <option
+                    key={category.id}
+                    value={category.name}
+                  >
+                    {category.name}
                   </option>
+                ))}
+              </select>
 
-                  {categories.map(
-                    (
-                      category
-                    ) => (
-                      <option
-                        key={
-                          category.id
-                        }
-                        value={
-                          category.name
-                        }
-                      >
-                        {
-                          category.name
-                        }
-                      </option>
-                    )
-                  )}
-                </select>
-
-                <ChevronDown
-                  size={15}
-                  style={{
-                    position:
-                      "absolute",
-                    right:
-                      "10px",
-                    top:
-                      "50%",
-                    transform:
-                      "translateY(-50%)",
-                    pointerEvents:
-                      "none",
-                    color:
-                      "#687386",
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* TERMOS */}
+              <HelpText>
+                A categoria é a base da descoberta. O sistema
+                aprende novos termos automaticamente.
+              </HelpText>
+            </Field>
 
             <div
               style={{
-                gridColumn:
-                  "1 / -1",
-                padding:
-                  "16px",
-                border:
-                  "1px solid #202734",
-                borderRadius:
-                  "10px",
-                background:
-                  "#0b0f16",
+                padding: 12,
+                borderRadius: 9,
+                border: "1px solid #263244",
+                background: "#0d1420",
+                display: "flex",
+                gap: 10,
+                alignItems: "flex-start",
               }}
             >
-              <div
+              <Sparkles
+                size={16}
                 style={{
-                  display:
-                    "flex",
-                  alignItems:
-                    "flex-start",
-                  justifyContent:
-                    "space-between",
-                  gap:
-                    "12px",
-                  flexWrap:
-                    "wrap",
+                  color: "#60a5fa",
+                  marginTop: 1,
                 }}
-              >
-                <div>
-                  <div
-                    style={{
-                      display:
-                        "flex",
-                      alignItems:
-                        "center",
-                      gap:
-                        "7px",
-                      color:
-                        "#e8edf5",
-                      fontSize:
-                        "13px",
-                      fontWeight:
-                        600,
-                    }}
-                  >
-                    <Search
-                      size={15}
-                    />
-                    Termos de busca
-                  </div>
+              />
 
-                  <p
-                    style={{
-                      margin:
-                        "5px 0 0",
-                      color:
-                        "#687386",
-                      fontSize:
-                        "10px",
-                      lineHeight:
-                        1.5,
-                    }}
-                  >
-                    Esses são os termos
-                    que o sincronizador
-                    utilizará no
-                    marketplace para
-                    executar esta regra.
-                  </p>
+              <div>
+                <div
+                  style={{
+                    color: "#d9e2ef",
+                    fontSize: 11,
+                    fontWeight: 600,
+                  }}
+                >
+                  Descoberta automática ativada
                 </div>
 
-                {currentCategoryTerms.length >
-                  0 && (
-                  <div
-                    style={{
-                      display:
-                        "flex",
-                      gap:
-                        "6px",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={
-                        selectAllCategoryTerms
-                      }
-                    >
-                      Selecionar todos
-                    </button>
-
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={
-                        clearCategoryTerms
-                      }
-                    >
-                      Limpar
-                    </button>
-                  </div>
-                )}
+                <div
+                  style={{
+                    color: "#687386",
+                    fontSize: 10,
+                    lineHeight: 1.5,
+                    marginTop: 4,
+                  }}
+                >
+                  Não é necessário cadastrar termos de busca.
+                  O Ofertix usa a categoria, resultados
+                  encontrados, tendências e novos padrões dos
+                  títulos para ampliar a busca.
+                </div>
               </div>
-
-              {!form.category ? (
-                <div
-                  style={{
-                    marginTop:
-                      "14px",
-                    padding:
-                      "15px",
-                    border:
-                      "1px dashed #283243",
-                    borderRadius:
-                      "8px",
-                    color:
-                      "#687386",
-                    fontSize:
-                      "10px",
-                    textAlign:
-                      "center",
-                  }}
-                >
-                  Selecione uma categoria
-                  para visualizar os termos
-                  disponíveis.
-                </div>
-              ) : termsLoading ? (
-                <div
-                  style={{
-                    marginTop:
-                      "14px",
-                    padding:
-                      "15px",
-                    color:
-                      "#687386",
-                    fontSize:
-                      "10px",
-                    textAlign:
-                      "center",
-                  }}
-                >
-                  <RefreshCw
-                    size={16}
-                    style={{
-                      animation:
-                        "spin 1s linear infinite",
-                      marginRight:
-                        "6px",
-                      verticalAlign:
-                        "middle",
-                    }}
-                  />
-                  Carregando termos...
-                </div>
-              ) : currentCategoryTerms.length ===
-                0 ? (
-                <div
-                  style={{
-                    marginTop:
-                      "14px",
-                    padding:
-                      "15px",
-                    border:
-                      "1px dashed #283243",
-                    borderRadius:
-                      "8px",
-                    color:
-                      "#facc15",
-                    fontSize:
-                      "10px",
-                  }}
-                >
-                  Esta categoria ainda
-                  não possui termos de
-                  busca cadastrados.
-                </div>
-              ) : (
-                <div
-                  style={{
-                    display:
-                      "grid",
-                    gridTemplateColumns:
-                      "repeat(auto-fit, minmax(180px, 1fr))",
-                    gap:
-                      "8px",
-                    marginTop:
-                      "14px",
-                  }}
-                >
-                  {currentCategoryTerms.map(
-                    (
-                      term
-                    ) => {
-                      const selected =
-                        selectedTerms.includes(
-                          term.id
-                        );
-
-                      return (
-                        <button
-                          type="button"
-                          key={
-                            term.id
-                          }
-                          onClick={() =>
-                            toggleTerm(
-                              term.id
-                            )
-                          }
-                          style={{
-                            display:
-                              "flex",
-                            alignItems:
-                              "center",
-                            gap:
-                              "9px",
-                            padding:
-                              "10px 11px",
-                            border:
-                              selected
-                                ? "1px solid #2563eb"
-                                : "1px solid #202734",
-                            borderRadius:
-                              "8px",
-                            background:
-                              selected
-                                ? "#111f38"
-                                : "#10151f",
-                            color:
-                              selected
-                                ? "#dbeafe"
-                                : "#8d98aa",
-                            cursor:
-                              "pointer",
-                            textAlign:
-                              "left",
-                            fontSize:
-                              "10px",
-                          }}
-                        >
-                          <span
-                            style={{
-                              width:
-                                "18px",
-                              height:
-                                "18px",
-                              flexShrink:
-                                0,
-                              display:
-                                "flex",
-                              alignItems:
-                                "center",
-                              justifyContent:
-                                "center",
-                              border:
-                                selected
-                                  ? "1px solid #3b82f6"
-                                  : "1px solid #354052",
-                              borderRadius:
-                                "5px",
-                              background:
-                                selected
-                                  ? "#2563eb"
-                                  : "transparent",
-                            }}
-                          >
-                            {selected && (
-                              <Check
-                                size={
-                                  12
-                                }
-                              />
-                            )}
-                          </span>
-
-                          <span>
-                            {
-                              term.term
-                            }
-                          </span>
-                        </button>
-                      );
-                    }
-                  )}
-                </div>
-              )}
-
-              {form.category &&
-                currentCategoryTerms.length >
-                  0 && (
-                  <div
-                    style={{
-                      marginTop:
-                        "10px",
-                      color:
-                        "#687386",
-                      fontSize:
-                        "10px",
-                    }}
-                  >
-                    {selectedTerms.filter(
-                      (id) =>
-                        currentCategoryTerms.some(
-                          (term) =>
-                            term.id ===
-                            id
-                        )
-                    ).length}{" "}
-                    de{" "}
-                    {
-                      currentCategoryTerms.length
-                    }{" "}
-                    termos selecionados
-                  </div>
-                )}
             </div>
 
-            {/* DESCONTO */}
-
-            <div>
-              <label
-                style={{
-                  display:
-                    "block",
-                  color:
-                    "#aeb7c6",
-                  fontSize:
-                    "11px",
-                  marginBottom:
-                    "6px",
-                }}
-              >
-                Desconto mínimo (%)
-              </label>
-
+            <Field label="Desconto mínimo (%)">
               <input
                 type="number"
                 min="0"
                 max="100"
                 step="0.01"
-                value={
-                  form.min_discount_percent
-                }
-                onChange={(
-                  event
-                ) =>
+                value={form.min_discount_percent}
+                onChange={(event) =>
                   updateField(
                     "min_discount_percent",
-                    event.target
-                      .value
+                    event.target.value,
                   )
                 }
-                placeholder="Ex.: 10"
-                style={{
-                  width:
-                    "100%",
-                  boxSizing:
-                    "border-box",
-                  padding:
-                    "10px 11px",
-                  border:
-                    "1px solid #202734",
-                  borderRadius:
-                    "8px",
-                  background:
-                    "#0b0f16",
-                  color:
-                    "#e8edf5",
-                  outline:
-                    "none",
-                  fontSize:
-                    "12px",
-                }}
+                placeholder="0"
+                style={inputStyle}
               />
-            </div>
+            </Field>
 
-            {/* PREÇO MÍNIMO */}
-
-            <div>
-              <label
-                style={{
-                  display:
-                    "block",
-                  color:
-                    "#aeb7c6",
-                  fontSize:
-                    "11px",
-                  marginBottom:
-                    "6px",
-                }}
-              >
-                Preço mínimo
-              </label>
-
+            <Field label="Preço mínimo">
               <input
                 type="number"
                 min="0"
                 step="0.01"
-                value={
-                  form.min_price
-                }
-                onChange={(
-                  event
-                ) =>
+                value={form.min_price}
+                onChange={(event) =>
                   updateField(
                     "min_price",
-                    event.target
-                      .value
+                    event.target.value,
                   )
                 }
-                placeholder="Ex.: 50"
-                style={{
-                  width:
-                    "100%",
-                  boxSizing:
-                    "border-box",
-                  padding:
-                    "10px 11px",
-                  border:
-                    "1px solid #202734",
-                  borderRadius:
-                    "8px",
-                  background:
-                    "#0b0f16",
-                  color:
-                    "#e8edf5",
-                  outline:
-                    "none",
-                  fontSize:
-                    "12px",
-                }}
+                placeholder="Sem mínimo"
+                style={inputStyle}
               />
-            </div>
+            </Field>
 
-            {/* PREÇO MÁXIMO */}
-
-            <div>
-              <label
-                style={{
-                  display:
-                    "block",
-                  color:
-                    "#aeb7c6",
-                  fontSize:
-                    "11px",
-                  marginBottom:
-                    "6px",
-                }}
-              >
-                Preço máximo
-              </label>
-
+            <Field label="Preço máximo">
               <input
                 type="number"
                 min="0"
                 step="0.01"
-                value={
-                  form.max_price
-                }
-                onChange={(
-                  event
-                ) =>
+                value={form.max_price}
+                onChange={(event) =>
                   updateField(
                     "max_price",
-                    event.target
-                      .value
+                    event.target.value,
                   )
                 }
-                placeholder="Ex.: 350"
-                style={{
-                  width:
-                    "100%",
-                  boxSizing:
-                    "border-box",
-                  padding:
-                    "10px 11px",
-                  border:
-                    "1px solid #202734",
-                  borderRadius:
-                    "8px",
-                  background:
-                    "#0b0f16",
-                  color:
-                    "#e8edf5",
-                  outline:
-                    "none",
-                  fontSize:
-                    "12px",
-                }}
+                placeholder="Sem máximo"
+                style={inputStyle}
               />
-            </div>
+            </Field>
 
-            {/* APROVAÇÃO */}
-
-            <div
-              style={{
-                gridColumn:
-                  "1 / -1",
-                borderTop:
-                  "1px solid #202734",
-                paddingTop:
-                  "18px",
-              }}
-            >
-              <div
+            <div>
+              <label
                 style={{
-                  display:
-                    "flex",
-                  alignItems:
-                    "flex-start",
-                  justifyContent:
-                    "space-between",
-                  gap:
-                    "16px",
-                  flexWrap:
-                    "wrap",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  color: "#cbd3df",
+                  fontSize: 11,
+                  cursor: "pointer",
                 }}
               >
-                <div>
-                  <div
-                    style={{
-                      color:
-                        "#e8edf5",
-                      fontSize:
-                        "13px",
-                      fontWeight:
-                        600,
-                    }}
-                  >
-                    Aprovação automática
-                  </div>
-
-                  <p
-                    style={{
-                      margin:
-                        "5px 0 0",
-                      color:
-                        "#687386",
-                      fontSize:
-                        "10px",
-                      maxWidth:
-                        "650px",
-                      lineHeight:
-                        1.5,
-                    }}
-                  >
-                    Produtos que atendem
-                    aos critérios podem
-                    ser aprovados
-                    automaticamente.
-                    Produtos acima do
-                    limite permanecem para
-                    aprovação manual.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() =>
+                <input
+                  type="checkbox"
+                  checked={form.auto_approve}
+                  onChange={(event) =>
                     updateField(
                       "auto_approve",
-                      !form.auto_approve
+                      event.target.checked,
                     )
                   }
-                  style={{
-                    display:
-                      "inline-flex",
-                    alignItems:
-                      "center",
-                    gap:
-                      "8px",
-                    border:
-                      "1px solid #202734",
-                    borderRadius:
-                      "8px",
-                    background:
-                      form.auto_approve
-                        ? "#132a21"
-                        : "#0b0f16",
-                    color:
-                      form.auto_approve
-                        ? "#6ee7b7"
-                        : "#8d98aa",
-                    padding:
-                      "8px 11px",
-                    cursor:
-                      "pointer",
-                    fontSize:
-                      "11px",
-                    fontWeight:
-                      600,
-                  }}
-                >
-                  <Check size={14} />
+                />
 
-                  {form.auto_approve
-                    ? "Ativada"
-                    : "Desativada"}
-                </button>
-              </div>
+                Aprovação automática
+              </label>
 
               {form.auto_approve && (
-                <div
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.auto_approve_max_price}
+                  onChange={(event) =>
+                    updateField(
+                      "auto_approve_max_price",
+                      event.target.value,
+                    )
+                  }
+                  placeholder="Limite de preço"
                   style={{
-                    marginTop:
-                      "16px",
-                    maxWidth:
-                      "300px",
+                    ...inputStyle,
+                    marginTop: 8,
                   }}
-                >
-                  <label
-                    style={{
-                      display:
-                        "block",
-                      color:
-                        "#aeb7c6",
-                      fontSize:
-                        "11px",
-                      marginBottom:
-                        "6px",
-                    }}
-                  >
-                    Limite de aprovação automática
-                  </label>
-
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={
-                      form.auto_approve_max_price
-                    }
-                    onChange={(
-                      event
-                    ) =>
-                      updateField(
-                        "auto_approve_max_price",
-                        event.target
-                          .value
-                      )
-                    }
-                    placeholder="Ex.: 500"
-                    style={{
-                      width:
-                        "100%",
-                      boxSizing:
-                        "border-box",
-                      padding:
-                        "10px 11px",
-                      border:
-                        "1px solid #202734",
-                      borderRadius:
-                        "8px",
-                      background:
-                        "#0b0f16",
-                      color:
-                        "#e8edf5",
-                      outline:
-                        "none",
-                      fontSize:
-                        "12px",
-                    }}
-                  />
-
-                  <p
-                    style={{
-                      margin:
-                        "6px 0 0",
-                      color:
-                        "#687386",
-                      fontSize:
-                        "10px",
-                      lineHeight:
-                        1.5,
-                    }}
-                  >
-                    Produtos acima deste
-                    valor não são
-                    descartados. Eles ficam
-                    aguardando aprovação
-                    manual.
-                  </p>
-                </div>
+                />
               )}
-            </div>
 
-            {/* STATUS */}
+              <HelpText>
+                Produtos acima do limite não são descartados;
+                ficam para aprovação manual.
+              </HelpText>
+            </div>
 
             <div
               style={{
-                gridColumn:
-                  "1 / -1",
-                borderTop:
-                  "1px solid #202734",
-                paddingTop:
-                  "16px",
+                gridColumn: "1 / -1",
+                borderTop: "1px solid #202734",
+                paddingTop: 14,
               }}
             >
               <button
@@ -2035,34 +998,23 @@ export function Regras() {
                 onClick={() =>
                   updateField(
                     "active",
-                    !form.active
+                    !form.active,
                   )
                 }
                 style={{
-                  display:
-                    "inline-flex",
-                  alignItems:
-                    "center",
-                  gap:
-                    "8px",
-                  border:
-                    "1px solid #202734",
-                  borderRadius:
-                    "8px",
-                  background:
-                    "#0b0f16",
-                  color:
-                    form.active
-                      ? "#6ee7b7"
-                      : "#8d98aa",
-                  padding:
-                    "8px 11px",
-                  cursor:
-                    "pointer",
-                  fontSize:
-                    "11px",
-                  fontWeight:
-                    600,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  border: "1px solid #202734",
+                  borderRadius: 8,
+                  background: "#0b0f16",
+                  color: form.active
+                    ? "#6ee7b7"
+                    : "#8d98aa",
+                  padding: "8px 11px",
+                  cursor: "pointer",
+                  fontSize: 11,
+                  fontWeight: 600,
                 }}
               >
                 <Check size={14} />
@@ -2076,25 +1028,17 @@ export function Regras() {
 
           <div
             style={{
-              display:
-                "flex",
-              justifyContent:
-                "flex-end",
-              gap:
-                "8px",
-              marginTop:
-                "22px",
-              paddingTop:
-                "16px",
-              borderTop:
-                "1px solid #202734",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 8,
+              marginTop: 22,
+              paddingTop: 16,
+              borderTop: "1px solid #202734",
             }}
           >
             <button
               className="secondary-button"
-              onClick={
-                closeForm
-              }
+              onClick={closeForm}
               disabled={saving}
             >
               <X size={15} />
@@ -2103,9 +1047,7 @@ export function Regras() {
 
             <button
               className="primary-button"
-              onClick={
-                saveRule
-              }
+              onClick={saveRule}
               disabled={saving}
             >
               {saving ? (
@@ -2117,13 +1059,11 @@ export function Regras() {
                         "spin 1s linear infinite",
                     }}
                   />
-
                   Salvando...
                 </>
               ) : (
                 <>
                   <Save size={15} />
-
                   {editingId
                     ? "Salvar alterações"
                     : "Criar regra"}
@@ -2133,10 +1073,6 @@ export function Regras() {
           </div>
         </div>
       )}
-
-      {/* =====================================================
-          LISTA DE REGRAS
-          ===================================================== */}
 
       <div className="panel">
         {loading ? (
@@ -2149,13 +1085,10 @@ export function Regras() {
               }}
             />
 
-            <h3>
-              Carregando regras...
-            </h3>
+            <h3>Carregando regras...</h3>
 
             <p>
-              Consultando as regras
-              configuradas no Ofertix.
+              Consultando as regras configuradas no Ofertix.
             </p>
           </div>
         ) : rules.length === 0 ? (
@@ -2164,25 +1097,17 @@ export function Regras() {
               <Plus size={25} />
             </div>
 
-            <h3>
-              Nenhuma regra configurada
-            </h3>
+            <h3>Nenhuma regra configurada</h3>
 
             <p>
-              Crie uma regra para definir
-              quais produtos o Ofertix
-              deve procurar.
+              Crie uma regra para definir quais categorias e
+              critérios o Ofertix deve procurar.
             </p>
 
             <button
               className="primary-button"
-              onClick={
-                openCreateForm
-              }
-              style={{
-                marginTop:
-                  "8px",
-              }}
+              onClick={openCreateForm}
+              style={{ marginTop: 8 }}
             >
               <Plus size={15} />
               Criar primeira regra
@@ -2191,49 +1116,28 @@ export function Regras() {
         ) : (
           <div
             style={{
-              display:
-                "flex",
-              flexDirection:
-                "column",
-              gap:
-                "10px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
             }}
           >
-            {rules.map(
-              (rule) => (
-                <RuleCard
-                  key={rule.id}
-                  rule={rule}
-                  marketplaces={
-                    marketplaces
-                  }
-                  searchTerms={
-                    searchTerms
-                  }
-                  onEdit={
-                    openEditForm
-                  }
-                  onToggle={
-                    toggleRule
-                  }
-                  onDelete={
-                    deleteRule
-                  }
-                  deleting={
-                    deleting
-                  }
-                  getMarketplaceName={
-                    getMarketplaceName
-                  }
-                  formatNumber={
-                    formatNumber
-                  }
-                  formatPrice={
-                    formatPrice
-                  }
-                />
-              )
-            )}
+            {rules.map((rule) => (
+              <RuleCard
+                key={rule.id}
+                rule={rule}
+                marketplaces={marketplaces}
+                termStats={getCategoryStats(
+                  rule.category,
+                )}
+                onEdit={openEditForm}
+                onToggle={toggleRule}
+                onDelete={deleteRule}
+                deleting={deleting}
+                getMarketplaceName={getMarketplaceName}
+                formatNumber={formatNumber}
+                formatPrice={formatPrice}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -2241,35 +1145,85 @@ export function Regras() {
   );
 }
 
+const inputStyle: CSSProperties = {
+  width: "100%",
+  boxSizing: "border-box",
+  padding: "10px 11px",
+  border: "1px solid #202734",
+  borderRadius: 8,
+  background: "#0b0f16",
+  color: "#e8edf5",
+  outline: "none",
+  fontSize: 12,
+};
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div>
+      <label
+        style={{
+          display: "block",
+          color: "#aeb7c6",
+          fontSize: 10,
+          fontWeight: 600,
+          marginBottom: 6,
+        }}
+      >
+        {label}
+      </label>
+
+      {children}
+    </div>
+  );
+}
+
+function HelpText({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return (
+    <p
+      style={{
+        margin: "6px 0 0",
+        color: "#687386",
+        fontSize: 10,
+        lineHeight: 1.5,
+      }}
+    >
+      {children}
+    </p>
+  );
+}
+
 interface RuleCardProps {
   rule: OfferRule;
   marketplaces: Marketplace[];
-  searchTerms: SearchTerm[];
-  onEdit: (
-    rule: OfferRule
-  ) => void;
-  onToggle: (
-    rule: OfferRule
-  ) => void;
-  onDelete: (
-    rule: OfferRule
-  ) => void;
+  termStats: TermStats;
+  onEdit: (rule: OfferRule) => void;
+  onToggle: (rule: OfferRule) => void;
+  onDelete: (rule: OfferRule) => void;
   deleting: string | null;
   getMarketplaceName: (
-    marketplaceId: string | null
+    marketplaceId: string | null,
   ) => string;
   formatNumber: (
-    value: number | null
+    value: number | null,
   ) => string | null;
   formatPrice: (
-    value: number | null
+    value: number | null,
   ) => string | null;
 }
 
 function RuleCard({
   rule,
-  marketplaces,
-  searchTerms,
+  termStats,
   onEdit,
   onToggle,
   onDelete,
@@ -2278,122 +1232,43 @@ function RuleCard({
   formatNumber,
   formatPrice,
 }: RuleCardProps) {
-  const [open, setOpen] =
-    useState(false);
-
-  const [terms, setTerms] =
-    useState<SearchTerm[]>([]);
-
-  const [loadingTerms, setLoadingTerms] =
-    useState(false);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    async function loadTerms() {
-      setLoadingTerms(true);
-
-      const { data, error } =
-        await supabase
-          .from(
-            "offer_rule_search_terms"
-          )
-          .select(
-            "search_term_id"
-          )
-          .eq(
-            "rule_id",
-            rule.id
-          )
-          .eq(
-            "active",
-            true
-          );
-
-      if (!error) {
-        const ids =
-          (data ?? []).map(
-            (item) =>
-              item.search_term_id
-          );
-
-        setTerms(
-          searchTerms.filter(
-            (term) =>
-              ids.includes(
-                term.id
-              )
-          )
-        );
-      }
-
-      setLoadingTerms(false);
-    }
-
-    loadTerms();
-  }, [
-    open,
-    rule.id,
-    searchTerms,
-  ]);
-
   return (
     <div
       style={{
-        padding:
-          "16px",
-        border:
-          "1px solid #202734",
-        borderRadius:
-          "10px",
-        background:
-          "#0b0f16",
+        padding: 16,
+        border: "1px solid #202734",
+        borderRadius: 10,
+        background: "#0b0f16",
       }}
     >
       <div
         style={{
-          display:
-            "flex",
-          alignItems:
-            "flex-start",
-          justifyContent:
-            "space-between",
-          gap:
-            "16px",
-          flexWrap:
-            "wrap",
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 16,
+          flexWrap: "wrap",
         }}
       >
         <div
           style={{
-            flex:
-              1,
-            minWidth:
-              "220px",
+            flex: 1,
+            minWidth: 220,
           }}
         >
           <div
             style={{
-              display:
-                "flex",
-              alignItems:
-                "center",
-              gap:
-                "8px",
-              flexWrap:
-                "wrap",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flexWrap: "wrap",
             }}
           >
             <span
               style={{
-                color:
-                  "#e8edf5",
-                fontSize:
-                  "14px",
-                fontWeight:
-                  600,
+                color: "#e8edf5",
+                fontSize: 14,
+                fontWeight: 600,
               }}
             >
               {rule.name}
@@ -2401,44 +1276,30 @@ function RuleCard({
 
             <span
               style={{
-                padding:
-                  "4px 8px",
-                borderRadius:
-                  "20px",
-                background:
-                  rule.active
-                    ? "#132a21"
-                    : "#20232b",
-                color:
-                  rule.active
-                    ? "#6ee7b7"
-                    : "#8d98aa",
-                fontSize:
-                  "10px",
-                fontWeight:
-                  600,
+                padding: "4px 8px",
+                borderRadius: 20,
+                background: rule.active
+                  ? "#132a21"
+                  : "#20232b",
+                color: rule.active
+                  ? "#6ee7b7"
+                  : "#8d98aa",
+                fontSize: 10,
+                fontWeight: 600,
               }}
             >
-              {rule.active
-                ? "Ativa"
-                : "Inativa"}
+              {rule.active ? "Ativa" : "Inativa"}
             </span>
 
             {rule.auto_approve && (
               <span
                 style={{
-                  padding:
-                    "4px 8px",
-                  borderRadius:
-                    "20px",
-                  background:
-                    "#16243a",
-                  color:
-                    "#60a5fa",
-                  fontSize:
-                    "10px",
-                  fontWeight:
-                    600,
+                  padding: "4px 8px",
+                  borderRadius: 20,
+                  background: "#16243a",
+                  color: "#60a5fa",
+                  fontSize: 10,
+                  fontWeight: 600,
                 }}
               >
                 Aprovação automática
@@ -2448,26 +1309,20 @@ function RuleCard({
 
           <div
             style={{
-              display:
-                "flex",
-              gap:
-                "8px",
-              flexWrap:
-                "wrap",
-              marginTop:
-                "8px",
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              marginTop: 8,
             }}
           >
             <span
               style={{
-                color:
-                  "#687386",
-                fontSize:
-                  "10px",
+                color: "#687386",
+                fontSize: 10,
               }}
             >
               {getMarketplaceName(
-                rule.marketplace_id
+                rule.marketplace_id,
               )}
             </span>
 
@@ -2475,10 +1330,8 @@ function RuleCard({
               <>
                 <span
                   style={{
-                    color:
-                      "#3c4555",
-                    fontSize:
-                      "10px",
+                    color: "#3c4555",
+                    fontSize: 10,
                   }}
                 >
                   •
@@ -2486,10 +1339,8 @@ function RuleCard({
 
                 <span
                   style={{
-                    color:
-                      "#687386",
-                    fontSize:
-                      "10px",
+                    color: "#687386",
+                    fontSize: 10,
                   }}
                 >
                   {rule.category}
@@ -2501,17 +1352,13 @@ function RuleCard({
 
         <div
           style={{
-            display:
-              "flex",
-            gap:
-              "7px",
+            display: "flex",
+            gap: 7,
           }}
         >
           <button
             className="text-button"
-            onClick={() =>
-              onEdit(rule)
-            }
+            onClick={() => onEdit(rule)}
             title="Editar regra"
           >
             <Edit3 size={15} />
@@ -2519,9 +1366,7 @@ function RuleCard({
 
           <button
             className="text-button"
-            onClick={() =>
-              onToggle(rule)
-            }
+            onClick={() => onToggle(rule)}
             title={
               rule.active
                 ? "Desativar regra"
@@ -2533,21 +1378,14 @@ function RuleCard({
 
           <button
             className="text-button"
-            onClick={() =>
-              onDelete(rule)
-            }
-            disabled={
-              deleting ===
-              rule.id
-            }
+            onClick={() => onDelete(rule)}
+            disabled={deleting === rule.id}
             title="Excluir regra"
             style={{
-              color:
-                "#f87171",
+              color: "#f87171",
             }}
           >
-            {deleting ===
-            rule.id ? (
+            {deleting === rule.id ? (
               <RefreshCw
                 size={15}
                 style={{
@@ -2556,28 +1394,7 @@ function RuleCard({
                 }}
               />
             ) : (
-              <Trash2
-                size={15}
-              />
-            )}
-          </button>
-
-          <button
-            className="text-button"
-            onClick={() =>
-              setOpen(
-                (current) =>
-                  !current
-              )
-            }
-            title="Ver termos"
-          >
-            {open ? (
-              <X size={15} />
-            ) : (
-              <ChevronDown
-                size={15}
-              />
+              <Trash2 size={15} />
             )}
           </button>
         </div>
@@ -2585,216 +1402,139 @@ function RuleCard({
 
       <div
         style={{
-          display:
-            "grid",
+          display: "grid",
           gridTemplateColumns:
             "repeat(auto-fit, minmax(150px, 1fr))",
-          gap:
-            "10px",
-          marginTop:
-            "16px",
-          paddingTop:
-            "14px",
-          borderTop:
-            "1px solid #202734",
+          gap: 10,
+          marginTop: 16,
+          paddingTop: 14,
+          borderTop: "1px solid #202734",
         }}
       >
         <div>
-          <div
-            style={{
-              color:
-                "#687386",
-              fontSize:
-                "9px",
-              textTransform:
-                "uppercase",
-            }}
-          >
+          <div style={labelStyle}>
             Desconto mínimo
           </div>
 
-          <div
-            style={{
-              color:
-                "#cbd3df",
-              fontSize:
-                "12px",
-              marginTop:
-                "4px",
-            }}
-          >
+          <div style={valueStyle}>
             {formatNumber(
-              rule.min_discount_percent
+              rule.min_discount_percent,
             ) ?? "0"}
             %
           </div>
         </div>
 
         <div>
-          <div
-            style={{
-              color:
-                "#687386",
-              fontSize:
-                "9px",
-              textTransform:
-                "uppercase",
-            }}
-          >
+          <div style={labelStyle}>
             Faixa de preço
           </div>
 
-          <div
-            style={{
-              color:
-                "#cbd3df",
-              fontSize:
-                "12px",
-              marginTop:
-                "4px",
-            }}
-          >
-            {formatPrice(
-              rule.min_price
-            ) ??
-              "Sem mínimo"}
-
-            {" → "}
-
-            {formatPrice(
-              rule.max_price
-            ) ??
+          <div style={valueStyle}>
+            {formatPrice(rule.min_price) ??
+              "Sem mínimo"}{" "}
+            →{" "}
+            {formatPrice(rule.max_price) ??
               "Sem máximo"}
           </div>
         </div>
 
         <div>
-          <div
-            style={{
-              color:
-                "#687386",
-              fontSize:
-                "9px",
-              textTransform:
-                "uppercase",
-            }}
-          >
+          <div style={labelStyle}>
             Aprovação
           </div>
 
           <div
             style={{
-              color:
-                rule.auto_approve
-                  ? "#6ee7b7"
-                  : "#facc15",
-              fontSize:
-                "12px",
-              marginTop:
-                "4px",
+              ...valueStyle,
+              color: rule.auto_approve
+                ? "#6ee7b7"
+                : "#facc15",
             }}
           >
             {rule.auto_approve
-              ? rule.auto_approve_max_price !==
-                null
+              ? rule.auto_approve_max_price !== null
                 ? `Automática até ${formatPrice(
-                    rule.auto_approve_max_price
+                    rule.auto_approve_max_price,
                   )}`
                 : "Automática sem limite"
               : "Manual"}
           </div>
         </div>
-      </div>
 
-      {open && (
-        <div
-          style={{
-            marginTop:
-              "14px",
-            paddingTop:
-              "14px",
-            borderTop:
-              "1px solid #202734",
-          }}
-        >
-          <div
-            style={{
-              color:
-                "#aeb7c6",
-              fontSize:
-                "10px",
-              fontWeight:
-                600,
-              marginBottom:
-                "9px",
-            }}
-          >
-            TERMOS UTILIZADOS NA BUSCA
+        <div>
+          <div style={labelStyle}>
+            Descoberta
           </div>
 
-          {loadingTerms ? (
-            <span
-              style={{
-                color:
-                  "#687386",
-                fontSize:
-                  "10px",
-              }}
-            >
-              Carregando...
-            </span>
-          ) : terms.length ===
-            0 ? (
-            <span
-              style={{
-                color:
-                  "#facc15",
-                fontSize:
-                  "10px",
-              }}
-            >
-              Nenhum termo vinculado.
-            </span>
-          ) : (
-            <div
-              style={{
-                display:
-                  "flex",
-                flexWrap:
-                  "wrap",
-                gap:
-                  "6px",
-              }}
-            >
-              {terms.map(
-                (term) => (
-                  <span
-                    key={
-                      term.id
-                    }
-                    style={{
-                      padding:
-                        "5px 8px",
-                      borderRadius:
-                        "6px",
-                      background:
-                        "#111827",
-                      border:
-                        "1px solid #263244",
-                      color:
-                        "#9fb1c9",
-                      fontSize:
-                        "10px",
-                    }}
-                  >
-                    {term.term}
-                  </span>
-                )
-              )}
-            </div>
-          )}
+          <div
+            style={{
+              ...valueStyle,
+              color: "#60a5fa",
+            }}
+          >
+            {rule.category
+              ? "Automática"
+              : "Por categoria"}
+          </div>
         </div>
-      )}
+      </div>
+
+      <div
+        style={{
+          marginTop: 14,
+          padding: "11px 12px",
+          borderRadius: 8,
+          background: "#0d1420",
+          border: "1px solid #1c2b40",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+        }}
+      >
+        <Sparkles
+          size={15}
+          style={{
+            color: "#60a5fa",
+            flexShrink: 0,
+          }}
+        />
+
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              color: "#cbd3df",
+              fontSize: 10,
+              fontWeight: 600,
+            }}
+          >
+            O Ofertix encontra os termos automaticamente
+          </div>
+
+          <div
+            style={{
+              color: "#687386",
+              fontSize: 9,
+              marginTop: 3,
+            }}
+          >
+            {rule.category
+              ? `${termStats.total} termos conhecidos para esta categoria · ${termStats.discovered} descobertos · ${termStats.trends} vindos de tendências`
+              : "Defina uma categoria para ativar a descoberta específica."}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
+
+const labelStyle: CSSProperties = {
+  color: "#687386",
+  fontSize: 9,
+  textTransform: "uppercase",
+};
+
+const valueStyle: CSSProperties = {
+  color: "#cbd3df",
+  fontSize: 12,
+  marginTop: 4,
+};
