@@ -3,7 +3,6 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock3,
-  ExternalLink,
   Megaphone,
   RefreshCw,
   Search,
