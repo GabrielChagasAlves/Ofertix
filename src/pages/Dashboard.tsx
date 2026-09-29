@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Activity,
   AlertCircle,
@@ -188,7 +188,15 @@ export function Dashboard() {
   const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
   const [rules, setRules] = useState<OfferRule[]>([]);
   const [runs, setRuns] = useState<AutomationRun[]>([]);
-  const [ruleCounts, setRuleCounts] = useState<RuleProductCount[]>([]);
+
+  const [latestSyncRun, setLatestSyncRun] =
+    useState<AutomationRun | null>(null);
+
+  const [latestAvailabilityRun, setLatestAvailabilityRun] =
+    useState<AutomationRun | null>(null);
+
+  const [ruleCounts, setRuleCounts] =
+    useState<RuleProductCount[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -213,6 +221,8 @@ export function Dashboard() {
         marketplacesResult,
         rulesResult,
         runsResult,
+        latestSyncResult,
+        latestAvailabilityResult,
         matchesResult,
       ] = await Promise.all([
         supabase
@@ -268,6 +278,7 @@ export function Dashboard() {
             ascending: true,
           }),
 
+        // Histórico geral.
         supabase
           .from("automation_runs")
           .select(
@@ -277,6 +288,37 @@ export function Dashboard() {
             ascending: false,
           })
           .limit(8),
+
+        // Última sincronização do Mercado Livre.
+        // Consulta separada para não ser escondida pelo publication-worker.
+        supabase
+          .from("automation_runs")
+          .select(
+            "id,function_name,status,started_at,finished_at,duration_ms,products_processed,products_created,products_updated,items_processed,errors_count,metrics,error_message"
+          )
+          .eq("function_name", "mercado-livre-sync")
+          .order("started_at", {
+            ascending: false,
+          })
+          .limit(1)
+          .maybeSingle(),
+
+        // Última verificação de disponibilidade.
+        // Consulta separada pelo mesmo motivo.
+        supabase
+          .from("automation_runs")
+          .select(
+            "id,function_name,status,started_at,finished_at,duration_ms,products_processed,products_created,products_updated,items_processed,errors_count,metrics,error_message"
+          )
+          .eq(
+            "function_name",
+            "mercado-livre-availability"
+          )
+          .order("started_at", {
+            ascending: false,
+          })
+          .limit(1)
+          .maybeSingle(),
 
         supabase
           .from("product_rule_matches")
@@ -293,6 +335,8 @@ export function Dashboard() {
         marketplacesResult,
         rulesResult,
         runsResult,
+        latestSyncResult,
+        latestAvailabilityResult,
         matchesResult,
       ];
 
@@ -333,7 +377,20 @@ export function Dashboard() {
           []) as AutomationRun[]
       );
 
-      const groupedMatches = new Map<string, Set<string>>();
+      setLatestSyncRun(
+        (latestSyncResult.data as AutomationRun | null) ??
+          null
+      );
+
+      setLatestAvailabilityRun(
+        (latestAvailabilityResult.data as AutomationRun | null) ??
+          null
+      );
+
+      const groupedMatches = new Map<
+        string,
+        Set<string>
+      >();
 
       for (const match of matchesResult.data ?? []) {
         if (!groupedMatches.has(match.rule_id)) {
@@ -375,24 +432,15 @@ export function Dashboard() {
     loadDashboard();
   }, []);
 
-  const latestSync = useMemo(() => {
-    return runs.find(
-      (run) =>
-        run.function_name ===
-        "mercado-livre-sync"
-    );
-  }, [runs]);
-
-  const latestAvailability = useMemo(() => {
-    return runs.find(
-      (run) =>
-        run.function_name ===
-        "mercado-livre-availability"
-    );
-  }, [runs]);
+  // Sync e disponibilidade são consultados diretamente por função.
+  // Isso evita que outras automações, como publication-worker,
+  // façam essas informações desaparecerem do topo do dashboard.
+  const latestSync = latestSyncRun;
+  const latestAvailability = latestAvailabilityRun;
 
   const automationOperational =
-    latestSync?.status === "succeeded";
+    latestSync?.status === "succeeded" ||
+    latestSync?.status === "running";
 
   const latestSyncMetrics =
     latestSync?.metrics ?? {};
@@ -514,9 +562,12 @@ export function Dashboard() {
               display: "flex",
               alignItems: "center",
               gap: "7px",
-              color: automationOperational
-                ? "#86efac"
-                : "#fbbf24",
+              color:
+                latestSync?.status === "failed"
+                  ? "#fca5a5"
+                  : automationOperational
+                  ? "#86efac"
+                  : "#fbbf24",
               fontSize: "12px",
               fontWeight: 700,
             }}
@@ -527,11 +578,15 @@ export function Dashboard() {
                 height: "8px",
                 borderRadius: "50%",
                 background:
-                  automationOperational
+                  latestSync?.status === "failed"
+                    ? "#f87171"
+                    : automationOperational
                     ? "#4ade80"
                     : "#fbbf24",
                 boxShadow:
-                  automationOperational
+                  latestSync?.status === "failed"
+                    ? "0 0 10px rgba(248,113,113,.35)"
+                    : automationOperational
                     ? "0 0 10px rgba(74,222,128,.45)"
                     : "0 0 10px rgba(251,191,36,.35)",
               }}
@@ -539,9 +594,13 @@ export function Dashboard() {
 
             {loading
               ? "Verificando..."
+              : latestSync?.status === "running"
+              ? "Sincronização em execução"
               : automationOperational
               ? "Mercado Livre operando"
-              : "Verificar automação"}
+              : latestSync?.status === "failed"
+              ? "Última sincronização falhou"
+              : "Sem execução registrada"}
           </div>
         </div>
 
@@ -628,7 +687,7 @@ export function Dashboard() {
               </div>
 
               <div className="dashboard-info-description">
-                Sync e verificação automática
+                Próximo ciclo previsto pelo scheduler
               </div>
             </div>
           </div>
