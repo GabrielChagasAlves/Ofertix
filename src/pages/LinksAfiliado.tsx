@@ -45,7 +45,7 @@ type Product = {
   availability_status: AvailabilityStatus | null;
   last_availability_check: string | null;
   availability_error: string | null;
-  marketplaces: Marketplace[] | null;
+  marketplaces: Marketplace | Marketplace[] | null;
 };
 
 type AffiliateLink = {
@@ -74,7 +74,11 @@ type BrandInfo = {
 function getBrandInfo(name: string, slug: string): BrandInfo {
   const value = `${name} ${slug}`.toLowerCase();
 
-  if (value.includes("mercado") || value.includes("meli")) {
+  if (
+    value.includes("mercado") ||
+    value.includes("meli") ||
+    value.includes("mercadolivre")
+  ) {
     return {
       className: "mercado-livre",
       displayName: "Mercado Livre",
@@ -336,12 +340,39 @@ export function LinksAfiliado() {
     });
   }
 
-  function getMarketplace(product: Product) {
-    return product.marketplaces?.[0] || null;
+  function getMarketplace(product: Product): Marketplace | null {
+    const relation = product.marketplaces;
+
+    // O Supabase pode retornar a relação como objeto ou como array,
+    // dependendo da definição da relação e da resposta PostgREST.
+    if (Array.isArray(relation)) {
+      return relation[0] || null;
+    }
+
+    if (relation && typeof relation === "object") {
+      return relation as Marketplace;
+    }
+
+    return null;
   }
 
   function getMarketplaceName(product: Product) {
-    return getMarketplace(product)?.name || "Marketplace";
+    const marketplace = getMarketplace(product);
+
+    if (marketplace?.name?.trim()) {
+      return getBrandInfo(
+        marketplace.name,
+        marketplace.slug || ""
+      ).displayName;
+    }
+
+    // Fallback seguro para itens do Mercado Livre cujo relacionamento
+    // não veio preenchido, sem presumir a plataforma dos demais itens.
+    if ((product.external_id || "").toUpperCase().startsWith("MLB")) {
+      return "Mercado Livre";
+    }
+
+    return "Marketplace";
   }
 
   function getAvailabilityStatus(product: Product) {
@@ -862,8 +893,8 @@ export function LinksAfiliado() {
             const marketplace = getMarketplace(product);
 
             const brand = getBrandInfo(
-              marketplace?.name || "",
-              marketplace?.slug || ""
+              marketplace?.name || getMarketplaceName(product),
+              marketplace?.slug || product.marketplace_id || ""
             );
 
             const availability =
@@ -1087,8 +1118,8 @@ export function LinksAfiliado() {
                   const marketplace = getMarketplace(product);
 
                   const brand = getBrandInfo(
-                    marketplace?.name || "",
-                    marketplace?.slug || ""
+                    marketplace?.name || getMarketplaceName(product),
+                    marketplace?.slug || product.marketplace_id || ""
                   );
 
                   return (

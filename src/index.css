@@ -3507,3 +3507,34 @@ a {
     padding: 16px;
   }
 }
+
+/* Correção de prioridade: manter a faixa superior na cor de cada marketplace. */
+.affiliate-page .affiliate-product-card.brand-mercado-livre .affiliate-card-brandbar {
+  background: linear-gradient(125deg, #ffe500, #f6c900) !important;
+  color: #5b4700;
+}
+.affiliate-page .affiliate-product-card.brand-amazon .affiliate-card-brandbar {
+  background: linear-gradient(125deg, #243a52, #12273e) !important;
+  color: #fff;
+}
+.affiliate-page .affiliate-product-card.brand-shopee .affiliate-card-brandbar {
+  background: linear-gradient(125deg, #ee4d2d, #d9361b) !important;
+  color: #fff;
+}
+.affiliate-page .affiliate-product-card.brand-magalu .affiliate-card-brandbar {
+  background: linear-gradient(125deg, #1684ff, #075ed2) !important;
+  color: #fff;
+}
+.affiliate-page .affiliate-product-card.brand-generic .affiliate-card-brandbar {
+  background: linear-gradient(125deg, #6545e8, #4e32c6) !important;
+  color: #fff;
+}
+
+.affiliate-page .affiliate-product-card.brand-amazon .affiliate-brand-identity strong,
+.affiliate-page .affiliate-product-card.brand-amazon .affiliate-brand-identity > div > span,
+.affiliate-page .affiliate-product-card.brand-shopee .affiliate-brand-identity strong,
+.affiliate-page .affiliate-product-card.brand-shopee .affiliate-brand-identity > div > span,
+.affiliate-page .affiliate-product-card.brand-magalu .affiliate-brand-identity strong,
+.affiliate-page .affiliate-product-card.brand-magalu .affiliate-brand-identity > div > span {
+  color: #fff !important;
+}
