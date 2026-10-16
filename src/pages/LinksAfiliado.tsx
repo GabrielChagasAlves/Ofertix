@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
+  Check,
   CheckCircle2,
   CheckSquare,
   Clock3,
   ExternalLink,
   Link2,
-  Save,
+  Package,
   Search,
+  ShoppingBag,
   Square,
+  Tags,
   X,
 } from "lucide-react";
+
 import { supabase } from "../lib/supabase";
 
 type Marketplace = {
@@ -62,6 +66,51 @@ type AffiliateForm = {
   affiliateTag: string;
 };
 
+type BrandInfo = {
+  className: string;
+  displayName: string;
+};
+
+function getBrandInfo(name: string, slug: string): BrandInfo {
+  const value = `${name} ${slug}`.toLowerCase();
+
+  if (value.includes("mercado") || value.includes("meli")) {
+    return {
+      className: "mercado-livre",
+      displayName: "Mercado Livre",
+    };
+  }
+
+  if (value.includes("amazon")) {
+    return {
+      className: "amazon",
+      displayName: "Amazon",
+    };
+  }
+
+  if (value.includes("shopee")) {
+    return {
+      className: "shopee",
+      displayName: "Shopee",
+    };
+  }
+
+  if (
+    value.includes("magalu") ||
+    value.includes("magazine")
+  ) {
+    return {
+      className: "magalu",
+      displayName: "Magalu",
+    };
+  }
+
+  return {
+    className: "generic",
+    displayName: name || "Marketplace",
+  };
+}
+
 export function LinksAfiliado() {
   const [products, setProducts] = useState<Product[]>([]);
   const [affiliateLinks, setAffiliateLinks] = useState<
@@ -77,14 +126,10 @@ export function LinksAfiliado() {
   const [search, setSearch] = useState("");
   const [marketplaceFilter, setMarketplaceFilter] =
     useState("all");
-  const [statusFilter, setStatusFilter] =
-    useState("all");
   const [availabilityFilter, setAvailabilityFilter] =
     useState("all");
 
-  const [selectedIds, setSelectedIds] = useState<string[]>(
-    []
-  );
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showModal, setShowModal] = useState(false);
 
   const [forms, setForms] = useState<
@@ -142,24 +187,16 @@ export function LinksAfiliado() {
           .order("name"),
       ]);
 
-      if (productError) {
-        throw productError;
-      }
-
-      if (linkError) {
-        throw linkError;
-      }
-
-      if (marketplaceError) {
-        throw marketplaceError;
-      }
+      if (productError) throw productError;
+      if (linkError) throw linkError;
+      if (marketplaceError) throw marketplaceError;
 
       setProducts(
         (productData ?? []) as unknown as Product[]
       );
 
       setAffiliateLinks(
-        (linkData ?? []) as unknown as AffiliateLink[]
+        (linkData ?? []) as AffiliateLink[]
       );
 
       setMarketplaces(
@@ -172,7 +209,8 @@ export function LinksAfiliado() {
       );
 
       alert(
-        "Não foi possível carregar os dados dos links de afiliado."
+        "Não foi possível carregar os produtos. " +
+          "Verifique a conexão e tente novamente."
       );
     } finally {
       setLoading(false);
@@ -180,14 +218,23 @@ export function LinksAfiliado() {
   }
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, []);
 
+  /*
+   * Obtém o registro mais recente de afiliado de cada produto.
+   */
   const linksByProduct = useMemo(() => {
     const map = new Map<string, AffiliateLink>();
 
     for (const link of affiliateLinks) {
-      if (!map.has(link.product_id)) {
+      const current = map.get(link.product_id);
+
+      if (
+        !current ||
+        new Date(link.updated_at).getTime() >
+          new Date(current.updated_at).getTime()
+      ) {
         map.set(link.product_id, link);
       }
     }
@@ -195,116 +242,92 @@ export function LinksAfiliado() {
     return map;
   }, [affiliateLinks]);
 
+  /*
+   * Esta tela funciona como uma fila de trabalho.
+   * Produtos que já possuem URL de afiliado não aparecem.
+   *
+   * A verificação considera tanto products.affiliate_url
+   * quanto affiliate_links.affiliate_url.
+   */
+  const productsWithoutAffiliateLink = useMemo(() => {
+    return products.filter((product) => {
+      const productUrl = product.affiliate_url?.trim();
+
+      const linkUrl = linksByProduct
+        .get(product.id)
+        ?.affiliate_url?.trim();
+
+      return !productUrl && !linkUrl;
+    });
+  }, [products, linksByProduct]);
+
   const filteredProducts = useMemo(() => {
     const normalizedSearch = search
       .trim()
-      .toLowerCase();
+      .toLocaleLowerCase("pt-BR");
 
-    return products.filter((product) => {
-      const title =
-        product.title?.toLowerCase() || "";
+    return productsWithoutAffiliateLink.filter(
+      (product) => {
+        const title = (
+          product.title || ""
+        ).toLocaleLowerCase("pt-BR");
 
-      const externalId =
-        product.external_id?.toLowerCase() || "";
+        const externalId = (
+          product.external_id || ""
+        ).toLocaleLowerCase("pt-BR");
 
-      const matchesSearch =
-        !normalizedSearch ||
-        title.includes(normalizedSearch) ||
-        externalId.includes(normalizedSearch);
+        const matchesSearch =
+          !normalizedSearch ||
+          title.includes(normalizedSearch) ||
+          externalId.includes(normalizedSearch);
 
-      const matchesMarketplace =
-        marketplaceFilter === "all" ||
-        product.marketplace_id === marketplaceFilter;
+        const matchesMarketplace =
+          marketplaceFilter === "all" ||
+          product.marketplace_id === marketplaceFilter;
 
-      const availability =
-        product.availability_status || "unknown";
+        const availability =
+          product.availability_status || "unknown";
 
-      const matchesAvailability =
-        availabilityFilter === "all" ||
-        availability === availabilityFilter;
+        const matchesAvailability =
+          availabilityFilter === "all" ||
+          availability === availabilityFilter;
 
-      const link =
-        linksByProduct.get(product.id);
-
-      const matchesStatus =
-        statusFilter === "all" ||
-        (statusFilter === "without" && !link) ||
-        (statusFilter === "ready" &&
-          link?.status === "ready") ||
-        (statusFilter === "pending" &&
-          link?.status === "pending") ||
-        (statusFilter === "invalid" &&
-          link?.status === "invalid");
-
-      return (
-        matchesSearch &&
-        matchesMarketplace &&
-        matchesAvailability &&
-        matchesStatus
-      );
-    });
+        return (
+          matchesSearch &&
+          matchesMarketplace &&
+          matchesAvailability
+        );
+      }
+    );
   }, [
-    products,
+    productsWithoutAffiliateLink,
     search,
     marketplaceFilter,
-    statusFilter,
     availabilityFilter,
-    linksByProduct,
   ]);
 
-  const stats = useMemo(() => {
-    const total = products.length;
+  const selectedProducts = useMemo(() => {
+    return selectedIds
+      .map((id) => products.find((p) => p.id === id))
+      .filter((p): p is Product => Boolean(p));
+  }, [selectedIds, products]);
 
-    const ready = products.filter(
-      (product) =>
-        linksByProduct.get(product.id)?.status ===
-        "ready"
-    ).length;
+  const marketplaceStats = useMemo(() => {
+    const counts = new Map<string, number>();
 
-    const without = products.filter(
-      (product) =>
-        !linksByProduct.has(product.id)
-    ).length;
+    for (const product of productsWithoutAffiliateLink) {
+      counts.set(
+        product.marketplace_id,
+        (counts.get(product.marketplace_id) || 0) + 1
+      );
+    }
 
-    const available = products.filter(
-      (product) =>
-        product.availability_status ===
-        "available"
-    ).length;
-
-    const unknown = products.filter(
-      (product) =>
-        !product.availability_status ||
-        product.availability_status === "unknown"
-    ).length;
-
-    return {
-      total,
-      ready,
-      without,
-      available,
-      unknown,
-    };
-  }, [products, linksByProduct]);
-
-  const selectedProducts = useMemo(
-    () =>
-      selectedIds
-        .map((id) =>
-          products.find(
-            (product) => product.id === id
-          )
-        )
-        .filter(Boolean) as Product[],
-    [selectedIds, products]
-  );
+    return counts;
+  }, [productsWithoutAffiliateLink]);
 
   function formatPrice(value: number | null) {
-    if (
-      value === null ||
-      value === undefined
-    ) {
-      return "—";
+    if (value === null || value === undefined) {
+      return "Preço não informado";
     }
 
     return value.toLocaleString("pt-BR", {
@@ -313,109 +336,69 @@ export function LinksAfiliado() {
     });
   }
 
-  function getMarketplaceName(
-    product: Product
-  ) {
-    return (
-      product.marketplaces?.[0]?.name ||
-      "—"
-    );
+  function getMarketplace(product: Product) {
+    return product.marketplaces?.[0] || null;
   }
 
-  function getAffiliateStatus(
-    product: Product
-  ) {
-    const link =
-      linksByProduct.get(product.id);
-
-    if (!link) {
-      return {
-        label: "Sem link",
-        type: "without",
-      };
-    }
-
-    if (link.status === "ready") {
-      return {
-        label: "Pronto",
-        type: "ready",
-      };
-    }
-
-    if (link.status === "pending") {
-      return {
-        label: "Pendente",
-        type: "pending",
-      };
-    }
-
-    return {
-      label: "Inválido",
-      type: "invalid",
-    };
+  function getMarketplaceName(product: Product) {
+    return getMarketplace(product)?.name || "Marketplace";
   }
 
-  function getAvailabilityStatus(
-    product: Product
-  ) {
-    switch (
-      product.availability_status
-    ) {
+  function getAvailabilityStatus(product: Product) {
+    switch (product.availability_status) {
       case "available":
         return {
           label: "Disponível",
           type: "ready",
+          icon: CheckCircle2,
         };
 
       case "unavailable":
         return {
           label: "Indisponível",
           type: "invalid",
+          icon: AlertCircle,
         };
 
       case "checking":
         return {
           label: "Verificando",
           type: "pending",
+          icon: Clock3,
         };
 
       case "error":
         return {
           label: "Erro na verificação",
           type: "invalid",
+          icon: AlertCircle,
         };
 
       default:
         return {
           label: "Não verificado",
           type: "without",
+          icon: Clock3,
         };
     }
   }
 
-  function toggleProduct(
-    productId: string
-  ) {
+  function toggleProduct(productId: string) {
     setSelectedIds((current) =>
       current.includes(productId)
-        ? current.filter(
-            (id) => id !== productId
-          )
+        ? current.filter((id) => id !== productId)
         : [...current, productId]
     );
   }
 
   function toggleAllVisible() {
-    const visibleIds =
-      filteredProducts.map(
-        (product) => product.id
-      );
+    const visibleIds = filteredProducts.map(
+      (product) => product.id
+    );
 
     const allSelected =
       visibleIds.length > 0 &&
-      visibleIds.every((id) =>
-        selectedIds.includes(id)
-      );
+      visibleIds.every((id) => selectedIds.includes(id));
 
     setSelectedIds((current) => {
       if (allSelected) {
@@ -425,49 +408,34 @@ export function LinksAfiliado() {
       }
 
       return Array.from(
-        new Set([
-          ...current,
-          ...visibleIds,
-        ])
+        new Set([...current, ...visibleIds])
       );
     });
   }
 
-  function openAffiliateModal(
-    ids = selectedIds
-  ) {
+  function openAffiliateModal(ids: string[] = selectedIds) {
     if (ids.length === 0) {
-      alert(
-        "Selecione pelo menos um produto."
-      );
+      alert("Selecione pelo menos um produto.");
       return;
     }
 
-    const nextForms: Record<
-      string,
-      AffiliateForm
-    > = {};
+    const nextForms: Record<string, AffiliateForm> = {};
 
     for (const id of ids) {
       const product = products.find(
         (item) => item.id === id
       );
 
-      if (!product) {
-        continue;
-      }
+      if (!product) continue;
 
-      const existingLink =
-        linksByProduct.get(id);
+      const existingLink = linksByProduct.get(id);
 
       nextForms[id] = {
         affiliateUrl:
           existingLink?.affiliate_url ||
           product.affiliate_url ||
           "",
-        affiliateTag:
-          existingLink?.affiliate_tag ||
-          "",
+        affiliateTag: existingLink?.affiliate_tag || "",
       };
     }
 
@@ -477,9 +445,7 @@ export function LinksAfiliado() {
   }
 
   function closeAffiliateModal() {
-    if (saving) {
-      return;
-    }
+    if (saving) return;
 
     setShowModal(false);
     setForms({});
@@ -503,19 +469,17 @@ export function LinksAfiliado() {
   }
 
   async function saveAffiliateLinks() {
-    if (selectedProducts.length === 0) {
-      return;
-    }
+    if (selectedProducts.length === 0) return;
 
-    // Valida todos os links antes de iniciar o salvamento.
+    /*
+     * Valida todos os links antes de começar a salvar.
+     */
     for (const product of selectedProducts) {
       const url = forms[product.id]?.affiliateUrl.trim();
 
       if (!url) {
         alert(
-          `Informe o link de afiliado para:
-
-${product.title}`
+          `Informe o link de afiliado para:\n\n${product.title}`
         );
         return;
       }
@@ -523,14 +487,14 @@ ${product.title}`
       try {
         const parsedUrl = new URL(url);
 
-        if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+        if (
+          !["http:", "https:"].includes(parsedUrl.protocol)
+        ) {
           throw new Error("Protocolo inválido");
         }
       } catch {
         alert(
-          `Informe uma URL válida para:
-
-${product.title}`
+          `Informe uma URL válida para:\n\n${product.title}`
         );
         return;
       }
@@ -579,13 +543,8 @@ ${product.title}`
 
         savedLinks++;
 
-        if (data.offer_created) {
-          createdOffers++;
-        }
-
-        if (data.duplicate_offer) {
-          duplicateOffers++;
-        }
+        if (data.offer_created) createdOffers++;
+        if (data.duplicate_offer) duplicateOffers++;
 
         if (data.offer_deferred) {
           deferredOffers++;
@@ -641,15 +600,11 @@ ${product.title}`
           ? error.message
           : "Erro desconhecido.";
 
-      // Pode haver links já persistidos antes de uma falha posterior.
       await loadData();
 
       alert(
-        `O processamento foi interrompido.
-
-${message}
-
-Antes de tentar novamente, confira quais links já foram salvos.`
+        `O processamento foi interrompido.\n\n${message}\n\n` +
+          "Antes de tentar novamente, confira quais links já foram salvos."
       );
     } finally {
       setSaving(false);
@@ -664,539 +619,458 @@ Antes de tentar novamente, confira quais links já foram salvos.`
 
   if (loading) {
     return (
-      <section className="page">
+      <section className="page affiliate-page">
         <div className="page-header">
           <div>
             <h1>Links de Afiliado</h1>
-            <p>
-              Associe os links oficiais dos
-              marketplaces aos produtos.
-            </p>
+            <p>Preparando seus produtos...</p>
           </div>
         </div>
 
-        <div className="settings-empty">
-          Carregando links de afiliado...
+        <div className="affiliate-loading">
+          <span className="affiliate-loading-spinner" />
+          Carregando produtos integrados...
         </div>
       </section>
     );
   }
 
   return (
-    <section className="page">
-      <div className="page-header">
-        <div>
-          <h1>Links de Afiliado</h1>
-
-          <p>
-            Produtos ativos podem receber
-            links de afiliado mesmo enquanto
-            a verificação de disponibilidade
-            estiver pendente.
-          </p>
-        </div>
-
-        {selectedIds.length > 0 && (
-          <button
-            type="button"
-            className="primary-button"
-            onClick={() =>
-              openAffiliateModal()
-            }
-          >
-            <Link2 size={16} />
-
-            Associar links (
-            {selectedIds.length})
-          </button>
-        )}
-      </div>
-
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-card-label">
-            Produtos ativos
+    <section className="page affiliate-page">
+      {/* Cabeçalho */}
+      <header className="affiliate-page-header">
+        <div className="affiliate-heading">
+          <div className="affiliate-heading-icon">
+            <Link2 size={27} />
           </div>
 
-          <div className="stat-card-value">
-            {stats.total}
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-label">
-            Disponíveis
-          </div>
-
-          <div className="stat-card-value">
-            {stats.available}
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-label">
-            Links prontos
-          </div>
-
-          <div className="stat-card-value">
-            {stats.ready}
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-label">
-            Sem link
-          </div>
-
-          <div className="stat-card-value">
-            {stats.without}
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-label">
-            Não verificados
-          </div>
-
-          <div className="stat-card-value">
-            {stats.unknown}
-          </div>
-        </div>
-      </div>
-
-      <div className="page-card">
-        <div className="filters-row">
-          <div className="search-box">
-            <Search size={18} />
-
-            <input
-              type="text"
-              placeholder="Buscar produto..."
-              value={search}
-              onChange={(event) =>
-                setSearch(
-                  event.target.value
-                )
-              }
-            />
-          </div>
-
-          <select
-            value={marketplaceFilter}
-            onChange={(event) =>
-              setMarketplaceFilter(
-                event.target.value
-              )
-            }
-          >
-            <option value="all">
-              Todos os marketplaces
-            </option>
-
-            {marketplaces.map(
-              (marketplace) => (
-                <option
-                  key={marketplace.id}
-                  value={marketplace.id}
-                >
-                  {marketplace.name}
-                </option>
-              )
-            )}
-          </select>
-
-          <select
-            value={statusFilter}
-            onChange={(event) =>
-              setStatusFilter(
-                event.target.value
-              )
-            }
-          >
-            <option value="all">
-              Todos os links
-            </option>
-
-            <option value="without">
-              Sem link
-            </option>
-
-            <option value="ready">
-              Pronto
-            </option>
-
-            <option value="pending">
-              Pendente
-            </option>
-
-            <option value="invalid">
-              Inválido
-            </option>
-          </select>
-
-          <select
-            value={availabilityFilter}
-            onChange={(event) =>
-              setAvailabilityFilter(
-                event.target.value
-              )
-            }
-          >
-            <option value="all">
-              Toda disponibilidade
-            </option>
-
-            <option value="available">
-              Disponível
-            </option>
-
-            <option value="unknown">
-              Não verificado
-            </option>
-
-            <option value="checking">
-              Verificando
-            </option>
-
-            <option value="unavailable">
-              Indisponível
-            </option>
-
-            <option value="error">
-              Erro
-            </option>
-          </select>
-        </div>
-
-        {selectedIds.length > 0 && (
-          <div className="selection-toolbar">
-            <span>
-              <strong>
-                {selectedIds.length}
-              </strong>{" "}
-              produto(s) selecionado(s)
+          <div>
+            <span className="affiliate-eyebrow">
+              CENTRAL DE AFILIAÇÃO
             </span>
 
+            <h1>Links de Afiliado</h1>
+
+            <p>
+              Produtos novos que precisam de um link.
+              Salvou? Eles saem desta tela automaticamente.
+            </p>
+          </div>
+        </div>
+
+        <div className="affiliate-total-card">
+          <div className="affiliate-total-icon">
+            <Package size={24} />
+          </div>
+
+          <div>
+            <strong>
+              {productsWithoutAffiliateLink.length}
+            </strong>
+            <span>aguardando link</span>
+          </div>
+        </div>
+      </header>
+
+      {/* Indicadores */}
+      <div className="affiliate-summary">
+        <div className="affiliate-summary-card">
+          <span className="affiliate-summary-icon purple">
+            <ShoppingBag size={20} />
+          </span>
+
+          <div>
+            <span>Produtos na fila</span>
+            <strong>
+              {productsWithoutAffiliateLink.length}
+            </strong>
+          </div>
+        </div>
+
+        <div className="affiliate-summary-card">
+          <span className="affiliate-summary-icon green">
+            <CheckCircle2 size={20} />
+          </span>
+
+          <div>
+            <span>Disponíveis</span>
+            <strong>
+              {
+                productsWithoutAffiliateLink.filter(
+                  (p) => p.availability_status === "available"
+                ).length
+              }
+            </strong>
+          </div>
+        </div>
+
+        <div className="affiliate-summary-card">
+          <span className="affiliate-summary-icon orange">
+            <Clock3 size={20} />
+          </span>
+
+          <div>
+            <span>Não verificados</span>
+            <strong>
+              {
+                productsWithoutAffiliateLink.filter(
+                  (p) =>
+                    !p.availability_status ||
+                    p.availability_status === "unknown"
+                ).length
+              }
+            </strong>
+          </div>
+        </div>
+      </div>
+
+      {/* Filtros */}
+      <div className="affiliate-toolbar">
+        <div className="affiliate-search">
+          <Search size={19} />
+
+          <input
+            type="search"
+            placeholder="Buscar por produto ou código..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+
+          {search && (
             <button
               type="button"
-              className="text-button"
-              onClick={() =>
-                setSelectedIds([])
-              }
+              aria-label="Limpar busca"
+              onClick={() => setSearch("")}
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+
+        <select
+          value={marketplaceFilter}
+          onChange={(event) =>
+            setMarketplaceFilter(event.target.value)
+          }
+          aria-label="Filtrar marketplace"
+        >
+          <option value="all">Todos os marketplaces</option>
+
+          {marketplaces.map((marketplace) => (
+            <option key={marketplace.id} value={marketplace.id}>
+              {marketplace.name} (
+              {marketplaceStats.get(marketplace.id) || 0})
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={availabilityFilter}
+          onChange={(event) =>
+            setAvailabilityFilter(event.target.value)
+          }
+          aria-label="Filtrar disponibilidade"
+        >
+          <option value="all">Toda disponibilidade</option>
+          <option value="available">Disponível</option>
+          <option value="unknown">Não verificado</option>
+          <option value="checking">Verificando</option>
+          <option value="unavailable">Indisponível</option>
+          <option value="error">Erro na verificação</option>
+        </select>
+
+        <button
+          type="button"
+          className="affiliate-select-all"
+          onClick={toggleAllVisible}
+          disabled={filteredProducts.length === 0}
+        >
+          {allVisibleSelected ? (
+            <CheckSquare size={17} />
+          ) : (
+            <Square size={17} />
+          )}
+          {allVisibleSelected ? "Desmarcar" : "Selecionar todos"}
+        </button>
+      </div>
+
+      {/* Barra de seleção múltipla */}
+      {selectedIds.length > 0 && (
+        <div className="affiliate-selection-bar">
+          <div>
+            <CheckCircle2 size={19} />
+            <span>
+              <strong>{selectedIds.length}</strong>{" "}
+              produto(s) selecionado(s)
+            </span>
+          </div>
+
+          <div className="affiliate-selection-actions">
+            <button
+              type="button"
+              className="affiliate-clear-selection"
+              onClick={() => setSelectedIds([])}
             >
               Limpar seleção
             </button>
-          </div>
-        )}
 
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th style={{ width: "46px" }}>
+            <button
+              type="button"
+              className="affiliate-bulk-button"
+              onClick={() => openAffiliateModal()}
+            >
+              <Link2 size={17} />
+              Associar links
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cards */}
+      {filteredProducts.length === 0 ? (
+        <div className="affiliate-empty-state">
+          <div className="affiliate-empty-icon">
+            <Check size={31} />
+          </div>
+
+          <h2>Tudo em dia!</h2>
+
+          <p>
+            Não há produtos aguardando link com os filtros
+            selecionados.
+          </p>
+
+          {(search ||
+            marketplaceFilter !== "all" ||
+            availabilityFilter !== "all") && (
+            <button
+              type="button"
+              className="affiliate-reset-filters"
+              onClick={() => {
+                setSearch("");
+                setMarketplaceFilter("all");
+                setAvailabilityFilter("all");
+              }}
+            >
+              Limpar filtros
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="affiliate-card-grid">
+          {filteredProducts.map((product, index) => {
+            const marketplace = getMarketplace(product);
+
+            const brand = getBrandInfo(
+              marketplace?.name || "",
+              marketplace?.slug || ""
+            );
+
+            const availability =
+              getAvailabilityStatus(product);
+
+            const AvailabilityIcon = availability.icon;
+
+            const selected = selectedIds.includes(product.id);
+
+            const discount =
+              product.discount_percent !== null &&
+              product.discount_percent > 0
+                ? product.discount_percent
+                : product.original_price !== null &&
+                    product.price !== null &&
+                    product.original_price > product.price
+                  ? ((product.original_price - product.price) /
+                      product.original_price) *
+                    100
+                  : null;
+
+            return (
+              <article
+                key={product.id}
+                className={[
+                  "affiliate-product-card",
+                  `brand-${brand.className}`,
+                  selected ? "is-selected" : "",
+                ].join(" ")}
+                style={{
+                  animationDelay: `${Math.min(index, 12) * 55}ms`,
+                }}
+              >
+                {/* Faixa da marca */}
+                <div className="affiliate-card-brandbar">
+                  <div className="affiliate-brand-identity">
+                    <span className="affiliate-brand-symbol">
+                      {brand.displayName.slice(0, 1).toUpperCase()}
+                    </span>
+
+                    <div>
+                      <strong>{brand.displayName}</strong>
+                      <span>Produto integrado</span>
+                    </div>
+                  </div>
+
                   <button
                     type="button"
-                    className="checkbox-button"
-                    onClick={
-                      toggleAllVisible
-                    }
-                    title={
-                      allVisibleSelected
-                        ? "Desmarcar todos"
-                        : "Selecionar todos"
+                    className={[
+                      "affiliate-select-toggle",
+                      selected ? "selected" : "",
+                    ].join(" ")}
+                    onClick={() => toggleProduct(product.id)}
+                    aria-label={
+                      selected
+                        ? "Desmarcar produto"
+                        : "Selecionar produto"
                     }
                   >
-                    {allVisibleSelected ? (
-                      <CheckSquare
-                        size={18}
-                      />
+                    {selected ? (
+                      <CheckSquare size={19} />
                     ) : (
-                      <Square size={18} />
+                      <Square size={19} />
                     )}
                   </button>
-                </th>
+                </div>
 
-                <th>Produto</th>
-                <th>Marketplace</th>
-                <th>Preço</th>
-                <th>Desconto</th>
-                <th>Disponibilidade</th>
-                <th>Afiliado</th>
-                <th />
-              </tr>
-            </thead>
+                {/* Imagem */}
+                <div className="affiliate-card-image-wrap">
+                  {product.image_url ? (
+                    <img
+                      src={product.image_url}
+                      alt={product.title}
+                      className="affiliate-card-image"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="affiliate-card-image-placeholder">
+                      <ShoppingBag size={37} />
+                      <span>Imagem não disponível</span>
+                    </div>
+                  )}
 
-            <tbody>
-              {filteredProducts.length ===
-              0 ? (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="table-empty"
+                  <span className="affiliate-new-badge">
+                    NOVO · SEM LINK
+                  </span>
+
+                  {discount !== null && discount > 0 && (
+                    <span className="affiliate-discount-badge">
+                      -{discount.toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+
+                {/* Conteúdo */}
+                <div className="affiliate-card-content">
+                  <div className="affiliate-product-marketplace">
+                    {getMarketplaceName(product)}
+                    <span>•</span>
+                    Código {product.external_id}
+                  </div>
+
+                  <h2
+                    className="affiliate-card-title"
+                    title={product.title}
                   >
-                    Nenhum produto encontrado.
-                  </td>
-                </tr>
-              ) : (
-                filteredProducts.map(
-                  (product) => {
-                    const affiliateStatus =
-                      getAffiliateStatus(
-                        product
-                      );
+                    {product.title}
+                  </h2>
 
-                    const availability =
-                      getAvailabilityStatus(
-                        product
-                      );
+                  <div className="affiliate-card-availability">
+                    <span
+                      className={`status-badge status-${availability.type}`}
+                      title={product.availability_error || ""}
+                    >
+                      <AvailabilityIcon size={14} />
+                      {availability.label}
+                    </span>
+                  </div>
 
-                    const link =
-                      linksByProduct.get(
-                        product.id
-                      );
+                  {/* Preços */}
+                  <div className="affiliate-card-pricing">
+                    <strong>{formatPrice(product.price)}</strong>
 
-                    const selected =
-                      selectedIds.includes(
-                        product.id
-                      );
+                    {product.original_price !== null &&
+                      product.price !== null &&
+                      product.original_price > product.price && (
+                        <del>
+                          {formatPrice(product.original_price)}
+                        </del>
+                      )}
+                  </div>
 
-                    return (
-                      <tr
-                        key={product.id}
-                      >
-                        <td>
-                          <button
-                            type="button"
-                            className="checkbox-button"
-                            onClick={() =>
-                              toggleProduct(
-                                product.id
-                              )
-                            }
-                          >
-                            {selected ? (
-                              <CheckSquare
-                                size={18}
-                              />
-                            ) : (
-                              <Square
-                                size={18}
-                              />
-                            )}
-                          </button>
-                        </td>
+                  {/* Cupom: não inventamos informação que não existe no banco */}
+                  <div className="affiliate-coupon-placeholder">
+                    <Tags size={16} />
 
-                        <td>
-                          <div className="product-cell">
-                            {product.image_url ? (
-                              <img
-                                src={
-                                  product.image_url
-                                }
-                                alt=""
-                                className="product-thumb"
-                              />
-                            ) : (
-                              <div className="product-thumb-placeholder">
-                                <Link2
-                                  size={18}
-                                />
-                              </div>
-                            )}
+                    <span>
+                      Cupom não informado
+                    </span>
+                  </div>
 
-                            <div>
-                              <strong>
-                                {
-                                  product.title
-                                }
-                              </strong>
+                  {/* Link */}
+                  <div className="affiliate-card-footer">
+                    <span className="affiliate-needs-link">
+                      <Link2 size={15} />
+                      Link pendente
+                    </span>
 
-                              <span>
-                                {
-                                  product.external_id
-                                }
-                              </span>
-                            </div>
-                          </div>
-                        </td>
+                    <button
+                      type="button"
+                      className="affiliate-card-action"
+                      onClick={() =>
+                        openAffiliateModal([product.id])
+                      }
+                    >
+                      <Link2 size={16} />
+                      Associar link
+                    </button>
+                  </div>
 
-                        <td>
-                          {getMarketplaceName(
-                            product
-                          )}
-                        </td>
-
-                        <td>
-                          {formatPrice(
-                            product.price
-                          )}
-                        </td>
-
-                        <td>
-                          {product.discount_percent !==
-                          null
-                            ? `${product.discount_percent.toFixed(
-                                2
-                              )}%`
-                            : "—"}
-                        </td>
-
-                        <td>
-                          <span
-                            className={`status-badge status-${availability.type}`}
-                            title={
-                              product.availability_error ||
-                              ""
-                            }
-                          >
-                            {availability.type ===
-                              "ready" && (
-                              <CheckCircle2
-                                size={14}
-                              />
-                            )}
-
-                            {availability.type ===
-                              "pending" && (
-                              <Clock3
-                                size={14}
-                              />
-                            )}
-
-                            {availability.type ===
-                              "invalid" && (
-                              <AlertCircle
-                                size={14}
-                              />
-                            )}
-
-                            {availability.label}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span
-                            className={`status-badge status-${affiliateStatus.type}`}
-                          >
-                            {affiliateStatus.type ===
-                              "ready" && (
-                              <CheckCircle2
-                                size={14}
-                              />
-                            )}
-
-                            {affiliateStatus.type ===
-                              "pending" && (
-                              <Clock3
-                                size={14}
-                              />
-                            )}
-
-                            {affiliateStatus.type ===
-                              "invalid" && (
-                              <AlertCircle
-                                size={14}
-                              />
-                            )}
-
-                            {affiliateStatus.label}
-                          </span>
-                        </td>
-
-                        <td>
-                          <div className="table-actions">
-                            {product.product_url && (
-                              <a
-                                href={
-                                  product.product_url
-                                }
-                                target="_blank"
-                                rel="noreferrer"
-                                className="icon-button"
-                                title="Abrir produto"
-                              >
-                                <ExternalLink
-                                  size={17}
-                                />
-                              </a>
-                            )}
-
-                            {link?.affiliate_url && (
-                              <a
-                                href={
-                                  link.affiliate_url
-                                }
-                                target="_blank"
-                                rel="noreferrer"
-                                className="icon-button"
-                                title="Abrir afiliado"
-                              >
-                                <Link2
-                                  size={17}
-                                />
-                              </a>
-                            )}
-
-                            <button
-                              type="button"
-                              className="text-button"
-                              onClick={() =>
-                                openAffiliateModal(
-                                  [product.id]
-                                )
-                              }
-                            >
-                              Editar
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  }
-                )
-              )}
-            </tbody>
-          </table>
+                  {product.product_url && (
+                    <a
+                      href={product.product_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="affiliate-product-source"
+                    >
+                      <ExternalLink size={14} />
+                      Ver produto original
+                    </a>
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </div>
-      </div>
+      )}
 
+      {/* Modal de associação */}
       {showModal && (
         <div
-          className="modal-overlay"
+          className="modal-overlay affiliate-modal-overlay"
           onMouseDown={(event) => {
-            if (
-              event.target ===
-              event.currentTarget
-            ) {
+            if (event.target === event.currentTarget) {
               closeAffiliateModal();
             }
           }}
         >
           <div
             className="modal-card affiliate-batch-modal"
-            onMouseDown={(event) =>
-              event.stopPropagation()
-            }
+            onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="modal-header">
               <div>
-                <h2>
-                  Associar links de afiliado
-                </h2>
-
+                <h2>Associar links de afiliado</h2>
                 <p>
-                  Gere os links oficiais no
-                  marketplace e cole-os abaixo.
+                  Cole os links gerados nos respectivos
+                  marketplaces.
                 </p>
               </div>
 
               <button
                 type="button"
                 className="icon-button"
-                onClick={
-                  closeAffiliateModal
-                }
+                onClick={closeAffiliateModal}
                 disabled={saving}
+                aria-label="Fechar"
               >
                 <X size={18} />
               </button>
@@ -1204,138 +1078,113 @@ Antes de tentar novamente, confira quais links já foram salvos.`
 
             <div className="modal-body">
               <div className="affiliate-batch-list">
-                {selectedProducts.map(
-                  (product) => {
-                    const form =
-                      forms[product.id] || {
-                        affiliateUrl: "",
-                        affiliateTag: "",
-                      };
+                {selectedProducts.map((product) => {
+                  const form = forms[product.id] || {
+                    affiliateUrl: "",
+                    affiliateTag: "",
+                  };
 
-                    return (
-                      <div
-                        className="affiliate-batch-item"
-                        key={product.id}
-                      >
-                        <div className="affiliate-batch-product">
-                          {product.image_url ? (
-                            <img
-                              src={
-                                product.image_url
-                              }
-                              alt=""
-                            />
-                          ) : (
-                            <div className="product-thumb-placeholder">
-                              <Link2
-                                size={18}
-                              />
-                            </div>
-                          )}
+                  const marketplace = getMarketplace(product);
 
-                          <div>
-                            <strong>
-                              {
-                                product.title
-                              }
-                            </strong>
+                  const brand = getBrandInfo(
+                    marketplace?.name || "",
+                    marketplace?.slug || ""
+                  );
 
-                            <span>
-                              {
-                                getMarketplaceName(
-                                  product
-                                )
-                              }{" "}
-                              •{" "}
-                              {formatPrice(
-                                product.price
-                              )}
-                            </span>
-
-                            <span>
-                              {
-                                product.external_id
-                              }
-                            </span>
+                  return (
+                    <div
+                      className={`affiliate-batch-item brand-${brand.className}`}
+                      key={product.id}
+                    >
+                      <div className="affiliate-batch-product">
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.title}
+                          />
+                        ) : (
+                          <div className="product-thumb-placeholder">
+                            <Link2 size={18} />
                           </div>
-                        </div>
+                        )}
 
-                        <div className="affiliate-batch-actions">
-                          {product.product_url && (
-                            <a
-                              href={
-                                product.product_url
-                              }
-                              target="_blank"
-                              rel="noreferrer"
-                              className="secondary-button"
-                            >
-                              <ExternalLink
-                                size={15}
-                              />
+                        <div>
+                          <strong>{product.title}</strong>
 
-                              Abrir produto
-                            </a>
-                          )}
-                        </div>
+                          <span>
+                            {getMarketplaceName(product)} ·{" "}
+                            {formatPrice(product.price)}
+                          </span>
 
-                        <div className="affiliate-batch-fields">
-                          <div className="settings-field">
-                            <label>
-                              Link de afiliado
-                            </label>
-
-                            <input
-                              type="url"
-                              value={
-                                form.affiliateUrl
-                              }
-                              onChange={(event) =>
-                                updateForm(
-                                  product.id,
-                                  "affiliateUrl",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="https://meli.la/..."
-                              disabled={saving}
-                            />
-                          </div>
-
-                          <div className="settings-field">
-                            <label>
-                              Etiqueta
-                            </label>
-
-                            <input
-                              type="text"
-                              value={
-                                form.affiliateTag
-                              }
-                              onChange={(event) =>
-                                updateForm(
-                                  product.id,
-                                  "affiliateTag",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="ofertixauto"
-                              disabled={saving}
-                            />
-                          </div>
+                          <span>{product.external_id}</span>
                         </div>
                       </div>
-                    );
-                  }
-                )}
+
+                      {product.product_url && (
+                        <a
+                          href={product.product_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="secondary-button"
+                        >
+                          <ExternalLink size={15} />
+                          Abrir produto original
+                        </a>
+                      )}
+
+                      <div className="affiliate-batch-fields">
+                        <div className="settings-field">
+                          <label htmlFor={`affiliate-url-${product.id}`}>
+                            Link de afiliado
+                          </label>
+
+                          <input
+                            id={`affiliate-url-${product.id}`}
+                            type="url"
+                            value={form.affiliateUrl}
+                            onChange={(event) =>
+                              updateForm(
+                                product.id,
+                                "affiliateUrl",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Cole aqui o link de afiliado"
+                            disabled={saving}
+                          />
+                        </div>
+
+                        <div className="settings-field">
+                          <label htmlFor={`affiliate-tag-${product.id}`}>
+                            Etiqueta (opcional)
+                          </label>
+
+                          <input
+                            id={`affiliate-tag-${product.id}`}
+                            type="text"
+                            value={form.affiliateTag}
+                            onChange={(event) =>
+                              updateForm(
+                                product.id,
+                                "affiliateTag",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Ex.: ofertix"
+                            disabled={saving}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="settings-note">
-                A disponibilidade do produto
-                não impede a associação do
-                afiliado. Depois de salvar,
-                o Ofertix cria automaticamente
-                a oferta quando aplicável.
+                A associação do link não ignora as regras de
+                elegibilidade. O Ofertix tentará gerar a oferta
+                automaticamente quando os critérios aplicáveis
+                forem atendidos.
               </div>
             </div>
 
@@ -1343,9 +1192,7 @@ Antes de tentar novamente, confira quais links já foram salvos.`
               <button
                 type="button"
                 className="secondary-button"
-                onClick={
-                  closeAffiliateModal
-                }
+                onClick={closeAffiliateModal}
                 disabled={saving}
               >
                 Cancelar
@@ -1357,10 +1204,14 @@ Antes de tentar novamente, confira quais links já foram salvos.`
                 onClick={saveAffiliateLinks}
                 disabled={saving}
               >
-                <Save size={15} />
+                {saving ? (
+                  <span className="affiliate-button-spinner" />
+                ) : (
+                  <Link2 size={16} />
+                )}
 
                 {saving
-                  ? "Salvando..."
+                  ? "Salvando links..."
                   : "Salvar e gerar ofertas"}
               </button>
             </div>
