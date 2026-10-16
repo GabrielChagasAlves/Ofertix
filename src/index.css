@@ -3417,3 +3417,93 @@ a {
     transition-duration: 0.01ms !important;
   }
 }
+/* ==========================================
+   OFERTIX — AJUSTE VISUAL DA TELA DE AFILIADOS
+   ========================================== */
+
+.affiliate-page {
+  color: #171b31 !important;
+  background: #f5f6fc !important;
+  min-height: 100%;
+  padding: 28px;
+  border-radius: 0;
+}
+
+.affiliate-page h1,
+.affiliate-page h2,
+.affiliate-page h3,
+.affiliate-page p {
+  color: inherit;
+}
+
+.affiliate-heading h1 {
+  color: #171b31 !important;
+}
+
+.affiliate-heading p {
+  color: #68728e !important;
+}
+
+.affiliate-eyebrow {
+  color: #6545e8 !important;
+}
+
+.affiliate-page-header {
+  padding: 0 0 22px;
+  border-bottom: 1px solid #e5e8f2;
+}
+
+.affiliate-summary-card,
+.affiliate-toolbar,
+.affiliate-product-card {
+  background-color: #fff !important;
+}
+
+.affiliate-summary-card {
+  border-color: #e7eaf3;
+}
+
+.affiliate-summary-card strong {
+  color: #171b31 !important;
+}
+
+.affiliate-summary-card span:not(.affiliate-summary-icon) {
+  color: #727b94;
+}
+
+.affiliate-toolbar select,
+.affiliate-search {
+  color: #424a64;
+  background-color: #fff;
+  border-color: #e1e5f0;
+}
+
+.affiliate-search input {
+  color: #171b31;
+}
+
+.affiliate-card-content {
+  background: #fff;
+}
+
+.affiliate-card-title {
+  color: #222840 !important;
+}
+
+.affiliate-card-pricing strong {
+  color: #181e35 !important;
+}
+
+.affiliate-product-marketplace {
+  color: var(--brand-secondary);
+}
+
+.affiliate-coupon-placeholder {
+  background: #f8f9fc;
+}
+
+@media (max-width: 650px) {
+  .affiliate-page {
+    padding: 16px;
+  }
+}
