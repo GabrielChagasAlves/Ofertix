@@ -3600,3 +3600,53 @@ a {
 .affiliate-card-action:hover {
   background: #f5dc00;
 }
+/* Identidade dos marketplaces nos cards */
+
+.affiliate-page .affiliate-brand-symbol {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+}
+
+/* Mercado Livre */
+.affiliate-page
+.affiliate-product-card.brand-mercado-livre
+.affiliate-brand-symbol {
+  color: #333;
+  background: #fff;
+}
+
+/* Amazon */
+.affiliate-page
+.affiliate-product-card.brand-amazon
+.affiliate-brand-symbol {
+  color: #243a52;
+  background: #fff;
+}
+
+/* Shopee */
+.affiliate-page
+.affiliate-product-card.brand-shopee
+.affiliate-brand-symbol {
+  color: #ee4d2d;
+  background: #fff;
+}
+
+/* Magalu */
+.affiliate-page
+.affiliate-product-card.brand-magalu
+.affiliate-brand-symbol {
+  color: #1684ff;
+  background: #fff;
+}
+
+.affiliate-brand-wordmark {
+  font-size: 25px;
+  font-weight: 900;
+  line-height: 1;
+}
