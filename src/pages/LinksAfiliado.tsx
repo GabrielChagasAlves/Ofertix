@@ -507,13 +507,15 @@ export function LinksAfiliado() {
       return;
     }
 
+    // Valida todos os links antes de iniciar o salvamento.
     for (const product of selectedProducts) {
-      const url =
-        forms[product.id]?.affiliateUrl.trim();
+      const url = forms[product.id]?.affiliateUrl.trim();
 
       if (!url) {
         alert(
-          `Informe o link de afiliado para:\n\n${product.title}`
+          `Informe o link de afiliado para:
+
+${product.title}`
         );
         return;
       }
@@ -521,16 +523,14 @@ export function LinksAfiliado() {
       try {
         const parsedUrl = new URL(url);
 
-        if (
-          !["http:", "https:"].includes(
-            parsedUrl.protocol
-          )
-        ) {
-          throw new Error();
+        if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+          throw new Error("Protocolo inválido");
         }
       } catch {
         alert(
-          `Informe uma URL válida para:\n\n${product.title}`
+          `Informe uma URL válida para:
+
+${product.title}`
         );
         return;
       }
@@ -540,6 +540,11 @@ export function LinksAfiliado() {
 
     let createdOffers = 0;
     let duplicateOffers = 0;
+    let deferredOffers = 0;
+    let generationFailures = 0;
+    let savedLinks = 0;
+
+    const offerWarnings: string[] = [];
 
     try {
       for (const product of selectedProducts) {
@@ -551,26 +556,28 @@ export function LinksAfiliado() {
             {
               body: {
                 product_id: product.id,
-                affiliate_url:
-                  form.affiliateUrl.trim(),
+                affiliate_url: form.affiliateUrl.trim(),
                 affiliate_tag:
-                  form.affiliateTag.trim() ||
-                  null,
+                  form.affiliateTag.trim() || null,
                 source: "manual",
               },
             }
           );
 
         if (error) {
-          throw error;
+          throw new Error(
+            `Falha ao processar "${product.title}": ${error.message}`
+          );
         }
 
         if (!data?.success) {
           throw new Error(
             data?.error ||
-              "Não foi possível salvar o link."
+              `Não foi possível salvar o link de "${product.title}".`
           );
         }
+
+        savedLinks++;
 
         if (data.offer_created) {
           createdOffers++;
@@ -578,6 +585,25 @@ export function LinksAfiliado() {
 
         if (data.duplicate_offer) {
           duplicateOffers++;
+        }
+
+        if (data.offer_deferred) {
+          deferredOffers++;
+
+          offerWarnings.push(
+            `${product.title}: oferta adiada — ${
+              data.offer_error ||
+              "o produto ainda não atende aos critérios de elegibilidade."
+            }`
+          );
+        } else if (data.offer_generation_failed) {
+          generationFailures++;
+
+          offerWarnings.push(
+            `${product.title}: falha operacional na geração da oferta — ${
+              data.offer_error || "erro não detalhado."
+            }`
+          );
         }
       }
 
@@ -587,29 +613,43 @@ export function LinksAfiliado() {
 
       await loadData();
 
-      alert(
-        [
-          "Links de afiliado salvos com sucesso!",
-          "",
-          `Ofertas criadas automaticamente: ${createdOffers}`,
-          `Ofertas que já existiam: ${duplicateOffers}`,
-          "",
-          "As ofertas geradas podem ser acompanhadas na tela de Ofertas.",
-        ].join("\n")
+      const summary = [
+        "Processamento dos links concluído.",
+        "",
+        `Links salvos/processados: ${savedLinks}`,
+        `Ofertas criadas: ${createdOffers}`,
+        `Ofertas que já existiam: ${duplicateOffers}`,
+        `Ofertas adiadas por elegibilidade: ${deferredOffers}`,
+        `Falhas operacionais na geração: ${generationFailures}`,
+      ];
+
+      if (offerWarnings.length > 0) {
+        summary.push("", "Detalhes:", ...offerWarnings);
+      }
+
+      summary.push(
+        "",
+        "Consulte a tela de Ofertas para acompanhar os resultados."
       );
+
+      alert(summary.join("\n"));
     } catch (error) {
-      console.error(
-        "Erro ao salvar links:",
-        error
-      );
+      console.error("Erro ao salvar links:", error);
 
       const message =
         error instanceof Error
           ? error.message
           : "Erro desconhecido.";
 
+      // Pode haver links já persistidos antes de uma falha posterior.
+      await loadData();
+
       alert(
-        `Não foi possível concluir o salvamento.\n\n${message}`
+        `O processamento foi interrompido.
+
+${message}
+
+Antes de tentar novamente, confira quais links já foram salvos.`
       );
     } finally {
       setSaving(false);
