@@ -3650,3 +3650,110 @@ a {
   font-weight: 900;
   line-height: 1;
 }
+/* Logo oficial do marketplace */
+.affiliate-page .affiliate-marketplace-logo {
+  display: block;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  object-fit: contain;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Remover o círculo vazio do Mercado Livre */
+.affiliate-page
+.affiliate-product-card.brand-mercado-livre
+.affiliate-brand-symbol {
+  display: none;
+}
+
+/* Controle de seleção mais discreto */
+.affiliate-page .affiliate-select-toggle {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(51, 51, 51, 0.22);
+  border-radius: 8px;
+  color: #333;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: none;
+}
+
+.affiliate-page
+.affiliate-product-card.brand-mercado-livre
+.affiliate-select-toggle {
+  border-color: rgba(51, 51, 51, 0.18);
+  color: #333;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.affiliate-page .affiliate-select-toggle:hover {
+  background: #fff;
+  transform: scale(1.03);
+}
+
+.affiliate-page .affiliate-select-toggle.selected {
+  color: #fff;
+  border-color: #333;
+  background: #333;
+}
+/* Logo do marketplace */
+.affiliate-page .affiliate-marketplace-logo {
+  display: block;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  object-fit: contain;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Controle de seleção discreto */
+.affiliate-page .affiliate-select-toggle {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  border: 1px solid rgba(51, 51, 51, 0.25);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  color: #333;
+  box-shadow: none;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.affiliate-page .affiliate-select-toggle svg {
+  width: 17px;
+  height: 17px;
+}
+
+.affiliate-page .affiliate-select-toggle:hover {
+  background: #fff;
+  transform: scale(1.06);
+}
+
+.affiliate-page .affiliate-select-toggle.selected {
+  color: #fff;
+  border-color: #333;
+  background: #333;
+}
+
+/* Cabeçalho do Mercado Livre */
+.affiliate-page
+.affiliate-product-card.brand-mercado-livre
+.affiliate-card-brandbar {
+  background: #ffe600;
+  color: #333;
+}

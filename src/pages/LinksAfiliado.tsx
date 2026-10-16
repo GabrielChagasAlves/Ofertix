@@ -6,7 +6,6 @@ import {
   CheckSquare,
   Clock3,
   ExternalLink,
-  Handshake,
   Link2,
   Package,
   Search,
@@ -932,30 +931,28 @@ export function LinksAfiliado() {
                 {/* Faixa da marca */}
                 <div className="affiliate-card-brandbar">
                   <div className="affiliate-brand-identity">
-                    <span
-  className={`affiliate-brand-symbol affiliate-brand-symbol-${brand.className}`}
-  aria-label={`Identidade visual de ${brand.displayName}`}
->
-  {brand.className === "mercado-livre" ? (
-    <Handshake
-      size={27}
-      strokeWidth={2.5}
-      aria-hidden="true"
-    />
-  ) : brand.className === "amazon" ? (
-    <span className="affiliate-brand-wordmark">a</span>
-  ) : brand.className === "shopee" ? (
-    <ShoppingBag
-      size={23}
-      strokeWidth={2.5}
-      aria-hidden="true"
-    />
-  ) : brand.className === "magalu" ? (
-    <span className="affiliate-brand-wordmark">M</span>
-  ) : (
-    brand.displayName.slice(0, 1).toUpperCase()
-  )}
-</span>
+                    {brand.className === "mercado-livre" ? (
+                      <img
+                        className="affiliate-marketplace-logo"
+                        src="/logos/mercado-livre.png"
+                        alt="Logo do Mercado Livre"
+                      />
+                    ) : (
+                      <span
+                        className={`affiliate-brand-symbol affiliate-brand-symbol-${brand.className}`}
+                        aria-label={brand.displayName}
+                      >
+                        {brand.className === "amazon" ? (
+                          <span className="affiliate-brand-wordmark">a</span>
+                        ) : brand.className === "shopee" ? (
+                          <ShoppingBag size={23} strokeWidth={2.5} />
+                        ) : brand.className === "magalu" ? (
+                          <span className="affiliate-brand-wordmark">M</span>
+                        ) : (
+                          brand.displayName.slice(0, 1).toUpperCase()
+                        )}
+                      </span>
+                    )}
 
                     <div>
                       <strong>{brand.displayName}</strong>
