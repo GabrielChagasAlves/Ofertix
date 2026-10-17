@@ -1,39 +1,38 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  Activity,
+  Armchair,
+  BedDouble,
   Check,
+  CookingPot,
   Edit3,
+  Layers3,
   Plus,
   RefreshCw,
-  Save,
+  Search,
+  Shirt,
+  Sparkles,
+  Tags,
   Trash2,
   X,
-  Sparkles,
+  Save,
+  ShieldCheck,
+  CarFront,
+  HeartPulse,
+  PawPrint,
+  Smartphone,
+  Gamepad2,
+  BookOpen,
+  Wrench,
+  Flower2,
+  Package,
+  ArrowLeft,
 } from "lucide-react";
-
 import { supabase } from "../lib/supabase";
 
-interface Marketplace {
-  id: string;
-  name: string;
-  slug: string;
-  active: boolean;
-}
-
-interface Category {
-  id: string;
-  name: string;
-  slug: string;
-  active: boolean;
-  priority: number;
-}
-
-interface SearchTermStat {
-  category_id: string | null;
-  source: "manual" | "discovered" | "trend";
-  active: boolean;
-}
-
-interface OfferRule {
+type Marketplace = { id: string; name: string; slug: string; active: boolean };
+type Category = { id: string; name: string; slug: string; active: boolean; priority: number };
+type Rule = {
   id: string;
   name: string;
   marketplace_id: string | null;
@@ -45,30 +44,32 @@ interface OfferRule {
   auto_approve_max_price: number | null;
   active: boolean;
   created_at: string;
-}
-
-interface RuleForm {
+};
+type Term = {
+  id?: string;
+  term: string;
+  category_id: string | null;
+  source: "manual" | "discovered" | "trend";
+  active: boolean;
+};
+type Form = {
   name: string;
   marketplace_id: string;
   category: string;
+  searchTerms: string;
   min_discount_percent: string;
   min_price: string;
   max_price: string;
   auto_approve: boolean;
   auto_approve_max_price: string;
   active: boolean;
-}
+};
 
-interface TermStats {
-  total: number;
-  discovered: number;
-  trends: number;
-}
-
-const emptyForm: RuleForm = {
+const empty: Form = {
   name: "",
   marketplace_id: "",
   category: "",
+  searchTerms: "",
   min_discount_percent: "0",
   min_price: "",
   max_price: "",
@@ -76,173 +77,233 @@ const emptyForm: RuleForm = {
   auto_approve_max_price: "500",
   active: true,
 };
+const input = "rules-input";
+const slugify = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+function art(name: string) {
+  const n = name.toLowerCase();
+  if (/automot|carro|veículo|veiculo|auto/.test(n))
+    return { emoji: "🚗", Icon: CarFront, cls: "automotive" };
+  if (/cozinha|culin/.test(n))
+    return { emoji: "🍳", Icon: CookingPot, cls: "kitchen" };
+  if (/cama|quarto|lenç|lenc/.test(n))
+    return { emoji: "🛏️", Icon: BedDouble, cls: "bedroom" };
+  if (/sala|sofá|sofa|móveis|moveis|decora/.test(n))
+    return { emoji: "🛋️", Icon: Armchair, cls: "living" };
+  if (/roupa|moda|vestu/.test(n))
+    return { emoji: "👕", Icon: Shirt, cls: "fashion" };
+  if (/beleza|perfume|cosmét|cosmet|saúde|saude/.test(n))
+    return { emoji: "🧴", Icon: HeartPulse, cls: "beauty" };
+  if (/pet|animal/.test(n))
+    return { emoji: "🐾", Icon: PawPrint, cls: "pets" };
+  if (/celular|smartphone|eletrôn|eletron|informát|informat/.test(n))
+    return { emoji: "📱", Icon: Smartphone, cls: "electronics" };
+  if (/jogo|game|brinquedo/.test(n))
+    return { emoji: "🎮", Icon: Gamepad2, cls: "games" };
+  if (/livro|papelaria|escolar/.test(n))
+    return { emoji: "📚", Icon: BookOpen, cls: "books" };
+  if (/ferrament|constru|reforma/.test(n))
+    return { emoji: "🛠️", Icon: Wrench, cls: "tools" };
+  if (/jardim|planta|flor/.test(n))
+    return { emoji: "🌿", Icon: Flower2, cls: "garden" };
+  return { emoji: "📦", Icon: Package, cls: "general" };
+}
 
 export function Regras() {
-  const [rules, setRules] = useState<OfferRule[]>([]);
+  const [rules, setRules] = useState<Rule[]>([]);
   const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [termStats, setTermStats] = useState<Record<string, TermStats>>({});
+  const [terms, setTerms] = useState<Term[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
+
+  // A tela possui dois modos: listagem e formulário em subtela.
+  const [view, setView] = useState<"list" | "form">("list");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<RuleForm>(emptyForm);
+  const [form, setForm] = useState<Form>(empty);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryPriority, setNewCategoryPriority] = useState("10");
+  const [addingCategory, setAddingCategory] = useState(false);
+
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("all");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  async function loadData() {
-    setLoading(true);
-    setError(null);
+  async function loadData(showLoading = true) {
+    if (showLoading) setLoading(true);
+    const [r, m, c, t] = await Promise.all([
+      supabase.from("offer_rules").select("*").order("created_at", { ascending: false }),
+      supabase.from("marketplaces").select("id,name,slug,active").eq("active", true).order("name"),
+      supabase.from("offer_categories").select("id,name,slug,active,priority").eq("active", true).order("priority").order("name"),
+      supabase.from("search_terms").select("id,term,category_id,source,active").eq("active", true),
+    ]);
 
-    const [rulesResult, marketplacesResult, categoriesResult, termsResult] =
-      await Promise.all([
-        supabase
-          .from("offer_rules")
-          .select("*")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("marketplaces")
-          .select("id,name,slug,active")
-          .eq("active", true)
-          .order("name"),
-        supabase
-          .from("offer_categories")
-          .select("id,name,slug,active,priority")
-          .eq("active", true)
-          .order("priority", { ascending: true })
-          .order("name", { ascending: true }),
-        supabase
-          .from("search_terms")
-          .select("category_id,source,active")
-          .eq("active", true),
-      ]);
+    if (r.error) setError("Erro ao carregar regras: " + r.error.message);
+    else setRules((r.data || []) as Rule[]);
 
-    if (rulesResult.error) {
-      setError(`Não foi possível carregar as regras: ${rulesResult.error.message}`);
-    } else {
-      setRules((rulesResult.data ?? []) as OfferRule[]);
-    }
+    if (m.error) console.error(m.error);
+    else setMarketplaces((m.data || []) as Marketplace[]);
 
-    if (marketplacesResult.error) {
-      console.error("Erro ao carregar marketplaces:", marketplacesResult.error);
-    } else {
-      setMarketplaces((marketplacesResult.data ?? []) as Marketplace[]);
-    }
+    if (c.error) console.error(c.error);
+    else setCategories((c.data || []) as Category[]);
 
-    if (categoriesResult.error) {
-      console.error("Erro ao carregar categorias:", categoriesResult.error);
-    } else {
-      setCategories((categoriesResult.data ?? []) as Category[]);
-    }
+    if (t.error) console.error("Termos:", t.error);
+    else setTerms((t.data || []) as Term[]);
 
-    if (termsResult.error) {
-      console.error("Erro ao carregar descoberta de termos:", termsResult.error);
-    } else {
-      const stats: Record<string, TermStats> = {};
-
-      for (const term of (termsResult.data ?? []) as SearchTermStat[]) {
-        if (!term.category_id) continue;
-
-        if (!stats[term.category_id]) {
-          stats[term.category_id] = {
-            total: 0,
-            discovered: 0,
-            trends: 0,
-          };
-        }
-
-        stats[term.category_id].total += 1;
-
-        if (term.source === "discovered") {
-          stats[term.category_id].discovered += 1;
-        }
-
-        if (term.source === "trend") {
-          stats[term.category_id].trends += 1;
-        }
-      }
-
-      setTermStats(stats);
-    }
-
-    setLoading(false);
+    if (showLoading) setLoading(false);
   }
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, []);
 
-  function openCreateForm() {
+  const activeRules = rules.filter((x) => x.active).length;
+  const activeTerms = terms.filter((x) => x.active).length;
+  const shown = useMemo(
+    () =>
+      rules.filter(
+        (r) =>
+          (!query.trim() ||
+            `${r.name} ${r.category || ""}`
+              .toLowerCase()
+              .includes(query.trim().toLowerCase())) &&
+          (status === "all" || (status === "active" ? r.active : !r.active)),
+      ),
+    [rules, query, status],
+  );
+
+  const setField = <K extends keyof Form>(key: K, value: Form[K]) =>
+    setForm((previous) => ({ ...previous, [key]: value }));
+
+  const currency = (value: number | null) =>
+    value == null
+      ? null
+      : new Intl.NumberFormat("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        }).format(value);
+
+  const marketName = (id: string | null) =>
+    id ? marketplaces.find((m) => m.id === id)?.name || "Marketplace" : "Todos os marketplaces";
+
+  const categoryTerms = (name: string | null) => {
+    const category = categories.find((item) => item.name === name);
+    return category ? terms.filter((term) => term.category_id === category.id && term.active) : [];
+  };
+
+  function createRule() {
     setEditingId(null);
-
     setForm({
-      ...emptyForm,
-      marketplace_id:
-        marketplaces.length === 1 ? marketplaces[0].id : "",
+      ...empty,
+      marketplace_id: marketplaces.length === 1 ? marketplaces[0].id : "",
     });
-
+    setNewCategoryName("");
+    setNewCategoryPriority("10");
+    setAddingCategory(false);
+    setView("form");
     setError(null);
     setSuccess(null);
-    setShowForm(true);
   }
 
-  function openEditForm(rule: OfferRule) {
+  async function editRule(rule: Rule) {
+    const category = categories.find((item) => item.name === rule.category);
     setEditingId(rule.id);
-
     setForm({
       name: rule.name,
-      marketplace_id: rule.marketplace_id ?? "",
-      category: rule.category ?? "",
-      min_discount_percent:
-        rule.min_discount_percent !== null
-          ? String(rule.min_discount_percent)
-          : "0",
-      min_price:
-        rule.min_price !== null ? String(rule.min_price) : "",
-      max_price:
-        rule.max_price !== null ? String(rule.max_price) : "",
+      marketplace_id: rule.marketplace_id || "",
+      category: rule.category || "",
+      searchTerms: terms
+        .filter((term) => term.category_id === category?.id && term.source === "manual")
+        .map((term) => term.term)
+        .join(", "),
+      min_discount_percent: String(rule.min_discount_percent ?? 0),
+      min_price: rule.min_price == null ? "" : String(rule.min_price),
+      max_price: rule.max_price == null ? "" : String(rule.max_price),
       auto_approve: rule.auto_approve,
-      auto_approve_max_price:
-        rule.auto_approve_max_price !== null
-          ? String(rule.auto_approve_max_price)
-          : "500",
+      auto_approve_max_price: String(rule.auto_approve_max_price ?? 500),
       active: rule.active,
     });
-
+    setNewCategoryName("");
+    setNewCategoryPriority("10");
+    setAddingCategory(false);
+    setView("form");
     setError(null);
     setSuccess(null);
-    setShowForm(true);
   }
 
   function closeForm() {
     if (saving) return;
-
-    setShowForm(false);
+    setView("list");
     setEditingId(null);
-    setForm(emptyForm);
+    setAddingCategory(false);
+    setError(null);
   }
 
-  function updateField(
-    field: keyof RuleForm,
-    value: string | boolean,
-  ) {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
+  function num(value: string) {
+    return value.trim() ? Number(value) : null;
   }
 
-  function numberOrNull(value: string) {
-    const trimmed = value.trim();
+  async function addCategoryToForm() {
+    setError(null);
+    setSuccess(null);
 
-    if (!trimmed) {
-      return null;
+    const name = newCategoryName.trim();
+    if (!name) {
+      setError("Informe o nome da categoria.");
+      return;
     }
 
-    const number = Number(trimmed);
+    const slug = slugify(name);
+    const existing = categories.find(
+      (category) => category.slug === slug || category.name.toLowerCase() === name.toLowerCase(),
+    );
 
-    return Number.isFinite(number) ? number : null;
+    if (existing) {
+      setForm((previous) => ({ ...previous, category: existing.name }));
+      setAddingCategory(false);
+      setNewCategoryName("");
+      setSuccess("Categoria existente selecionada.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { data, error: insertError } = await supabase
+        .from("offer_categories")
+        .insert({
+          name,
+          slug,
+          active: true,
+          priority: Number(newCategoryPriority) || 10,
+        })
+        .select("id,name,slug,active,priority")
+        .single();
+
+      if (insertError) throw insertError;
+
+      const created = data as Category;
+      setCategories((previous) => [...previous, created].sort(
+        (a, b) => a.priority - b.priority || a.name.localeCompare(b.name, "pt-BR"),
+      ));
+      setForm((previous) => ({ ...previous, category: created.name }));
+      setAddingCategory(false);
+      setNewCategoryName("");
+      setNewCategoryPriority("10");
+      setSuccess("Categoria criada e selecionada. Salve a regra para concluir.");
+    } catch (e) {
+      console.error(e);
+      setError("Não foi possível cadastrar a categoria. " + (e instanceof Error ? e.message : ""));
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function saveRule() {
@@ -253,1288 +314,407 @@ export function Regras() {
       setError("Informe um nome para a regra.");
       return;
     }
-
-    if (
-      form.category &&
-      !categories.some(
-        (category) => category.name === form.category,
-      )
-    ) {
-      setError("Selecione uma categoria válida.");
+    if (!form.category) {
+      setError("Selecione ou cadastre uma categoria para a regra.");
       return;
     }
 
-    const discount = numberOrNull(form.min_discount_percent);
-    const minPrice = numberOrNull(form.min_price);
-    const maxPrice = numberOrNull(form.max_price);
-    const autoApproveMax = numberOrNull(
-      form.auto_approve_max_price,
-    );
+    const discount = num(form.min_discount_percent);
+    const min = num(form.min_price);
+    const max = num(form.max_price);
+    const autoMax = num(form.auto_approve_max_price);
 
-    if (
-      discount !== null &&
-      (discount < 0 || discount > 100)
-    ) {
-      setError(
-        "O desconto mínimo deve estar entre 0% e 100%.",
-      );
+    if (discount !== null && (discount < 0 || discount > 100)) {
+      setError("Desconto mínimo deve ficar entre 0% e 100%.");
       return;
     }
-
-    if (minPrice !== null && minPrice < 0) {
-      setError("O preço mínimo não pode ser negativo.");
+    if ((min !== null && min < 0) || (max !== null && max < 0)) {
+      setError("Os preços não podem ser negativos.");
       return;
     }
-
-    if (maxPrice !== null && maxPrice < 0) {
-      setError("O preço máximo não pode ser negativo.");
+    if (min !== null && max !== null && max < min) {
+      setError("Preço máximo menor que o mínimo.");
       return;
     }
-
-    if (
-      minPrice !== null &&
-      maxPrice !== null &&
-      maxPrice < minPrice
-    ) {
-      setError(
-        "O preço máximo não pode ser menor que o preço mínimo.",
-      );
-      return;
-    }
-
-    if (
-      form.auto_approve &&
-      autoApproveMax !== null &&
-      autoApproveMax < 0
-    ) {
-      setError(
-        "O limite de aprovação automática não pode ser negativo.",
-      );
+    if (form.auto_approve && autoMax !== null && autoMax < 0) {
+      setError("O limite de preço para aprovação automática não pode ser negativo.");
       return;
     }
 
     setSaving(true);
+    try {
+      const payload = {
+        name: form.name.trim(),
+        marketplace_id: form.marketplace_id || null,
+        category: form.category,
+        min_discount_percent: discount ?? 0,
+        min_price: min,
+        max_price: max,
+        auto_approve: form.auto_approve,
+        auto_approve_max_price: form.auto_approve ? autoMax : null,
+        active: form.active,
+      };
 
-    const payload = {
-      name: form.name.trim(),
-      marketplace_id: form.marketplace_id || null,
-      category: form.category.trim() || null,
-      min_discount_percent: discount ?? 0,
-      min_price: minPrice,
-      max_price: maxPrice,
-      auto_approve: form.auto_approve,
-      auto_approve_max_price: form.auto_approve
-        ? autoApproveMax
-        : null,
-      active: form.active,
-    };
-
-    let ruleId = editingId;
-
-    if (editingId) {
-      const result = await supabase
-        .from("offer_rules")
-        .update(payload)
-        .eq("id", editingId)
-        .select("id")
-        .single();
-
-      if (result.error) {
-        setError(
-          `Erro ao atualizar regra: ${result.error.message}`,
-        );
-        setSaving(false);
-        return;
-      }
-    } else {
-      const result = await supabase
-        .from("offer_rules")
-        .insert(payload)
-        .select("id")
-        .single();
-
-      if (result.error) {
-        setError(
-          `Erro ao criar regra: ${result.error.message}`,
-        );
-        setSaving(false);
-        return;
+      if (editingId) {
+        const { error: updateError } = await supabase
+          .from("offer_rules")
+          .update(payload)
+          .eq("id", editingId);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase.from("offer_rules").insert(payload);
+        if (insertError) throw insertError;
       }
 
-      ruleId = result.data.id;
-    }
+      const category = categories.find((item) => item.name === form.category);
+      if (category) {
+        const cleanTerms = [
+          ...new Set(
+            form.searchTerms
+              .split(/[,;\n]+/)
+              .map((term) => term.trim())
+              .filter(Boolean),
+          ),
+        ];
 
-    if (!ruleId) {
-      setError("Não foi possível identificar a regra.");
+        const { error: deleteError } = await supabase
+          .from("search_terms")
+          .delete()
+          .eq("category_id", category.id)
+          .eq("source", "manual");
+        if (deleteError) throw deleteError;
+
+        if (cleanTerms.length) {
+          const { error: insertTermsError } = await supabase.from("search_terms").insert(
+            cleanTerms.map((term) => ({
+              term,
+              category_id: category.id,
+              source: "manual",
+              active: true,
+            })),
+          );
+          if (insertTermsError) throw insertTermsError;
+        }
+      }
+
+      setSuccess("Regra e termos manuais salvos. A descoberta automática existente continua habilitada.");
+      setView("list");
+      setEditingId(null);
+      setForm(empty);
+      await loadData(false);
+    } catch (e) {
+      console.error(e);
+      setError("Não foi possível salvar a regra e os termos. " + (e instanceof Error ? e.message : ""));
+    } finally {
       setSaving(false);
-      return;
     }
-
-    setSuccess(
-      editingId
-        ? "Regra atualizada. A busca automática continuará usando a categoria e os termos descobertos pelo Ofertix."
-        : "Regra criada. O Ofertix fará a descoberta automática de produtos e termos para essa categoria.",
-    );
-
-    setShowForm(false);
-    setEditingId(null);
-    setForm(emptyForm);
-
-    await loadData();
-
-    setSaving(false);
   }
 
-  async function toggleRule(rule: OfferRule) {
-    setError(null);
-    setSuccess(null);
-
-    const { error } = await supabase
+  async function toggleRule(rule: Rule) {
+    const { error: updateError } = await supabase
       .from("offer_rules")
-      .update({
-        active: !rule.active,
-      })
+      .update({ active: !rule.active })
       .eq("id", rule.id);
 
-    if (error) {
-      setError(
-        `Não foi possível alterar a regra: ${error.message}`,
-      );
-      return;
+    if (updateError) setError(updateError.message);
+    else {
+      setSuccess(rule.active ? "Regra pausada." : "Regra ativada.");
+      await loadData(false);
     }
-
-    setSuccess(
-      rule.active
-        ? "Regra desativada."
-        : "Regra ativada.",
-    );
-
-    await loadData();
   }
 
-  async function deleteRule(rule: OfferRule) {
-    const confirmed = window.confirm(
-      `Excluir a regra "${rule.name}"?\n\nOs vínculos dessa regra também serão removidos.`,
-    );
-
-    if (!confirmed) return;
-
+  async function deleteRule(rule: Rule) {
+    if (!confirm(`Excluir a regra "${rule.name}"?`)) return;
     setDeleting(rule.id);
-    setError(null);
-    setSuccess(null);
 
-    const { error } = await supabase
-      .from("offer_rules")
-      .delete()
-      .eq("id", rule.id);
-
-    if (error) {
-      setError(
-        `Não foi possível excluir a regra: ${error.message}`,
-      );
-
-      setDeleting(null);
-      return;
+    const { error: deleteError } = await supabase.from("offer_rules").delete().eq("id", rule.id);
+    if (deleteError) setError(deleteError.message);
+    else {
+      setSuccess("Regra excluída.");
+      await loadData(false);
     }
-
-    setSuccess("Regra excluída com sucesso.");
-
-    await loadData();
-
     setDeleting(null);
   }
 
-  function getMarketplaceName(
-    marketplaceId: string | null,
-  ) {
-    if (!marketplaceId) {
-      return "Todos os marketplaces";
-    }
-
+  if (loading) {
     return (
-      marketplaces.find(
-        (marketplace) => marketplace.id === marketplaceId,
-      )?.name ?? "Marketplace"
+      <section className="page rules-page">
+        <div className="rules-empty">
+          <RefreshCw className="rules-spin" />
+          <span>Carregando regras e categorias...</span>
+        </div>
+      </section>
     );
   }
 
-  function getCategoryStats(
-    categoryName: string | null,
-  ): TermStats {
-    if (!categoryName) {
-      return {
-        total: 0,
-        discovered: 0,
-        trends: 0,
-      };
-    }
-
-    const category = categories.find(
-      (item) => item.name === categoryName,
-    );
-
-    if (!category) {
-      return {
-        total: 0,
-        discovered: 0,
-        trends: 0,
-      };
-    }
-
+  if (view === "form") {
     return (
-      termStats[category.id] ?? {
-        total: 0,
-        discovered: 0,
-        trends: 0,
-      }
-    );
-  }
-
-  function formatNumber(value: number | null) {
-    if (value === null) return null;
-
-    return new Intl.NumberFormat("pt-BR", {
-      maximumFractionDigits: 2,
-    }).format(value);
-  }
-
-  function formatPrice(value: number | null) {
-    if (value === null) return null;
-
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value);
-  }
-
-  const activeRules = useMemo(
-    () => rules.filter((rule) => rule.active).length,
-    [rules],
-  );
-
-  return (
-    <div className="page">
-      <div className="page-header">
-        <div>
-          <p className="eyebrow">AUTOMAÇÃO</p>
-
-          <h1>Regras</h1>
-
-          <p className="page-description">
-            Defina o que o Ofertix deve procurar. A descoberta de
-            termos e a seleção dos melhores produtos são feitas
-            automaticamente pelo sistema.
-          </p>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "center",
-          }}
-        >
-          <button
-            className="text-button"
-            onClick={loadData}
-            disabled={loading}
-            title="Atualizar regras"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 7,
-              padding: "8px 12px",
-              border: "1px solid #202734",
-              borderRadius: 8,
-            }}
-          >
-            <RefreshCw
-              size={15}
-              style={{
-                animation: loading
-                  ? "spin 1s linear infinite"
-                  : "none",
-              }}
-            />
-
-            Atualizar
-          </button>
-
-          <button
-            className="primary-button"
-            onClick={openCreateForm}
-          >
-            <Plus size={16} />
-            Nova regra
-          </button>
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns:
-            "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: 10,
-          marginBottom: 16,
-        }}
-      >
-        <div
-          className="panel"
-          style={{ padding: 14 }}
-        >
-          <div
-            style={{
-              color: "#687386",
-              fontSize: 9,
-              textTransform: "uppercase",
-            }}
-          >
-            Regras ativas
-          </div>
-
-          <div
-            style={{
-              color: "#e8edf5",
-              fontSize: 20,
-              fontWeight: 700,
-              marginTop: 4,
-            }}
-          >
-            {activeRules}
-          </div>
-        </div>
-
-        <div
-          className="panel"
-          style={{ padding: 14 }}
-        >
-          <div
-            style={{
-              color: "#687386",
-              fontSize: 9,
-              textTransform: "uppercase",
-            }}
-          >
-            Descoberta automática
-          </div>
-
-          <div
-            style={{
-              color: "#60a5fa",
-              fontSize: 12,
-              fontWeight: 600,
-              marginTop: 7,
-            }}
-          >
-            Ativa
-          </div>
-
-          <div
-            style={{
-              color: "#687386",
-              fontSize: 10,
-              marginTop: 3,
-            }}
-          >
-            Termos são aprendidos pelo sincronizador.
-          </div>
-        </div>
-
-        <div
-          className="panel"
-          style={{ padding: 14 }}
-        >
-          <div
-            style={{
-              color: "#687386",
-              fontSize: 9,
-              textTransform: "uppercase",
-            }}
-          >
-            Qualidade
-          </div>
-
-          <div
-            style={{
-              color: "#6ee7b7",
-              fontSize: 12,
-              fontWeight: 600,
-              marginTop: 7,
-            }}
-          >
-            Automática
-          </div>
-
-          <div
-            style={{
-              color: "#687386",
-              fontSize: 10,
-              marginTop: 3,
-            }}
-          >
-            Vendedor + vendas + reputação.
-          </div>
-        </div>
-      </div>
-
-      {error && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: "12px 14px",
-            borderRadius: 8,
-            background: "#2a1820",
-            border: "1px solid #5a2735",
-            color: "#fca5a5",
-            fontSize: 12,
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {success && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: "12px 14px",
-            borderRadius: 8,
-            background: "#132a21",
-            border: "1px solid #24553f",
-            color: "#6ee7b7",
-            fontSize: 12,
-          }}
-        >
-          {success}
-        </div>
-      )}
-
-      {showForm && (
-        <div
-          className="panel"
-          style={{ marginBottom: 16 }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              marginBottom: 18,
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  color: "#e8edf5",
-                  fontSize: 14,
-                  fontWeight: 600,
-                }}
-              >
-                {editingId
-                  ? "Editar regra"
-                  : "Nova regra"}
-              </div>
-
-              <div
-                style={{
-                  color: "#687386",
-                  fontSize: 10,
-                  marginTop: 4,
-                }}
-              >
-                Você define a intenção. O Ofertix cuida da
-                descoberta dos produtos.
-              </div>
+      <section className="page rules-page">
+        <header className="rules-hero">
+          <div className="rules-hero-left">
+            <button className="rules-ghost-button" onClick={closeForm} disabled={saving}>
+              <ArrowLeft size={16} /> Voltar
+            </button>
+            <div className="rules-hero-icon">
+              <Layers3 size={28} />
             </div>
-
-            <button
-              className="text-button"
-              onClick={closeForm}
-              disabled={saving}
-            >
-              <X size={15} />
+            <div>
+              <span className="rules-eyebrow">CONFIGURAÇÃO DA AUTOMAÇÃO</span>
+              <h1>{editingId ? "Editar regra" : "Nova regra"}</h1>
+              <p>Configure a categoria e os critérios de busca desta regra.</p>
+            </div>
+          </div>
+          <div className="rules-hero-actions">
+            <button className="rules-ghost-button" onClick={closeForm} disabled={saving}>
+              <X size={15} /> Cancelar
+            </button>
+            <button className="rules-primary-button" onClick={() => void saveRule()} disabled={saving}>
+              {saving ? <RefreshCw size={15} className="rules-spin" /> : <Save size={15} />}
+              {editingId ? "Salvar alterações" : "Criar regra"}
             </button>
           </div>
+        </header>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(2, minmax(0, 1fr))",
-              gap: 14,
-            }}
-          >
-            <Field label="Nome da regra">
-              <input
-                value={form.name}
-                onChange={(event) =>
-                  updateField(
-                    "name",
-                    event.target.value,
-                  )
-                }
-                placeholder="Ex.: Ofertas de perfumes"
-                style={inputStyle}
-              />
-            </Field>
+        {error && <div className="rules-alert error"><X size={16} />{error}</div>}
+        {success && <div className="rules-alert success"><Check size={16} />{success}</div>}
 
-            <Field label="Marketplace">
-              <select
-                value={form.marketplace_id}
-                onChange={(event) =>
-                  updateField(
-                    "marketplace_id",
-                    event.target.value,
-                  )
-                }
-                style={inputStyle}
-              >
-                <option value="">
-                  Todos os marketplaces
-                </option>
-
-                {marketplaces.map((marketplace) => (
-                  <option
-                    key={marketplace.id}
-                    value={marketplace.id}
-                  >
-                    {marketplace.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Categoria">
-              <select
-                value={form.category}
-                onChange={(event) =>
-                  updateField(
-                    "category",
-                    event.target.value,
-                  )
-                }
-                style={inputStyle}
-              >
-                <option value="">
-                  Todas as categorias
-                </option>
-
-                {categories.map((category) => (
-                  <option
-                    key={category.id}
-                    value={category.name}
-                  >
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-
-              <HelpText>
-                A categoria é a base da descoberta. O sistema
-                aprende novos termos automaticamente.
-              </HelpText>
-            </Field>
-
-            <div
-              style={{
-                padding: 12,
-                borderRadius: 9,
-                border: "1px solid #263244",
-                background: "#0d1420",
-                display: "flex",
-                gap: 10,
-                alignItems: "flex-start",
-              }}
-            >
-              <Sparkles
-                size={16}
-                style={{
-                  color: "#60a5fa",
-                  marginTop: 1,
-                }}
-              />
-
-              <div>
-                <div
-                  style={{
-                    color: "#d9e2ef",
-                    fontSize: 11,
-                    fontWeight: 600,
-                  }}
-                >
-                  Descoberta automática ativada
-                </div>
-
-                <div
-                  style={{
-                    color: "#687386",
-                    fontSize: 10,
-                    lineHeight: 1.5,
-                    marginTop: 4,
-                  }}
-                >
-                  Não é necessário cadastrar termos de busca.
-                  O Ofertix usa a categoria, resultados
-                  encontrados, tendências e novos padrões dos
-                  títulos para ampliar a busca.
-                </div>
-              </div>
-            </div>
-
-            <Field label="Desconto mínimo (%)">
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                value={form.min_discount_percent}
-                onChange={(event) =>
-                  updateField(
-                    "min_discount_percent",
-                    event.target.value,
-                  )
-                }
-                placeholder="0"
-                style={inputStyle}
-              />
-            </Field>
-
-            <Field label="Preço mínimo">
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.min_price}
-                onChange={(event) =>
-                  updateField(
-                    "min_price",
-                    event.target.value,
-                  )
-                }
-                placeholder="Sem mínimo"
-                style={inputStyle}
-              />
-            </Field>
-
-            <Field label="Preço máximo">
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.max_price}
-                onChange={(event) =>
-                  updateField(
-                    "max_price",
-                    event.target.value,
-                  )
-                }
-                placeholder="Sem máximo"
-                style={inputStyle}
-              />
-            </Field>
-
+        <section className="rules-section rules-editor-section">
+          <div className="rules-section-heading">
             <div>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  color: "#cbd3df",
-                  fontSize: 11,
-                  cursor: "pointer",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={form.auto_approve}
-                  onChange={(event) =>
-                    updateField(
-                      "auto_approve",
-                      event.target.checked,
-                    )
-                  }
-                />
+              <span className="rules-kicker">IDENTIFICAÇÃO</span>
+              <h2>Dados da regra</h2>
+              <p>Escolha um nome claro para identificar esta estratégia.</p>
+            </div>
+          </div>
 
-                Aprovação automática
+          <div className="rules-form-panel">
+            <div className="rules-form-grid">
+              <label className="rules-field">
+                <span>Nome da regra</span>
+                <input className={input} value={form.name} onChange={(e) => setField("name", e.target.value)} placeholder="Ex.: Ofertas para casa" />
+              </label>
+              <label className="rules-field">
+                <span>Marketplace</span>
+                <select className={input} value={form.marketplace_id} onChange={(e) => setField("marketplace_id", e.target.value)}>
+                  <option value="">Todos os marketplaces</option>
+                  {marketplaces.map((marketplace) => <option key={marketplace.id} value={marketplace.id}>{marketplace.name}</option>)}
+                </select>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section className="rules-section rules-editor-section">
+          <div className="rules-section-heading">
+            <div>
+              <span className="rules-kicker">CATEGORIA E PESQUISA</span>
+              <h2>O que devemos procurar?</h2>
+              <p>A categoria e os termos iniciais orientam a busca de produtos.</p>
+            </div>
+          </div>
+
+          <div className="rules-form-panel">
+            <div className="rules-form-grid">
+              <label className="rules-field">
+                <span>Categoria da regra</span>
+                <select className={input} value={form.category} onChange={(e) => setField("category", e.target.value)}>
+                  <option value="">Selecione uma categoria</option>
+                  {categories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}
+                </select>
               </label>
 
-              {form.auto_approve && (
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.auto_approve_max_price}
-                  onChange={(event) =>
-                    updateField(
-                      "auto_approve_max_price",
-                      event.target.value,
-                    )
-                  }
-                  placeholder="Limite de preço"
-                  style={{
-                    ...inputStyle,
-                    marginTop: 8,
-                  }}
-                />
-              )}
+              <div className="rules-category-inline">
+                {!addingCategory ? (
+                  <button type="button" className="rules-ghost-button" onClick={() => { setAddingCategory(true); setError(null); setSuccess(null); }}>
+                    <Plus size={15} /> Cadastrar nova categoria
+                  </button>
+                ) : (
+                  <div className="rules-inline-category-form">
+                    <label className="rules-field">
+                      <span>Nome da nova categoria</span>
+                      <input className={input} value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} placeholder="Ex.: Automotivo, Beleza, Pet" />
+                    </label>
+                    <label className="rules-field">
+                      <span>Prioridade</span>
+                      <input className={input} type="number" min="1" value={newCategoryPriority} onChange={(e) => setNewCategoryPriority(e.target.value)} />
+                      <small>Menor número representa prioridade maior, caso o sincronizador use este campo.</small>
+                    </label>
+                    <div className="rules-form-actions">
+                      <button type="button" className="rules-ghost-button" onClick={() => setAddingCategory(false)} disabled={saving}>Cancelar</button>
+                      <button type="button" className="rules-primary-button" onClick={() => void addCategoryToForm()} disabled={saving}>
+                        {saving ? <RefreshCw size={15} className="rules-spin" /> : <Save size={15} />} Criar e selecionar
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
-              <HelpText>
-                Produtos acima do limite não são descartados;
-                ficam para aprovação manual.
-              </HelpText>
-            </div>
-
-            <div
-              style={{
-                gridColumn: "1 / -1",
-                borderTop: "1px solid #202734",
-                paddingTop: 14,
-              }}
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  updateField(
-                    "active",
-                    !form.active,
-                  )
-                }
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  border: "1px solid #202734",
-                  borderRadius: 8,
-                  background: "#0b0f16",
-                  color: form.active
-                    ? "#6ee7b7"
-                    : "#8d98aa",
-                  padding: "8px 11px",
-                  cursor: "pointer",
-                  fontSize: 11,
-                  fontWeight: 600,
-                }}
-              >
-                <Check size={14} />
-
-                {form.active
-                  ? "Regra ativa"
-                  : "Regra inativa"}
-              </button>
+              <label className="rules-field rules-field-wide">
+                <span>Termos de pesquisa</span>
+                <textarea className={input} rows={4} value={form.searchTerms} onChange={(e) => setField("searchTerms", e.target.value)} placeholder={"Ex.: perfume importado, eau de parfum, kit perfume"} />
+                <small>Separe os termos por vírgula, ponto e vírgula ou linha. Os termos manuais desta categoria serão atualizados ao salvar.</small>
+              </label>
             </div>
           </div>
+        </section>
 
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 8,
-              marginTop: 22,
-              paddingTop: 16,
-              borderTop: "1px solid #202734",
-            }}
-          >
-            <button
-              className="secondary-button"
-              onClick={closeForm}
-              disabled={saving}
-            >
-              <X size={15} />
-              Cancelar
-            </button>
+        <section className="rules-section rules-editor-section">
+          <div className="rules-section-heading">
+            <div>
+              <span className="rules-kicker">FILTROS</span>
+              <h2>Critérios da oferta</h2>
+              <p>Defina os limites de preço e desconto usados pela regra.</p>
+            </div>
+          </div>
+          <div className="rules-form-panel">
+            <div className="rules-form-grid">
+              <label className="rules-field">
+                <span>Desconto mínimo (%)</span>
+                <input className={input} type="number" min="0" max="100" value={form.min_discount_percent} onChange={(e) => setField("min_discount_percent", e.target.value)} />
+              </label>
+              <label className="rules-field">
+                <span>Preço mínimo (R$)</span>
+                <input className={input} type="number" min="0" value={form.min_price} onChange={(e) => setField("min_price", e.target.value)} placeholder="Sem mínimo" />
+              </label>
+              <label className="rules-field">
+                <span>Preço máximo (R$)</span>
+                <input className={input} type="number" min="0" value={form.max_price} onChange={(e) => setField("max_price", e.target.value)} placeholder="Sem máximo" />
+              </label>
+              <div className="rules-approval">
+                <label>
+                  <input type="checkbox" checked={form.auto_approve} onChange={(e) => setField("auto_approve", e.target.checked)} />
+                  Aprovação automática
+                </label>
+                {form.auto_approve && (
+                  <input className={input} type="number" min="0" value={form.auto_approve_max_price} onChange={(e) => setField("auto_approve_max_price", e.target.value)} placeholder="Limite de preço" />
+                )}
+              </div>
+              <label className="rules-active">
+                <input type="checkbox" checked={form.active} onChange={(e) => setField("active", e.target.checked)} />
+                Regra ativa
+              </label>
+            </div>
+          </div>
+        </section>
 
-            <button
-              className="primary-button"
-              onClick={saveRule}
-              disabled={saving}
-            >
-              {saving ? (
-                <>
-                  <RefreshCw
-                    size={15}
-                    style={{
-                      animation:
-                        "spin 1s linear infinite",
-                    }}
-                  />
-                  Salvando...
-                </>
-              ) : (
-                <>
-                  <Save size={15} />
-                  {editingId
-                    ? "Salvar alterações"
-                    : "Criar regra"}
-                </>
-              )}
-            </button>
+        <div className="rules-form-actions rules-editor-actions">
+          <button className="rules-ghost-button" onClick={closeForm} disabled={saving}>Cancelar</button>
+          <button className="rules-primary-button" onClick={() => void saveRule()} disabled={saving}>
+            {saving ? <RefreshCw size={15} className="rules-spin" /> : <Save size={15} />}
+            {editingId ? "Salvar alterações" : "Criar regra"}
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="page rules-page">
+      <header className="rules-hero">
+        <div className="rules-hero-left">
+          <div className="rules-hero-icon"><Layers3 size={28} /></div>
+          <div>
+            <span className="rules-eyebrow">CENTRAL DE AUTOMAÇÃO</span>
+            <h1>Regras</h1>
+            <p>Gerencie as estratégias que orientam a busca de oportunidades.</p>
           </div>
         </div>
-      )}
+        <div className="rules-hero-actions">
+          <button className="rules-ghost-button" onClick={() => void loadData()}><RefreshCw size={15} /> Atualizar</button>
+          <button className="rules-primary-button" onClick={createRule}><Plus size={16} /> Nova regra</button>
+        </div>
+      </header>
 
-      <div className="panel">
-        {loading ? (
-          <div className="empty-state">
-            <RefreshCw
-              size={30}
-              style={{
-                animation:
-                  "spin 1s linear infinite",
-              }}
-            />
+      {error && <div className="rules-alert error"><X size={16} />{error}</div>}
+      {success && <div className="rules-alert success"><Check size={16} />{success}</div>}
 
-            <h3>Carregando regras...</h3>
+      <div className="rules-stats">
+        <div className="rules-stat-card"><span className="purple"><ShieldCheck size={20} /></span><div><small>Regras ativas</small><strong>{activeRules}</strong></div></div>
+        <div className="rules-stat-card"><span className="green"><Tags size={20} /></span><div><small>Categorias ativas</small><strong>{categories.length}</strong></div></div>
+        <div className="rules-stat-card"><span className="orange"><Search size={20} /></span><div><small>Termos ativos</small><strong>{activeTerms}</strong></div></div>
+      </div>
 
-            <p>
-              Consultando as regras configuradas no Ofertix.
-            </p>
+      <section className="rules-section">
+        <div className="rules-section-heading">
+          <div>
+            <span className="rules-kicker">SUAS CONFIGURAÇÕES</span>
+            <h2>Regras cadastradas</h2>
+            <p>Pesquise, edite e acompanhe suas estratégias de busca.</p>
           </div>
-        ) : rules.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon">
-              <Plus size={25} />
-            </div>
+          <span className="rules-count">{rules.length} regras</span>
+        </div>
 
-            <h3>Nenhuma regra configurada</h3>
-
-            <p>
-              Crie uma regra para definir quais categorias e
-              critérios o Ofertix deve procurar.
-            </p>
-
-            <button
-              className="primary-button"
-              onClick={openCreateForm}
-              style={{ marginTop: 8 }}
-            >
-              <Plus size={15} />
-              Criar primeira regra
-            </button>
+        <div className="rules-toolbar">
+          <div className="rules-search">
+            <Search size={16} />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar regra ou categoria..." />
           </div>
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-            }}
-          >
-            {rules.map((rule) => (
-              <RuleCard
-                key={rule.id}
-                rule={rule}
-                marketplaces={marketplaces}
-                termStats={getCategoryStats(
-                  rule.category,
-                )}
-                onEdit={openEditForm}
-                onToggle={toggleRule}
-                onDelete={deleteRule}
-                deleting={deleting}
-                getMarketplaceName={getMarketplaceName}
-                formatNumber={formatNumber}
-                formatPrice={formatPrice}
-              />
-            ))}
+          <select className={input} value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="all">Todos os status</option>
+            <option value="active">Ativas</option>
+            <option value="inactive">Inativas</option>
+          </select>
+        </div>
+
+        <div className="rules-grid">
+          {shown.map((rule) => {
+            const visual = art(rule.category || "");
+            const Icon = visual.Icon;
+            const categoryTermList = categoryTerms(rule.category);
+            return (
+              <article className={`rules-rule-card ${rule.active ? "" : "inactive"}`} key={rule.id}>
+                <div className={`rules-rule-art art-${visual.cls}`}>
+                  <span>{visual.emoji}</span>
+                  <Icon size={39} />
+                  <b className={rule.active ? "active" : "paused"}>{rule.active ? "Ativa" : "Pausada"}</b>
+                </div>
+                <div className="rules-rule-body">
+                  <div className="rules-rule-head">
+                    <div>
+                      <small>{marketName(rule.marketplace_id)}</small>
+                      <h3>{rule.name}</h3>
+                      <p>{rule.category || "Sem categoria"}</p>
+                    </div>
+                    <div className="rules-actions">
+                      <button title="Editar" onClick={() => void editRule(rule)}><Edit3 size={14} /></button>
+                      <button title={rule.active ? "Pausar" : "Ativar"} onClick={() => void toggleRule(rule)}><Check size={14} /></button>
+                      <button title="Excluir" disabled={deleting === rule.id} onClick={() => void deleteRule(rule)}>
+                        {deleting === rule.id ? <RefreshCw size={14} className="rules-spin" /> : <Trash2 size={14} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="rules-term-box">
+                    <strong><Search size={13} /> O que buscar</strong>
+                    <div className="rules-chips">
+                      {categoryTermList.length
+                        ? categoryTermList.slice(0, 8).map((term) => <span key={term.id || term.term}>{term.term}</span>)
+                        : <small>Sem termos manuais. A descoberta automática atual continua disponível.</small>}
+                    </div>
+                  </div>
+                  <div className="rules-metrics">
+                    <div><small>Desconto mínimo</small><b>{rule.min_discount_percent ?? 0}%</b></div>
+                    <div><small>Faixa de preço</small><b>{currency(rule.min_price) || "Sem mínimo"} – {currency(rule.max_price) || "Sem máximo"}</b></div>
+                    <div><small>Aprovação</small><b>{rule.auto_approve ? `Até ${currency(rule.auto_approve_max_price) || "sem limite"}` : "Manual"}</b></div>
+                  </div>
+                  <footer className="rules-rule-footer">
+                    <span><Sparkles size={13} /> Descoberta automática habilitada</span>
+                    <span>{categoryTermList.length} termos manuais/ativos</span>
+                  </footer>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+
+        {!shown.length && (
+          <div className="rules-empty">
+            <Search size={25} />
+            <h3>Nenhuma regra encontrada</h3>
+            <p>Ajuste a busca ou crie uma nova regra.</p>
+            <button className="rules-primary-button" onClick={createRule}><Plus size={15} /> Nova regra</button>
           </div>
         )}
-      </div>
-    </div>
+      </section>
+    </section>
   );
 }
-
-const inputStyle: CSSProperties = {
-  width: "100%",
-  boxSizing: "border-box",
-  padding: "10px 11px",
-  border: "1px solid #202734",
-  borderRadius: 8,
-  background: "#0b0f16",
-  color: "#e8edf5",
-  outline: "none",
-  fontSize: 12,
-};
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div>
-      <label
-        style={{
-          display: "block",
-          color: "#aeb7c6",
-          fontSize: 10,
-          fontWeight: 600,
-          marginBottom: 6,
-        }}
-      >
-        {label}
-      </label>
-
-      {children}
-    </div>
-  );
-}
-
-function HelpText({
-  children,
-}: {
-  children: ReactNode;
-}) {
-  return (
-    <p
-      style={{
-        margin: "6px 0 0",
-        color: "#687386",
-        fontSize: 10,
-        lineHeight: 1.5,
-      }}
-    >
-      {children}
-    </p>
-  );
-}
-
-interface RuleCardProps {
-  rule: OfferRule;
-  marketplaces: Marketplace[];
-  termStats: TermStats;
-  onEdit: (rule: OfferRule) => void;
-  onToggle: (rule: OfferRule) => void;
-  onDelete: (rule: OfferRule) => void;
-  deleting: string | null;
-  getMarketplaceName: (
-    marketplaceId: string | null,
-  ) => string;
-  formatNumber: (
-    value: number | null,
-  ) => string | null;
-  formatPrice: (
-    value: number | null,
-  ) => string | null;
-}
-
-function RuleCard({
-  rule,
-  termStats,
-  onEdit,
-  onToggle,
-  onDelete,
-  deleting,
-  getMarketplaceName,
-  formatNumber,
-  formatPrice,
-}: RuleCardProps) {
-  return (
-    <div
-      style={{
-        padding: 16,
-        border: "1px solid #202734",
-        borderRadius: 10,
-        background: "#0b0f16",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: 16,
-          flexWrap: "wrap",
-        }}
-      >
-        <div
-          style={{
-            flex: 1,
-            minWidth: 220,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            <span
-              style={{
-                color: "#e8edf5",
-                fontSize: 14,
-                fontWeight: 600,
-              }}
-            >
-              {rule.name}
-            </span>
-
-            <span
-              style={{
-                padding: "4px 8px",
-                borderRadius: 20,
-                background: rule.active
-                  ? "#132a21"
-                  : "#20232b",
-                color: rule.active
-                  ? "#6ee7b7"
-                  : "#8d98aa",
-                fontSize: 10,
-                fontWeight: 600,
-              }}
-            >
-              {rule.active ? "Ativa" : "Inativa"}
-            </span>
-
-            {rule.auto_approve && (
-              <span
-                style={{
-                  padding: "4px 8px",
-                  borderRadius: 20,
-                  background: "#16243a",
-                  color: "#60a5fa",
-                  fontSize: 10,
-                  fontWeight: 600,
-                }}
-              >
-                Aprovação automática
-              </span>
-            )}
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              flexWrap: "wrap",
-              marginTop: 8,
-            }}
-          >
-            <span
-              style={{
-                color: "#687386",
-                fontSize: 10,
-              }}
-            >
-              {getMarketplaceName(
-                rule.marketplace_id,
-              )}
-            </span>
-
-            {rule.category && (
-              <>
-                <span
-                  style={{
-                    color: "#3c4555",
-                    fontSize: 10,
-                  }}
-                >
-                  •
-                </span>
-
-                <span
-                  style={{
-                    color: "#687386",
-                    fontSize: 10,
-                  }}
-                >
-                  {rule.category}
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            gap: 7,
-          }}
-        >
-          <button
-            className="text-button"
-            onClick={() => onEdit(rule)}
-            title="Editar regra"
-          >
-            <Edit3 size={15} />
-          </button>
-
-          <button
-            className="text-button"
-            onClick={() => onToggle(rule)}
-            title={
-              rule.active
-                ? "Desativar regra"
-                : "Ativar regra"
-            }
-          >
-            <Check size={15} />
-          </button>
-
-          <button
-            className="text-button"
-            onClick={() => onDelete(rule)}
-            disabled={deleting === rule.id}
-            title="Excluir regra"
-            style={{
-              color: "#f87171",
-            }}
-          >
-            {deleting === rule.id ? (
-              <RefreshCw
-                size={15}
-                style={{
-                  animation:
-                    "spin 1s linear infinite",
-                }}
-              />
-            ) : (
-              <Trash2 size={15} />
-            )}
-          </button>
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns:
-            "repeat(auto-fit, minmax(150px, 1fr))",
-          gap: 10,
-          marginTop: 16,
-          paddingTop: 14,
-          borderTop: "1px solid #202734",
-        }}
-      >
-        <div>
-          <div style={labelStyle}>
-            Desconto mínimo
-          </div>
-
-          <div style={valueStyle}>
-            {formatNumber(
-              rule.min_discount_percent,
-            ) ?? "0"}
-            %
-          </div>
-        </div>
-
-        <div>
-          <div style={labelStyle}>
-            Faixa de preço
-          </div>
-
-          <div style={valueStyle}>
-            {formatPrice(rule.min_price) ??
-              "Sem mínimo"}{" "}
-            →{" "}
-            {formatPrice(rule.max_price) ??
-              "Sem máximo"}
-          </div>
-        </div>
-
-        <div>
-          <div style={labelStyle}>
-            Aprovação
-          </div>
-
-          <div
-            style={{
-              ...valueStyle,
-              color: rule.auto_approve
-                ? "#6ee7b7"
-                : "#facc15",
-            }}
-          >
-            {rule.auto_approve
-              ? rule.auto_approve_max_price !== null
-                ? `Automática até ${formatPrice(
-                    rule.auto_approve_max_price,
-                  )}`
-                : "Automática sem limite"
-              : "Manual"}
-          </div>
-        </div>
-
-        <div>
-          <div style={labelStyle}>
-            Descoberta
-          </div>
-
-          <div
-            style={{
-              ...valueStyle,
-              color: "#60a5fa",
-            }}
-          >
-            {rule.category
-              ? "Automática"
-              : "Por categoria"}
-          </div>
-        </div>
-      </div>
-
-      <div
-        style={{
-          marginTop: 14,
-          padding: "11px 12px",
-          borderRadius: 8,
-          background: "#0d1420",
-          border: "1px solid #1c2b40",
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-        }}
-      >
-        <Sparkles
-          size={15}
-          style={{
-            color: "#60a5fa",
-            flexShrink: 0,
-          }}
-        />
-
-        <div style={{ flex: 1 }}>
-          <div
-            style={{
-              color: "#cbd3df",
-              fontSize: 10,
-              fontWeight: 600,
-            }}
-          >
-            O Ofertix encontra os termos automaticamente
-          </div>
-
-          <div
-            style={{
-              color: "#687386",
-              fontSize: 9,
-              marginTop: 3,
-            }}
-          >
-            {rule.category
-              ? `${termStats.total} termos conhecidos para esta categoria · ${termStats.discovered} descobertos · ${termStats.trends} vindos de tendências`
-              : "Defina uma categoria para ativar a descoberta específica."}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const labelStyle: CSSProperties = {
-  color: "#687386",
-  fontSize: 9,
-  textTransform: "uppercase",
-};
-
-const valueStyle: CSSProperties = {
-  color: "#cbd3df",
-  fontSize: 12,
-  marginTop: 4,
-};
