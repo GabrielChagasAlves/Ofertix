@@ -5153,3 +5153,404 @@ a {
     flex: 1 1 auto;
   }
 }
+/* =========================================================
+   OFERTIX — MODAL DE ASSOCIAÇÃO DE LINKS (REFINAMENTO VISUAL)
+   Bloco adicional: adicionar ao FINAL de src/index.css.
+   Não substitui os estilos existentes nem altera a lógica TSX.
+   ========================================================= */
+.affiliate-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: hidden;
+  background: rgba(12, 16, 35, 0.68);
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+}
+
+.affiliate-batch-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(820px, calc(100vw - 32px));
+  max-width: 820px;
+  max-height: min(88dvh, 900px);
+  overflow: hidden;
+  border: 1px solid rgba(223, 227, 243, 0.95);
+  border-radius: 22px;
+  background: #f6f7fc;
+  box-shadow: 0 28px 90px rgba(11, 15, 39, 0.32);
+}
+
+.affiliate-batch-modal .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex: 0 0 auto;
+  padding: 22px 24px;
+  border-bottom: 1px solid #e7e9f4;
+  background: #fff;
+}
+
+.affiliate-batch-modal .modal-header h2 {
+  margin: 0;
+  color: #171b36;
+  font-size: clamp(17px, 2vw, 21px);
+  font-weight: 800;
+  letter-spacing: -0.45px;
+}
+
+.affiliate-batch-modal .modal-header p {
+  margin: 6px 0 0;
+  color: #737b98;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.affiliate-batch-modal .modal-header .icon-button {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border: 1px solid #e2e6f2;
+  border-radius: 11px;
+  color: #68708d;
+  background: #f8f9fd;
+  transition: background .18s ease, color .18s ease, border-color .18s ease;
+}
+
+.affiliate-batch-modal .modal-header .icon-button:hover {
+  color: #272d4c;
+  border-color: #cfd5e8;
+  background: #eef1fa;
+}
+
+.affiliate-batch-modal .modal-body {
+  min-height: 0;
+  padding: 18px 20px 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #c4c9dc transparent;
+}
+
+.affiliate-batch-modal .modal-body::-webkit-scrollbar { width: 8px; }
+.affiliate-batch-modal .modal-body::-webkit-scrollbar-thumb {
+  border: 2px solid #f6f7fc;
+  border-radius: 99px;
+  background: #c4c9dc;
+}
+
+.affiliate-batch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.affiliate-batch-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  padding: 16px 17px;
+  border: 1px solid #e4e7f2;
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(35, 43, 86, 0.035);
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.affiliate-batch-item:focus-within {
+  border-color: #c9bcff;
+  box-shadow: 0 0 0 3px rgba(109, 61, 245, 0.07);
+}
+
+.affiliate-batch-product {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  margin: 0;
+}
+
+.affiliate-batch-product > img,
+.affiliate-batch-product > .product-thumb-placeholder {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  padding: 5px;
+  border: 1px solid #edf0f7;
+  border-radius: 13px;
+  object-fit: contain;
+  background: #fbfcff;
+}
+
+.affiliate-batch-product strong {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #202541;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.affiliate-batch-product span {
+  margin-top: 4px;
+  color: #7b829e;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.affiliate-batch-item > .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: start;
+  gap: 7px;
+  min-height: 35px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid #e2e6f2;
+  border-radius: 10px;
+  color: #535d7d;
+  background: #f8f9fd;
+  font-size: 11px;
+  font-weight: 650;
+  text-decoration: none;
+  transition: background .18s ease, border-color .18s ease;
+}
+
+.affiliate-batch-item > .secondary-button:hover {
+  border-color: #cfc5ff;
+  background: #f3f0ff;
+}
+
+.affiliate-batch-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(160px, .85fr);
+  align-items: end;
+  gap: 12px;
+  padding-top: 2px;
+}
+
+.affiliate-batch-fields .settings-field { min-width: 0; }
+
+.affiliate-batch-fields .settings-field label {
+  margin-bottom: 7px;
+  color: #69718f;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.affiliate-batch-fields .settings-field input {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid #dfe4f1;
+  border-radius: 11px;
+  outline: none;
+  color: #252b49;
+  background: #fbfcff;
+  font-size: 12px;
+  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+
+.affiliate-batch-fields .settings-field input::placeholder { color: #a0a6bd; }
+
+.affiliate-batch-fields .settings-field input:focus {
+  border-color: #9879ff;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(109, 61, 245, 0.1);
+}
+
+.affiliate-batch-fields .settings-field input:disabled {
+  opacity: .65;
+  cursor: wait;
+}
+
+.affiliate-batch-modal .settings-note {
+  margin-top: 14px;
+  padding: 11px 13px;
+  border: 1px solid #e5e7f4;
+  border-radius: 12px;
+  color: #737b98;
+  background: #fff;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.affiliate-batch-modal .modal-footer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid #e6e9f3;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 -5px 18px rgba(28, 35, 72, 0.035);
+}
+
+.affiliate-batch-modal .modal-footer .secondary-button,
+.affiliate-batch-modal .modal-footer .primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.affiliate-batch-modal .modal-footer .secondary-button {
+  border: 1px solid #dfe3f0;
+  color: #535b78;
+  background: #fff;
+}
+
+.affiliate-batch-modal .modal-footer .secondary-button:hover { background: #f5f6fc; }
+
+.affiliate-batch-modal .modal-footer .primary-button {
+  border: 1px solid #6840e8;
+  color: #fff;
+  background: linear-gradient(120deg, #7951f5, #5c35df);
+  box-shadow: 0 5px 14px rgba(100, 63, 224, 0.2);
+}
+
+.affiliate-batch-modal .modal-footer .primary-button:hover {
+  filter: brightness(1.04);
+  box-shadow: 0 7px 18px rgba(100, 63, 224, 0.25);
+}
+
+.affiliate-batch-modal .modal-footer button:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 620px) {
+  .affiliate-modal-overlay {
+    align-items: flex-end;
+    padding: 8px;
+  }
+
+  .affiliate-batch-modal {
+    width: 100%;
+    max-width: none;
+    max-height: calc(100dvh - 16px);
+    border-radius: 20px;
+  }
+
+  .affiliate-batch-modal .modal-header { padding: 17px 16px; }
+  .affiliate-batch-modal .modal-body { padding: 12px; }
+
+  .affiliate-batch-item {
+    gap: 11px;
+    padding: 13px;
+    border-radius: 14px;
+  }
+
+  .affiliate-batch-product {
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 11px;
+  }
+
+  .affiliate-batch-product > img,
+  .affiliate-batch-product > .product-thumb-placeholder {
+    width: 58px;
+    height: 58px;
+  }
+
+  .affiliate-batch-product strong { font-size: 12px; }
+
+  .affiliate-batch-fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .affiliate-batch-modal .modal-footer {
+    display: grid;
+    grid-template-columns: minmax(0, .75fr) minmax(0, 1.4fr);
+    gap: 8px;
+    padding: 11px 12px calc(11px + env(safe-area-inset-bottom));
+  }
+
+  .affiliate-batch-modal .modal-footer .secondary-button,
+  .affiliate-batch-modal .modal-footer .primary-button {
+    width: 100%;
+    min-width: 0;
+    padding: 0 9px;
+    font-size: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .affiliate-batch-modal *,
+  .affiliate-batch-modal *::before,
+  .affiliate-batch-modal *::after {
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+/* Botão para ignorar um produto apenas no lote de associação de afiliados */
+.affiliate-batch-item {
+  position: relative;
+}
+
+.affiliate-batch-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 32px;
+  margin: 0 0 0.75rem auto;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid rgba(190, 45, 65, 0.22);
+  border-radius: 9px;
+  background: rgba(190, 45, 65, 0.06);
+  color: #b4233b;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.affiliate-batch-remove:hover:not(:disabled) {
+  background: rgba(190, 45, 65, 0.12);
+  border-color: rgba(190, 45, 65, 0.4);
+}
+
+.affiliate-batch-remove:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.affiliate-batch-remove:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .affiliate-batch-remove {
+    min-height: 36px;
+    padding-inline: 0.75rem;
+  }
+}

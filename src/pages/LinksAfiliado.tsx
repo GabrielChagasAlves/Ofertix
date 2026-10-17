@@ -262,6 +262,17 @@ export function LinksAfiliado() {
     }));
   }
 
+  // Remove o produto somente do lote atual; ele continua cadastrado no Ofertix.
+  function removeProductFromBatch(productId: string) {
+    if (saving) return;
+    setSelectedIds((current) => current.filter((id) => id !== productId));
+    setForms((current) => {
+      const next = { ...current };
+      delete next[productId];
+      return next;
+    });
+  }
+
   async function saveInlineAffiliateLink(product: Product) {
     const url = (inlineUrls[product.id] || "").trim();
     if (!url) { alert("Cole o link de afiliado antes de salvar."); return; }
@@ -304,7 +315,11 @@ export function LinksAfiliado() {
   }
 
   async function saveAffiliateLinks() {
-    if (!selectedProducts.length) return;
+    if (!selectedProducts.length) {
+      alert("Não há produtos na lista para processar.");
+      return;
+    }
+
     for (const product of selectedProducts) {
       const url = forms[product.id]?.affiliateUrl.trim();
       if (!url) { alert(`Informe o link de afiliado para:\n\n${product.title}`); return; }
@@ -573,6 +588,17 @@ export function LinksAfiliado() {
                   const form = forms[product.id] || { affiliateUrl: "", affiliateTag: "" };
                   return (
                     <div className="affiliate-batch-item" key={product.id}>
+                      <button
+                        type="button"
+                        className="affiliate-batch-remove"
+                        onClick={() => removeProductFromBatch(product.id)}
+                        disabled={saving}
+                        aria-label={`Remover ${product.title} desta lista`}
+                        title="Ignorar este produto nesta associação"
+                      >
+                        <X size={16} />
+                        <span>Ignorar</span>
+                      </button>
                       <div className="affiliate-batch-product">
                         {product.image_url ? <img src={product.image_url} alt={product.title} /> : <div className="product-thumb-placeholder"><Link2 size={18} /></div>}
                         <div><strong>{product.title}</strong><span>{getMarketplaceName(product)} · {formatPrice(product.price)}</span><span>{product.external_id}</span></div>
@@ -592,11 +618,15 @@ export function LinksAfiliado() {
                   );
                 })}
               </div>
-              <div className="settings-note">A associação do link não ignora as regras de elegibilidade. O Ofertix tentará gerar a oferta automaticamente quando os critérios aplicáveis forem atendidos.</div>
+              {selectedProducts.length === 0 ? (
+                <div className="settings-note">Nenhum produto nesta associação. Feche a janela ou selecione produtos novamente.</div>
+              ) : (
+                <div className="settings-note">A associação do link não ignora as regras de elegibilidade. O Ofertix tentará gerar a oferta automaticamente quando os critérios aplicáveis forem atendidos.</div>
+              )}
             </div>
             <div className="modal-footer">
               <button type="button" className="secondary-button" onClick={closeAffiliateModal} disabled={saving}>Cancelar</button>
-              <button type="button" className="primary-button" onClick={saveAffiliateLinks} disabled={saving}>
+              <button type="button" className="primary-button" onClick={saveAffiliateLinks} disabled={saving || selectedProducts.length === 0}>
                 {saving ? <span className="affiliate-button-spinner" /> : <Link2 size={16} />}
                 {saving ? "Salvando links..." : "Salvar e gerar ofertas"}
               </button>
