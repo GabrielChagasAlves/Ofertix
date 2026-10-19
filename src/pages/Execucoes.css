@@ -74,3 +74,18 @@
 @media(max-width:900px){.exec-draft{padding:16px}.draft-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.draft-live-metrics{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:15px}.draft-live-metrics>div:nth-child(2){border-right:0}.draft-live-metrics>div:nth-child(3),.draft-live-metrics>div:nth-child(4){padding-top:12px;border-top:1px solid #edf1f6}}
 @media(max-width:560px){.exec-draft{padding:13px}.draft-page-head h1{font-size:27px}.draft-kpis{grid-template-columns:1fr}.draft-kpi{padding:16px}.draft-stage-flow{grid-template-columns:1fr}.draft-live-title{flex-direction:column}.draft-live-controls{align-items:flex-start}.draft-elapsed{text-align:left;width:100%}.draft-live-metrics{grid-template-columns:1fr}.draft-live-metrics>div{border-right:0!important;padding:10px 16px!important;border-top:1px solid #edf1f6}.draft-live-metrics>div:first-child{border-top:0}.draft-panel{padding:14px}.draft-panel-head{flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){.exec-draft *{animation:none!important;transition:none!important}}
+
+
+/* Feedback das ações reais da central de automações */
+.draft-action-message{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  margin:10px 0 14px;padding:11px 14px;border:1px solid #dbeafe;
+  border-radius:12px;background:#eff6ff;color:#1e40af;font-size:13px;
+}
+.draft-action-message.success{background:#ecfdf5;border-color:#bbf7d0;color:#047857}
+.draft-action-message.error{background:#fef2f2;border-color:#fecaca;color:#b91c1c}
+.draft-action-message.info{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+.draft-action-message button{border:0;background:transparent;color:inherit;font-size:20px;line-height:1;cursor:pointer}
+.draft-force:disabled,.draft-cancel:disabled{opacity:.55;cursor:not-allowed;box-shadow:none}
+.spin{animation:exec-spin .9s linear infinite}
+@keyframes exec-spin{to{transform:rotate(360deg)}}

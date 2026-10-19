@@ -62,6 +62,8 @@ export function Execucoes() {
   const [showAll, setShowAll] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [logCleared, setLogCleared] = useState(false);
+  const [actionBusy, setActionBusy] = useState<"start" | "cancel" | null>(null);
+  const [actionMessage, setActionMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
 
   const load = useCallback(async (quiet = false) => {
     quiet ? setRefreshing(true) : setLoading(true);
@@ -83,6 +85,52 @@ export function Execucoes() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Atualiza o histórico periodicamente para refletir início, término e cancelamento.
+  useEffect(() => {
+    const timer = window.setInterval(() => { void load(true); }, 8000);
+    return () => window.clearInterval(timer);
+  }, [load]);
+
+  const runControlAction = useCallback(async (action: "start" | "cancel") => {
+    if (actionBusy) return;
+    if (action === "cancel") {
+      const confirmed = window.confirm("Deseja solicitar o cancelamento da sincronização do Mercado Livre? A rotina vai parar no próximo ponto seguro.");
+      if (!confirmed) return;
+    }
+
+    setActionBusy(action);
+    setActionMessage(null);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("automation-control", {
+        body: { action },
+      });
+      if (invokeError) {
+        const message = invokeError.message || "Não foi possível executar a ação.";
+        if (/401|unauthorized|sessão|session/i.test(message)) {
+          throw new Error("Para controlar as automações, entre no Ofertix com uma sessão autenticada.");
+        }
+        throw new Error(message);
+      }
+      if (!data?.success) throw new Error(data?.error || "A operação não foi aceita pelo backend.");
+
+      setActionMessage({
+        type: "success",
+        text: action === "start"
+          ? "Solicitação enviada. A sincronização começará se não houver outra em andamento."
+          : "Cancelamento solicitado. A execução será interrompida no próximo ponto seguro.",
+      });
+      await load(true);
+      window.setTimeout(() => { void load(true); }, 1800);
+    } catch (e) {
+      setActionMessage({
+        type: "error",
+        text: e instanceof Error ? e.message : "Erro inesperado ao controlar a automação.",
+      });
+    } finally {
+      setActionBusy(null);
+    }
+  }, [actionBusy, load]);
 
   const inRange = useMemo(() => {
     if (filter === "all") return runs;
@@ -142,6 +190,10 @@ export function Execucoes() {
       </header>
 
       {error && <div className="draft-error"><AlertCircle size={17} /><span><strong>Falha ao consultar o histórico.</strong> {error}</span><button onClick={() => void load(true)}>Tentar novamente</button></div>}
+      {actionMessage && <div className={`draft-action-message ${actionMessage.type}`} role="status">
+        {actionMessage.text}
+        <button type="button" onClick={() => setActionMessage(null)} aria-label="Fechar mensagem">×</button>
+      </div>}
 
       <section className="draft-kpis">
         <article className="draft-kpi"><span className="draft-kpi-icon emerald"><Play size={22} fill="currentColor" /></span><div><small>Total de Execuções</small><strong>{loading ? "—" : stats.total.toLocaleString("pt-BR")}</strong><em>execuções no período selecionado</em></div></article>
@@ -155,8 +207,24 @@ export function Execucoes() {
           <div className="draft-live-title"><span className={`draft-live-badge ${active ? "is-running" : ""}`}><i /> {active ? "AO VIVO" : "SEM EXECUÇÃO ATIVA"}</span><div><h2>{active ? "Execução em andamento" : "Fluxo de automações"}</h2><p>{active ? label(active.function_name) : "Visão do processamento a partir das execuções registradas"}</p></div></div>
           <div className="draft-live-controls">
             <div className="draft-elapsed"><small>{active ? `Iniciada às ${fmtTime(active.started_at)}` : "Última execução registrada"}</small><strong>{active ? fmtDuration(Date.now() - new Date(active.started_at || Date.now()).getTime()) : fmtDate(inRange[0]?.started_at)}</strong></div>
-            <button className="draft-force" disabled aria-label="Forçar execução indisponível até a integração do backend"><Zap size={15} /> Forçar Execução</button>
-            <button className="draft-cancel" disabled aria-label="Cancelar execução indisponível até a integração do backend"><Circle size={14} /> Cancelar</button>
+            <button
+              className="draft-force"
+              disabled={Boolean(active) || actionBusy !== null}
+              onClick={() => void runControlAction("start")}
+              title={active ? "Já existe uma sincronização em andamento" : "Iniciar sincronização do Mercado Livre"}
+            >
+              {actionBusy === "start" ? <RefreshCw size={15} className="spin" /> : <Zap size={15} />}
+              {actionBusy === "start" ? "Solicitando..." : "Forçar Execução"}
+            </button>
+            <button
+              className="draft-cancel"
+              disabled={!active || actionBusy !== null || !String(active.function_name || "").includes("mercado-livre-sync")}
+              onClick={() => void runControlAction("cancel")}
+              title={!active ? "Não há sincronização ativa para cancelar" : "Solicitar cancelamento seguro"}
+            >
+              {actionBusy === "cancel" ? <RefreshCw size={14} className="spin" /> : <Circle size={14} />}
+              {actionBusy === "cancel" ? "Cancelando..." : "Cancelar"}
+            </button>
           </div>
         </div>
 
