@@ -71,6 +71,7 @@ function getBrandInfo(name: string, slug: string): BrandInfo {
 
 export function LinksAfiliado() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [pendingProductIds, setPendingProductIds] = useState<Set<string>>(() => new Set());
   const [affiliateLinks, setAffiliateLinks] = useState<AffiliateLink[]>([]);
   const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,22 +102,33 @@ export function LinksAfiliado() {
         { data: productData, error: productError },
         { data: linkData, error: linkError },
         { data: marketplaceData, error: marketplaceError },
+        { data: pendingMatches, error: pendingMatchesError },
       ] = await Promise.all([
+        // Busca todos os produtos; o filtro de exibição é aplicado abaixo.
         supabase.from("products").select(`
           id, marketplace_id, external_id, title, price, original_price,
           discount_percent, image_url, product_url, affiliate_url, active,
           availability_status, last_availability_check, availability_error,
           marketplaces (id, name, slug)
-        `).eq("active", true).order("created_at", { ascending: false }),
+        `).order("created_at", { ascending: false }),
         supabase.from("affiliate_links").select("*").order("created_at", { ascending: false }),
         supabase.from("marketplaces").select("id, name, slug").eq("active", true).order("name"),
+        // Produtos pendentes associados a regras de oferta ativas.
+        supabase.from("product_rule_matches")
+          .select("product_id, status, offer_rules!inner(active)")
+          .eq("status", "pending_affiliate")
+          .eq("offer_rules.active", true),
       ]);
+
       if (productError) throw productError;
       if (linkError) throw linkError;
       if (marketplaceError) throw marketplaceError;
+      if (pendingMatchesError) throw pendingMatchesError;
+
       setProducts((productData ?? []) as unknown as Product[]);
       setAffiliateLinks((linkData ?? []) as AffiliateLink[]);
       setMarketplaces((marketplaceData ?? []) as Marketplace[]);
+      setPendingProductIds(new Set((pendingMatches ?? []).map((match) => match.product_id)));
     } catch (error) {
       console.error("Erro ao carregar links de afiliado:", error);
       alert("Não foi possível carregar os produtos. Verifique a conexão e tente novamente.");
@@ -138,11 +150,18 @@ export function LinksAfiliado() {
     return map;
   }, [affiliateLinks]);
 
-  const productsWithoutAffiliateLink = useMemo(() => products.filter((product) => {
-    const productUrl = product.affiliate_url?.trim();
-    const linkUrl = linksByProduct.get(product.id)?.affiliate_url?.trim();
-    return !productUrl && !linkUrl;
-  }), [products, linksByProduct]);
+  const productsWithoutAffiliateLink = useMemo(() => {
+    return products.filter((product) => {
+      const productUrl = product.affiliate_url?.trim();
+      const linkUrl = linksByProduct.get(product.id)?.affiliate_url?.trim();
+
+      // Mantém produtos ativos e inclui inativos pendentes em regras ativas.
+      const shouldAppear = product.active || pendingProductIds.has(product.id);
+      const hasNoAffiliateLink = !productUrl && !linkUrl;
+
+      return shouldAppear && hasNoAffiliateLink;
+    });
+  }, [products, linksByProduct, pendingProductIds]);
 
   const filteredProducts = useMemo(() => {
     const normalizedSearch = search.trim().toLocaleLowerCase("pt-BR");
