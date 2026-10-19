@@ -144,15 +144,15 @@ export function Execucoes() {
       {error && <div className="draft-error"><AlertCircle size={17} /><span><strong>Falha ao consultar o histórico.</strong> {error}</span><button onClick={() => void load(true)}>Tentar novamente</button></div>}
 
       <section className="draft-kpis">
-        <article className="draft-kpi"><span className="draft-kpi-icon emerald"><Play size={22} fill="currentColor" /></span><div><small>Total de Execuções</small><strong>{loading ? "—" : stats.total.toLocaleString("pt-BR")}</strong><em>no período selecionado</em></div></article>
-        <article className="draft-kpi"><span className="draft-kpi-icon blue"><Package size={22} /></span><div><small>Produtos Processados</small><strong>{loading ? "—" : stats.products.toLocaleString("pt-BR")}</strong><em>conforme registros disponíveis</em></div></article>
-        <article className="draft-kpi"><span className="draft-kpi-icon violet"><Tag size={22} /></span><div><small>Execuções Concluídas</small><strong>{loading ? "—" : stats.succeeded.toLocaleString("pt-BR")}</strong><em>{stats.failed} falha(s) no período</em></div></article>
+        <article className="draft-kpi"><span className="draft-kpi-icon emerald"><Play size={22} fill="currentColor" /></span><div><small>Total de Execuções</small><strong>{loading ? "—" : stats.total.toLocaleString("pt-BR")}</strong><em>execuções no período selecionado</em></div></article>
+        <article className="draft-kpi"><span className="draft-kpi-icon blue"><Package size={22} /></span><div><small>Produtos Encontrados</small><strong>{loading ? "—" : stats.products.toLocaleString("pt-BR")}</strong><em>conforme registros disponíveis</em></div></article>
+        <article className="draft-kpi"><span className="draft-kpi-icon violet"><Tag size={22} /></span><div><small>Oportunidades Salvas</small><strong>{loading ? "—" : stats.created.toLocaleString("pt-BR")}</strong><em>conforme registros disponíveis</em></div></article>
         <article className="draft-kpi"><span className="draft-kpi-icon orange"><Timer size={22} /></span><div><small>Tempo Médio</small><strong>{loading || stats.avg == null ? "—" : fmtDuration(stats.avg)}</strong><em>execuções finalizadas</em></div></article>
       </section>
 
       <section className="draft-live-panel">
         <div className="draft-live-head">
-          <div className="draft-live-title"><span className={`draft-live-badge ${active ? "is-running" : ""}`}><i /> {active ? "AO VIVO" : "HISTÓRICO"}</span><div><h2>{active ? "Execução em andamento" : "Fluxo de automações"}</h2><p>{active ? label(active.function_name) : "Visão do processamento a partir das execuções registradas"}</p></div></div>
+          <div className="draft-live-title"><span className={`draft-live-badge ${active ? "is-running" : ""}`}><i /> {active ? "AO VIVO" : "SEM EXECUÇÃO ATIVA"}</span><div><h2>{active ? "Execução em andamento" : "Fluxo de automações"}</h2><p>{active ? label(active.function_name) : "Visão do processamento a partir das execuções registradas"}</p></div></div>
           <div className="draft-live-controls">
             <div className="draft-elapsed"><small>{active ? `Iniciada às ${fmtTime(active.started_at)}` : "Última execução registrada"}</small><strong>{active ? fmtDuration(Date.now() - new Date(active.started_at || Date.now()).getTime()) : fmtDate(inRange[0]?.started_at)}</strong></div>
             <button className="draft-force" disabled title="A execução manual ainda não está conectada a uma função segura no backend."><Zap size={15} /> Forçar Execução</button>
@@ -181,10 +181,10 @@ export function Execucoes() {
         </div>
 
         <div className="draft-live-metrics">
-          <div><span className="draft-metric-icon blue"><Search size={22} /></span><section><strong>{stats.total}</strong><small>Execuções no período</small></section></div>
-          <div><span className="draft-metric-icon green"><Check size={22} /></span><section><strong>{stats.succeeded}</strong><small>Concluídas com sucesso</small></section></div>
-          <div><span className="draft-metric-icon red"><XCircle size={22} /></span><section><strong>{stats.failed}</strong><small>Execuções com falha</small></section></div>
-          <div><span className="draft-metric-icon violet"><Clock3 size={22} /></span><section><strong>{stats.running}</strong><small>Em andamento</small></section></div>
+          <div><span className="draft-metric-icon blue"><Search size={22} /></span><section><strong>{stats.products.toLocaleString("pt-BR")}</strong><small>Produtos processados</small></section></div>
+          <div><span className="draft-metric-icon green"><Check size={22} /></span><section><strong>{stats.created.toLocaleString("pt-BR")}</strong><small>Oportunidades salvas</small></section></div>
+          <div><span className="draft-metric-icon red"><XCircle size={22} /></span><section><strong>{inRange.reduce((sum, r) => sum + (r.errors_count ?? 0), 0).toLocaleString("pt-BR")}</strong><small>Filtradas por regras / erros</small></section></div>
+          <div><span className="draft-metric-icon violet"><Clock3 size={22} /></span><section><strong>{active ? fmtDuration(Date.now() - new Date(active.started_at || Date.now()).getTime()) : (stats.avg == null ? "—" : fmtDuration(stats.avg))}</strong><small>{active ? "Tempo decorrido" : "Tempo médio"}</small></section></div>
         </div>
       </section>
 
