@@ -28,7 +28,7 @@
 .draft-live-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .draft-elapsed{text-align:right;min-width:115px}.draft-elapsed small{display:block;color:#64748b;font-size:11px}.draft-elapsed strong{display:block;font-size:20px;color:#0f172a;margin-top:3px}
 .draft-force,.draft-cancel{display:inline-flex;align-items:center;gap:7px;padding:11px 13px;border-radius:10px;background:#faf5ff;border:1px solid #c4b5fd;color:#6d28d9;font-size:12px;font-weight:700;white-space:nowrap}
-.draft-cancel{background:#fff;color:#dc2626;border-color:#fca5a5}.draft-force:disabled,.draft-cancel:disabled{opacity:1;cursor:not-allowed}
+.draft-cancel{background:#fff;color:#dc2626;border-color:#fca5a5}.draft-force:disabled,.draft-cancel:disabled{opacity:1;cursor:not-allowed;box-shadow:none}
 .draft-stage-flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin-bottom:19px}
 .draft-stage-wrap{position:relative;min-width:0}.draft-stage{height:100%;border:1px solid #e2e8f0;border-radius:14px;padding:14px;background:#fff;min-width:0}
 .draft-stage.current{border-color:#a78bfa;background:linear-gradient(135deg,#fff 0%,#faf5ff 100%);box-shadow:0 0 0 1px #ede9fe}

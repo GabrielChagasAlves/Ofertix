@@ -155,8 +155,8 @@ export function Execucoes() {
           <div className="draft-live-title"><span className={`draft-live-badge ${active ? "is-running" : ""}`}><i /> {active ? "AO VIVO" : "SEM EXECUÇÃO ATIVA"}</span><div><h2>{active ? "Execução em andamento" : "Fluxo de automações"}</h2><p>{active ? label(active.function_name) : "Visão do processamento a partir das execuções registradas"}</p></div></div>
           <div className="draft-live-controls">
             <div className="draft-elapsed"><small>{active ? `Iniciada às ${fmtTime(active.started_at)}` : "Última execução registrada"}</small><strong>{active ? fmtDuration(Date.now() - new Date(active.started_at || Date.now()).getTime()) : fmtDate(inRange[0]?.started_at)}</strong></div>
-            <button className="draft-force" disabled title="A execução manual ainda não está conectada a uma função segura no backend."><Zap size={15} /> Forçar Execução</button>
-            <button className="draft-cancel" disabled title="Não há ação de cancelamento conectada ao backend."><Circle size={14} /> Cancelar</button>
+            <button className="draft-force" disabled aria-label="Forçar execução indisponível até a integração do backend"><Zap size={15} /> Forçar Execução</button>
+            <button className="draft-cancel" disabled aria-label="Cancelar execução indisponível até a integração do backend"><Circle size={14} /> Cancelar</button>
           </div>
         </div>
 
