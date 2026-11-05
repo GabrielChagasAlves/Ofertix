@@ -180,15 +180,10 @@ export function LinksAfiliado() {
       const title = (product.title || "").toLocaleLowerCase("pt-BR");
       const externalId = (product.external_id || "").toLocaleLowerCase("pt-BR");
       const matchesSearch = !normalizedSearch || title.includes(normalizedSearch) || externalId.includes(normalizedSearch);
-      const externalIdUpper = (product.external_id || "").toUpperCase();
-      // IDs MLB são exclusivos do Mercado Livre. Prioriza esse identificador
-      // sobre qualquer relação aninhada eventualmente inconsistente do Supabase.
-      const productMarketplaceSlug = externalIdUpper.startsWith("MLB")
-        ? "mercado_livre"
-        : marketplaces.find((marketplace) => marketplace.id === product.marketplace_id)?.slug
-          || getMarketplace(product)?.slug
-          || "";
-      const matchesMarketplace = marketplaceFilter === "all" || productMarketplaceSlug === marketplaceFilter;
+      // O marketplace_id é a chave estrangeira canônica do produto.
+      // Não usar a relação aninhada "marketplaces" para filtrar, pois ela pode
+      // chegar inconsistente no payload do PostgREST.
+      const matchesMarketplace = marketplaceFilter === "all" || product.marketplace_id === marketplaceFilter;
       const availability = product.availability_status || "unknown";
       const matchesAvailability = availabilityFilter === "all" || availability === availabilityFilter;
       return matchesSearch && matchesMarketplace && matchesAvailability;
@@ -213,10 +208,8 @@ export function LinksAfiliado() {
   const marketplaceStats = useMemo(() => {
     const counts = new Map<string, number>();
     for (const product of productsWithoutAffiliateLink) {
-      const slug = getMarketplace(product)?.slug
-        || marketplaces.find((marketplace) => marketplace.id === product.marketplace_id)?.slug
-        || ((product.external_id || "").toUpperCase().startsWith("MLB") ? "mercado_livre" : "");
-      if (slug) counts.set(slug, (counts.get(slug) || 0) + 1);
+      const marketplaceId = product.marketplace_id;
+      if (marketplaceId) counts.set(marketplaceId, (counts.get(marketplaceId) || 0) + 1);
     }
     return counts;
   }, [productsWithoutAffiliateLink, marketplaces]);
@@ -242,7 +235,7 @@ export function LinksAfiliado() {
   }
 
   function getMarketplaceName(product: Product) {
-    const marketplace = getMarketplace(product);
+    const marketplace = marketplaces.find((item) => item.id === product.marketplace_id);
     if (marketplace?.name?.trim()) return getBrandInfo(marketplace.name, marketplace.slug || "").displayName;
     if ((product.external_id || "").toUpperCase().startsWith("MLB")) return "Mercado Livre";
     return "Marketplace";
@@ -479,11 +472,11 @@ export function LinksAfiliado() {
         </button>
         {marketplaces.map((marketplace) => {
           const brand = getBrandInfo(marketplace.name, marketplace.slug);
-          const active = marketplaceFilter === marketplace.slug && !showFavoritesOnly;
+          const active = marketplaceFilter === marketplace.id && !showFavoritesOnly;
           return (
-            <button type="button" key={marketplace.id} className={`${active ? "active " : ""}brand-tab-${brand.className}`} onClick={() => { setMarketplaceFilter(marketplace.slug); setShowFavoritesOnly(false); }}>
+            <button type="button" key={marketplace.id} className={`${active ? "active " : ""}brand-tab-${brand.className}`} onClick={() => { setMarketplaceFilter(marketplace.id); setShowFavoritesOnly(false); }}>
               <span className="affiliate-tab-logo">{brand.className === "mercado-livre" ? "🤝" : brand.className === "amazon" ? "a" : brand.className === "shopee" ? "S" : brand.className === "magalu" ? "M" : brand.displayName.slice(0, 1)}</span>
-              {brand.displayName} ({marketplaceStats.get(marketplace.slug) || 0})
+              {brand.displayName} ({marketplaceStats.get(marketplace.id) || 0})
             </button>
           );
         })}
@@ -547,8 +540,8 @@ export function LinksAfiliado() {
       ) : (
         <div className={`affiliate-card-grid ${viewMode === "list" ? "is-list-view" : ""}`}>
           {displayedProducts.map((product, index) => {
-            const marketplace = getMarketplace(product);
-            const brand = getBrandInfo(marketplace?.name || getMarketplaceName(product), marketplace?.slug || product.marketplace_id || "");
+            const marketplace = marketplaces.find((item) => item.id === product.marketplace_id);
+            const brand = getBrandInfo(marketplace?.name || getMarketplaceName(product), marketplace?.slug || "");
             const availability = getAvailabilityStatus(product);
             const AvailabilityIcon = availability.icon;
             const selected = selectedIds.includes(product.id);
