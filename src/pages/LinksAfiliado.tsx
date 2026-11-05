@@ -180,7 +180,10 @@ export function LinksAfiliado() {
       const title = (product.title || "").toLocaleLowerCase("pt-BR");
       const externalId = (product.external_id || "").toLocaleLowerCase("pt-BR");
       const matchesSearch = !normalizedSearch || title.includes(normalizedSearch) || externalId.includes(normalizedSearch);
-      const matchesMarketplace = marketplaceFilter === "all" || product.marketplace_id === marketplaceFilter;
+      const productMarketplaceSlug = getMarketplace(product)?.slug
+        || marketplaces.find((marketplace) => marketplace.id === product.marketplace_id)?.slug
+        || ((product.external_id || "").toUpperCase().startsWith("MLB") ? "mercado_livre" : "");
+      const matchesMarketplace = marketplaceFilter === "all" || productMarketplaceSlug === marketplaceFilter;
       const availability = product.availability_status || "unknown";
       const matchesAvailability = availabilityFilter === "all" || availability === availabilityFilter;
       return matchesSearch && matchesMarketplace && matchesAvailability;
@@ -205,10 +208,13 @@ export function LinksAfiliado() {
   const marketplaceStats = useMemo(() => {
     const counts = new Map<string, number>();
     for (const product of productsWithoutAffiliateLink) {
-      counts.set(product.marketplace_id, (counts.get(product.marketplace_id) || 0) + 1);
+      const slug = getMarketplace(product)?.slug
+        || marketplaces.find((marketplace) => marketplace.id === product.marketplace_id)?.slug
+        || ((product.external_id || "").toUpperCase().startsWith("MLB") ? "mercado_livre" : "");
+      if (slug) counts.set(slug, (counts.get(slug) || 0) + 1);
     }
     return counts;
-  }, [productsWithoutAffiliateLink]);
+  }, [productsWithoutAffiliateLink, marketplaces]);
 
   function toggleFavorite(productId: string) {
     setFavoriteIds((current) => {
@@ -468,11 +474,11 @@ export function LinksAfiliado() {
         </button>
         {marketplaces.map((marketplace) => {
           const brand = getBrandInfo(marketplace.name, marketplace.slug);
-          const active = marketplaceFilter === marketplace.id && !showFavoritesOnly;
+          const active = marketplaceFilter === marketplace.slug && !showFavoritesOnly;
           return (
-            <button type="button" key={marketplace.id} className={`${active ? "active " : ""}brand-tab-${brand.className}`} onClick={() => { setMarketplaceFilter(marketplace.id); setShowFavoritesOnly(false); }}>
+            <button type="button" key={marketplace.id} className={`${active ? "active " : ""}brand-tab-${brand.className}`} onClick={() => { setMarketplaceFilter(marketplace.slug); setShowFavoritesOnly(false); }}>
               <span className="affiliate-tab-logo">{brand.className === "mercado-livre" ? "🤝" : brand.className === "amazon" ? "a" : brand.className === "shopee" ? "S" : brand.className === "magalu" ? "M" : brand.displayName.slice(0, 1)}</span>
-              {brand.displayName} ({marketplaceStats.get(marketplace.id) || 0})
+              {brand.displayName} ({marketplaceStats.get(marketplace.slug) || 0})
             </button>
           );
         })}
