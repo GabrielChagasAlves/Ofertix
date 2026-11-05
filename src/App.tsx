@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import {
   Bell,
   ChevronDown,
+  Menu,
   Search,
   X,
 } from "lucide-react";
@@ -31,6 +32,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showMobileNav, setShowMobileNav] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -85,10 +87,27 @@ function App() {
   return (
     <BrowserRouter>
       <div className="app-shell">
-        <Sidebar />
+        <Sidebar isOpen={showMobileNav} onNavigate={() => setShowMobileNav(false)} />
+        {showMobileNav && (
+          <button
+            type="button"
+            className="mobile-nav-backdrop"
+            aria-label="Fechar menu"
+            onClick={() => setShowMobileNav(false)}
+          />
+        )}
 
         <main className="main-content">
           <header className="app-topbar">
+            <button
+              type="button"
+              className="mobile-menu-toggle"
+              aria-label="Abrir menu de navegação"
+              aria-expanded={showMobileNav}
+              onClick={() => setShowMobileNav((open) => !open)}
+            >
+              <Menu size={21} />
+            </button>
             <label className="app-global-search">
               <Search size={18} aria-hidden="true" />
               <input
