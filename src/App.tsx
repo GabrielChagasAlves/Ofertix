@@ -24,6 +24,7 @@ import { Cliques } from "./pages/Cliques";
 import { Configuracoes } from "./pages/Configuracoes";
 import { LinksAfiliado } from "./pages/LinksAfiliado";
 import { Execucoes } from "./pages/Execucoes";
+import { Aprovacao } from "./pages/Aprovacao";
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -204,6 +205,7 @@ function App() {
               <Route path="/marketplaces" element={<Marketplaces />} />
               <Route path="/regras" element={<Regras />} />
               <Route path="/links-afiliado" element={<LinksAfiliado />} />
+              <Route path="/aprovacao" element={<Aprovacao />} />
               <Route path="/execucoes" element={<Execucoes />} />
               <Route path="/publicacoes" element={<Publicacoes />} />
               <Route path="/canais" element={<Canais />} />
