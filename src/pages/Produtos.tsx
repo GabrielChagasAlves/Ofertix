@@ -13,6 +13,7 @@ export function Produtos() {
   const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
   const [rules, setRules] = useState<Rule[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [linkedProductIds, setLinkedProductIds] = useState<Set<string>>(() => new Set());
   const [search, setSearch] = useState("");
   const [marketplace, setMarketplace] = useState("all");
   const [showHistory, setShowHistory] = useState(false);
@@ -21,16 +22,56 @@ export function Produtos() {
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
-    const [productsResult, marketplaceResult, rulesResult, matchesResult] = await Promise.all([
-      supabase.from("products").select("id,marketplace_id,title,brand,category,price,original_price,discount_percent,image_url,product_url,affiliate_url,active,availability_status,last_seen_at,created_at").order("created_at", { ascending: false }).limit(1000),
-      supabase.from("marketplaces").select("id,name,slug").eq("active", true).order("name"),
-      supabase.from("offer_rules").select("id,name,category").eq("active", true),
-      supabase.from("product_rule_matches").select("product_id,rule_id,status,matched_at").order("matched_at", { ascending: false }),
-    ]);
-    const requestError = productsResult.error || marketplaceResult.error || rulesResult.error || matchesResult.error;
-    if (requestError) setError(requestError.message);
-    setProducts(productsResult.data ?? []); setMarketplaces(marketplaceResult.data ?? []); setRules(rulesResult.data ?? []); setMatches(matchesResult.data ?? []);
-    setLoading(false);
+    try {
+      const pageSize = 1000;
+      const [marketplaceResult, rulesResult] = await Promise.all([
+        supabase.from("marketplaces").select("id,name,slug").eq("active", true).order("name"),
+        supabase.from("offer_rules").select("id,name,category").eq("active", true),
+      ]);
+      if (marketplaceResult.error) throw marketplaceResult.error;
+      if (rulesResult.error) throw rulesResult.error;
+
+      const allProducts: Product[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const { data, error: pageError } = await supabase.from("products")
+          .select("id,marketplace_id,title,brand,category,price,original_price,discount_percent,image_url,product_url,affiliate_url,active,availability_status,last_seen_at,created_at")
+          .order("created_at", { ascending: false }).range(from, from + pageSize - 1);
+        if (pageError) throw pageError;
+        allProducts.push(...((data ?? []) as Product[]));
+        if (!data || data.length < pageSize) break;
+      }
+
+      const allMatches: Match[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const { data, error: pageError } = await supabase.from("product_rule_matches")
+          .select("product_id,rule_id,status,matched_at")
+          .order("matched_at", { ascending: false }).range(from, from + pageSize - 1);
+        if (pageError) throw pageError;
+        allMatches.push(...((data ?? []) as Match[]));
+        if (!data || data.length < pageSize) break;
+      }
+
+      const linkedIds = new Set<string>();
+      for (let from = 0; ; from += pageSize) {
+        const { data, error: pageError } = await supabase.from("affiliate_links")
+          .select("product_id,affiliate_url").range(from, from + pageSize - 1);
+        if (pageError) throw pageError;
+        (data ?? []).forEach((link: { product_id: string; affiliate_url: string | null }) => {
+          if (link.affiliate_url?.trim()) linkedIds.add(link.product_id);
+        });
+        if (!data || data.length < pageSize) break;
+      }
+
+      setProducts(allProducts);
+      setMarketplaces(marketplaceResult.data ?? []);
+      setRules(rulesResult.data ?? []);
+      setMatches(allMatches);
+      setLinkedProductIds(linkedIds);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar os produtos.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { void load(); }, [load]);
@@ -52,8 +93,15 @@ export function Produtos() {
     });
   }, [products, marketplace, matchesByProduct, search, showHistory]);
 
-  const qualified = products.filter((product) => (matchesByProduct.get(product.id)?.length ?? 0) > 0);
-  const pendingAffiliate = qualified.filter((product) => !product.affiliate_url).length;
+  // Os indicadores acompanham o marketplace selecionado e usam a mesma
+  // fonte de links da Central de Afiliados (products + affiliate_links).
+  const scopedProducts = marketplace === "all"
+    ? products
+    : products.filter((product) => product.marketplace_id === marketplace);
+  const qualified = scopedProducts.filter((product) => (matchesByProduct.get(product.id)?.length ?? 0) > 0);
+  const pendingAffiliate = qualified.filter((product) =>
+    !product.affiliate_url?.trim() && !linkedProductIds.has(product.id)
+  ).length;
 
   const toggleProduct = async (product: Product) => {
     const { error: updateError } = await supabase.from("products").update({ active: !product.active }).eq("id", product.id);
