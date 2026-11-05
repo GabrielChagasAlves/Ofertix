@@ -180,15 +180,20 @@ export function LinksAfiliado() {
       const title = (product.title || "").toLocaleLowerCase("pt-BR");
       const externalId = (product.external_id || "").toLocaleLowerCase("pt-BR");
       const matchesSearch = !normalizedSearch || title.includes(normalizedSearch) || externalId.includes(normalizedSearch);
-      const productMarketplaceSlug = getMarketplace(product)?.slug
-        || marketplaces.find((marketplace) => marketplace.id === product.marketplace_id)?.slug
-        || ((product.external_id || "").toUpperCase().startsWith("MLB") ? "mercado_livre" : "");
+      const externalIdUpper = (product.external_id || "").toUpperCase();
+      // IDs MLB são exclusivos do Mercado Livre. Prioriza esse identificador
+      // sobre qualquer relação aninhada eventualmente inconsistente do Supabase.
+      const productMarketplaceSlug = externalIdUpper.startsWith("MLB")
+        ? "mercado_livre"
+        : marketplaces.find((marketplace) => marketplace.id === product.marketplace_id)?.slug
+          || getMarketplace(product)?.slug
+          || "";
       const matchesMarketplace = marketplaceFilter === "all" || productMarketplaceSlug === marketplaceFilter;
       const availability = product.availability_status || "unknown";
       const matchesAvailability = availabilityFilter === "all" || availability === availabilityFilter;
       return matchesSearch && matchesMarketplace && matchesAvailability;
     });
-  }, [productsWithoutAffiliateLink, search, marketplaceFilter, availabilityFilter]);
+  }, [productsWithoutAffiliateLink, search, marketplaceFilter, availabilityFilter, marketplaces]);
 
   const displayedProducts = useMemo(() => {
     const list = filteredProducts.filter((product) => !showFavoritesOnly || favoriteIds.includes(product.id));
