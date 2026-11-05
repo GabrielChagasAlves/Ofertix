@@ -1,4 +1,5 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import { Edit3, Globe2, MessageCircle, Plus, RefreshCw, Save, Send, Trash2, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { EmptyState, Metric, PageIntro, StatusPill } from "../components/OperationsUI";
