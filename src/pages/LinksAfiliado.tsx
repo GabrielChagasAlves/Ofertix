@@ -183,7 +183,14 @@ export function LinksAfiliado() {
       // O marketplace_id é a chave estrangeira canônica do produto.
       // Não usar a relação aninhada "marketplaces" para filtrar, pois ela pode
       // chegar inconsistente no payload do PostgREST.
-      const matchesMarketplace = marketplaceFilter === "all" || product.marketplace_id === marketplaceFilter;
+      const externalIdUpper = (product.external_id || "").toUpperCase();
+      const selectedMarketplace = marketplaces.find((marketplace) => marketplace.id === marketplaceFilter);
+      const isMercadoLivreProduct = externalIdUpper.startsWith("MLB");
+      // Defesa adicional: IDs MLB nunca podem aparecer na Shopee, mesmo se
+      // algum registro legado vier com marketplace_id inconsistente.
+      const matchesMarketplace = marketplaceFilter === "all"
+        || (product.marketplace_id === marketplaceFilter
+          && !(selectedMarketplace?.slug === "shopee" && isMercadoLivreProduct));
       const availability = product.availability_status || "unknown";
       const matchesAvailability = availabilityFilter === "all" || availability === availabilityFilter;
       return matchesSearch && matchesMarketplace && matchesAvailability;
@@ -228,9 +235,9 @@ export function LinksAfiliado() {
   }
 
   function getMarketplaceName(product: Product) {
+    if ((product.external_id || "").toUpperCase().startsWith("MLB")) return "Mercado Livre";
     const marketplace = marketplaces.find((item) => item.id === product.marketplace_id);
     if (marketplace?.name?.trim()) return getBrandInfo(marketplace.name, marketplace.slug || "").displayName;
-    if ((product.external_id || "").toUpperCase().startsWith("MLB")) return "Mercado Livre";
     return "Marketplace";
   }
 
@@ -533,8 +540,11 @@ export function LinksAfiliado() {
       ) : (
         <div className={`affiliate-card-grid ${viewMode === "list" ? "is-list-view" : ""}`}>
           {displayedProducts.map((product, index) => {
-            const marketplace = marketplaces.find((item) => item.id === product.marketplace_id);
-            const brand = getBrandInfo(marketplace?.name || getMarketplaceName(product), marketplace?.slug || "");
+            const isMercadoLivreProduct = (product.external_id || "").toUpperCase().startsWith("MLB");
+            const marketplace = isMercadoLivreProduct
+              ? marketplaces.find((item) => item.slug === "mercado_livre")
+              : marketplaces.find((item) => item.id === product.marketplace_id);
+            const brand = getBrandInfo(marketplace?.name || getMarketplaceName(product), marketplace?.slug || (isMercadoLivreProduct ? "mercado_livre" : ""));
             const availability = getAvailabilityStatus(product);
             const AvailabilityIcon = availability.icon;
             const selected = selectedIds.includes(product.id);
