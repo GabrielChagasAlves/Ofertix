@@ -227,13 +227,6 @@ export function LinksAfiliado() {
     return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   }
 
-  function getMarketplace(product: Product): Marketplace | null {
-    const relation = product.marketplaces;
-    if (Array.isArray(relation)) return relation[0] || null;
-    if (relation && typeof relation === "object") return relation as Marketplace;
-    return null;
-  }
-
   function getMarketplaceName(product: Product) {
     const marketplace = marketplaces.find((item) => item.id === product.marketplace_id);
     if (marketplace?.name?.trim()) return getBrandInfo(marketplace.name, marketplace.slug || "").displayName;
