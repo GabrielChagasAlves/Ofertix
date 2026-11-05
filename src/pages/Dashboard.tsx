@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, ArrowRight, CheckCircle2, Link2, Package, RefreshCw, Send, Tags } from "lucide-react";
+import { Activity, ArrowRight, CheckCircle2, Link2, Package, RefreshCw, Send } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDate, MarketplaceTag, Metric, PageIntro, StatusPill } from "../components/OperationsUI";
