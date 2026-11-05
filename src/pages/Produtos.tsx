@@ -80,9 +80,11 @@ export function Produtos() {
   const rulesById = useMemo(() => new Map(rules.map((item) => [item.id, item])), [rules]);
   const matchesByProduct = useMemo(() => {
     const map = new Map<string, Match[]>();
-    matches.forEach((match) => map.set(match.product_id, [...(map.get(match.product_id) ?? []), match]));
+    matches.filter((match) => rulesById.has(match.rule_id)).forEach((match) => {
+      map.set(match.product_id, [...(map.get(match.product_id) ?? []), match]);
+    });
     return map;
-  }, [matches]);
+  }, [matches, rulesById]);
 
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -99,8 +101,14 @@ export function Produtos() {
     ? products
     : products.filter((product) => product.marketplace_id === marketplace);
   const qualified = scopedProducts.filter((product) => (matchesByProduct.get(product.id)?.length ?? 0) > 0);
+  const pendingRuleProductIds = new Set(
+    matches.filter((match) => match.status === "pending_affiliate" && rulesById.has(match.rule_id))
+      .map((match) => match.product_id)
+  );
   const pendingAffiliate = qualified.filter((product) =>
-    !product.affiliate_url?.trim() && !linkedProductIds.has(product.id)
+    (product.active || pendingRuleProductIds.has(product.id))
+    && !product.affiliate_url?.trim()
+    && !linkedProductIds.has(product.id)
   ).length;
 
   const toggleProduct = async (product: Product) => {
