@@ -46,7 +46,7 @@ export function Canais() {
     setSaving(false);
   };
   const toggle = async (channel: Channel, field: "active" | "auto_publish") => { const { error: requestError } = await supabase.from("channels").update({ [field]: !channel[field] }).eq("id", channel.id); if (requestError) setError(requestError.message); else await load(); };
-  const remove = async (channel: Channel) => { if (!window.confirm("Remover o canal \\"" + channel.name + "\\"?")) return; const { error: requestError } = await supabase.from("channels").delete().eq("id", channel.id); if (requestError) setError(requestError.message); else await load(); };
+  const remove = async (channel: Channel) => { if (!window.confirm("Remover o canal " + channel.name + "?")) return; const { error: requestError } = await supabase.from("channels").delete().eq("id", channel.id); if (requestError) setError(requestError.message); else await load(); };
 
   return <div className="page ops-page">
     <PageIntro eyebrow="DISTRIBUIÇÃO" title="Canais de publicação" description="Configure os destinos da operação e escolha quais canais podem receber ofertas automaticamente." actions={<><button className="ops-button ops-button-secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> Atualizar</button><button className="ops-button ops-button-primary" onClick={() => { reset(); setShowForm(true); }}><Plus size={16} /> Novo canal</button></>} />
