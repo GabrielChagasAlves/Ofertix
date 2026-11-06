@@ -45,7 +45,7 @@ function resolveCategory(title: string, categories: Category[]) {
     if (matches) return category.name;
   }
 
-  return null;
+  return ordered.find((category) => normalize(category.name) === "outros")?.name ?? null;
 }
 
 function matchesRule(rule: any, product: any, resolvedCategory: string | null, selectedPrice: number) {
