@@ -84,10 +84,10 @@ function buildMessage(offer: Offer, product: Product) {
     lines.push("", "💰 Por: " + currentPrice);
   }
 
-  const discount = product.discount_percent !== null && Number(product.discount_percent) > 0
-    ? Number(product.discount_percent)
-    : originalPrice && selectedPrice !== null && selectedOriginalPrice !== null && Number(selectedOriginalPrice) > 0
-      ? ((Number(selectedOriginalPrice) - Number(selectedPrice)) / Number(selectedOriginalPrice)) * 100
+  const discount = originalPrice && selectedPrice !== null && selectedOriginalPrice !== null && Number(selectedOriginalPrice) > 0
+    ? ((Number(selectedOriginalPrice) - Number(selectedPrice)) / Number(selectedOriginalPrice)) * 100
+    : product.discount_percent !== null && Number(product.discount_percent) > 0
+      ? Number(product.discount_percent)
       : 0;
 
   if (discount > 0) {
