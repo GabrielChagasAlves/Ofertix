@@ -194,8 +194,9 @@ Deno.serve(async (req) => {
   const autoApprove = false;
   const desiredStatus = "draft";
 
-  const discount =
-    product.discount_percent !== null && product.discount_percent !== undefined
+  const discount = selectedOriginalPrice !== null && selectedOriginalPrice > selectedPrice && selectedOriginalPrice > 0
+    ? Math.round(((selectedOriginalPrice - selectedPrice) / selectedOriginalPrice) * 10000) / 100
+    : product.discount_percent !== null && product.discount_percent !== undefined
       ? Number(product.discount_percent)
       : null;
 
