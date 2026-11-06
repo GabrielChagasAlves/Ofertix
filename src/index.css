@@ -5757,3 +5757,13 @@ a {
   .app-global-search { padding: 0 7px; }
   .stats-grid { grid-template-columns: 1fr; }
 }
+
+/* SELECAO EM LOTE — APROVACAO */
+.approval-card{position:relative}
+.approval-card-select{position:absolute;top:12px;left:12px;z-index:2;display:flex;align-items:center;justify-content:center;width:25px;height:25px;border:1px solid #46556b;border-radius:7px;background:#182333}
+.approval-card-select input,.approval-select-all input{width:16px;height:16px;accent-color:#8b5cf6;cursor:pointer}
+.approval-bulkbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 14px;margin:0 0 14px;border:1px solid #344154;border-radius:10px;background:#151f2d;color:#cbd5e1;font-size:12px}
+.approval-select-all{display:flex;align-items:center;gap:8px;cursor:pointer}
+.approval-bulkbar>span{color:#9aa6b7}
+.approval-bulkbar>div{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+@media(max-width:540px){.approval-bulkbar{align-items:flex-start}.approval-bulkbar>div{width:100%;margin-left:0}.approval-bulkbar>div .approval-button{flex:1;white-space:normal}}
