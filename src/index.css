@@ -5808,3 +5808,10 @@ a {
  .approval-bulkbar>div{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;margin:0}
  .approval-bulkbar>div .approval-button{min-width:0;white-space:normal;line-height:1.25}
 }
+
+
+/* CATEGORIA COMERCIAL E ORIGEM NA APROVACAO */
+.approval-category-editor{display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,260px);align-items:center;gap:10px;margin:10px 0 2px;color:#737d95;font-size:11px;font-weight:650}
+.approval-category-editor select{width:100%;min-height:38px;padding:8px 11px;border:1px solid #dfe4ef;border-radius:9px;background:#fff;color:#303957;font:inherit;font-size:12px}
+.approval-category-editor select:disabled{opacity:.6;cursor:wait}
+@media(max-width:640px){.approval-category-editor{grid-template-columns:1fr;gap:6px}.approval-category-editor select{min-height:42px}}
