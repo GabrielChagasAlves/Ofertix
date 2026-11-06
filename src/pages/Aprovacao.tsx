@@ -13,7 +13,7 @@ const labels:Record<string,string>={pending:"Aguardando aprovação",approved:"A
 
 export function Aprovacao(){
  const [offers,setOffers]=useState<Offer[]>([]),[products,setProducts]=useState<Product[]>([]),[marketplaces,setMarketplaces]=useState<Marketplace[]>([]),[links,setLinks]=useState<AffiliateLink[]>([]);
- const [userId,setUserId]=useState(""),[userLabel,setUserLabel]=useState("Você"),[search,setSearch]=useState(""),[status,setStatus]=useState<FilterStatus>("pending"),[marketplace,setMarketplace]=useState("all"),[loading,setLoading]=useState(true),[busy,setBusy]=useState(""),[error,setError]=useState(""),[notice,setNotice]=useState("");
+ const [userId,setUserId]=useState(""),[userLabel,setUserLabel]=useState("Você"),[search,setSearch]=useState(""),[status,setStatus]=useState<FilterStatus>("pending"),[marketplace,setMarketplace]=useState("all"),[loading,setLoading]=useState(true),[busy,setBusy]=useState(""),[error,setError]=useState(""),[notice,setNotice]=useState(""),[selected,setSelected]=useState<string[]>([]);
  const load=useCallback(async()=>{
   setLoading(true);setError("");
   try{
@@ -38,6 +38,22 @@ export function Aprovacao(){
  const uniqueOffers=useMemo(()=>{const byProduct=new Map<string,Offer>();offers.forEach(o=>{const previous=byProduct.get(o.product_id);if(!previous||new Date(o.created_at).getTime()>new Date(previous.created_at).getTime())byProduct.set(o.product_id,o);});return [...byProduct.values()];},[offers]);
  const visible=useMemo(()=>uniqueOffers.filter(o=>{const p=pmap.get(o.product_id),m=p?mmap.get(p.marketplace_id):undefined,t=[o.title,p?.title,p?.brand,p?.category,m?.name].filter(Boolean).join(" ").toLowerCase();return(status==="all"||o.approval_status===status)&&(marketplace==="all"||p?.marketplace_id===marketplace)&&(!search.trim()||t.includes(search.trim().toLowerCase()));}),[uniqueOffers,pmap,mmap,status,marketplace,search]);
  const stats={total:uniqueOffers.length,pending:uniqueOffers.filter(o=>o.approval_status==="pending").length,approved:uniqueOffers.filter(o=>o.approval_status==="approved").length,rejected:uniqueOffers.filter(o=>o.approval_status==="rejected").length};
+ const selectable=visible.filter(o=>o.approval_status==="pending");
+ const allSelected=selectable.length>0&&selectable.every(o=>selected.includes(o.id));
+ const toggleSelected=(id:string,checked:boolean)=>setSelected(current=>checked?[...new Set([...current,id])]:current.filter(x=>x!==id));
+ const toggleAll=(checked:boolean)=>setSelected(current=>checked?[...new Set([...current,...selectable.map(o=>o.id)])]:current.filter(id=>!selectable.some(o=>o.id===id)));
+ const bulkAct=async(next:"approved"|"rejected")=>{
+  const targets=selectable.filter(o=>selected.includes(o.id));if(!targets.length)return;
+  setBusy("bulk");setError("");setNotice("");let done=0;const failures:string[]=[];const now=new Date().toISOString();
+  for(const o of targets){try{
+   if(!pmap.get(o.product_id))throw new Error("Produto não encontrado");
+   let update:Record<string,unknown>;
+   if(next==="approved"){const link=readyLink(o);if(!link)throw new Error("Link de afiliado não está pronto");update={approval_status:"approved",status:"approved",affiliate_url:link.affiliate_url,approved_at:now,approved_by:userId||null,rejected_at:null,rejected_by:null,rejection_reason:null};}
+   else update={approval_status:"rejected",status:"archived",rejected_at:now,rejected_by:userId||null,rejection_reason:"Rejeitado em lote na tela de Aprovação"};
+   const r=await supabase.from("offers").update(update).eq("id",o.id).eq("approval_status","pending").select("id").maybeSingle();if(r.error)throw r.error;if(!r.data)throw new Error("Registro alterado em outra ação");done++;
+  }catch(e){failures.push(`${o.title}: ${e instanceof Error?e.message:"falha"}`);}}
+  setSelected([]);setBusy("");setNotice(`${done} oferta(s) ${next==="approved"?"aprovada(s) e liberada(s) para publicação":"rejeitada(s)"}.${failures.length?` ${failures.length} falha(s): ${failures.slice(0,3).join("; ")}`:""}`);await load();
+ };
  const act=async(o:Offer,next:FilterStatus)=>{
   if(next==="all")return;setBusy(o.id);setError("");setNotice("");
   try{
@@ -66,9 +82,10 @@ export function Aprovacao(){
     <label className="ops-select"><Filter size={15}/><select value={status} onChange={e=>setStatus(e.target.value as FilterStatus)}><option value="pending">Aguardando aprovação</option><option value="approved">Aprovadas</option><option value="rejected">Rejeitadas</option><option value="all">Todos os status</option></select></label>
     <label className="ops-select"><select value={marketplace} onChange={e=>setMarketplace(e.target.value)}><option value="all">Todos os marketplaces</option>{marketplaces.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label>
    </div>
+   {!loading&&selectable.length>0&&<div className="approval-bulkbar"><label className="approval-select-all"><input type="checkbox" checked={allSelected} onChange={e=>toggleAll(e.target.checked)}/>Selecionar todos os pendentes visíveis</label><span>{selected.filter(id=>selectable.some(o=>o.id===id)).length} selecionada(s)</span><div><button className="approval-button approval-button-approve" disabled={!selected.some(id=>selectable.some(o=>o.id===id))||!!busy} onClick={()=>void bulkAct("approved")}><Check size={15}/>Aprovar selecionadas</button><button className="approval-button approval-button-reject" disabled={!selected.some(id=>selectable.some(o=>o.id===id))||!!busy} onClick={()=>void bulkAct("rejected")}><X size={15}/>Rejeitar selecionadas</button></div></div>}
    {loading?<div className="ops-empty"><p>Carregando ofertas com link de afiliado…</p></div>:visible.length===0?<EmptyState title="Nenhuma oferta encontrada" detail={status==="pending"?"Não há produtos aguardando aprovação com os filtros atuais.":"Ajuste os filtros para consultar o histórico."}/>:<div className="approval-list">{visible.map(o=>{
     const p=pmap.get(o.product_id),source=p?mmap.get(p.marketplace_id):undefined,link=readyLink(o),valid=!!link&&validUrl(link.affiliate_url),isBusy=busy===o.id,approved=o.approval_status==="approved",rejected=o.approval_status==="rejected";
-    return <article className="approval-card" key={o.id}>
+    return <article className="approval-card" key={o.id}>{o.approval_status==="pending"&&<label className="approval-card-select" title="Selecionar oferta"><input type="checkbox" checked={selected.includes(o.id)} onChange={e=>toggleSelected(o.id,e.target.checked)}/></label>}
      <div className="approval-card-image">{p?.image_url?<img src={p.image_url} alt="" loading="lazy"/>:<PackageCheck size={24}/>}</div>
      <div className="approval-card-main">
       <div className="approval-card-meta">{source&&<MarketplaceTag name={source.name} slug={source.slug}/>}<StatusPill tone={approved?"success":rejected?"danger":"warning"}>{labels[o.approval_status]}</StatusPill>{p&&!p.active&&<StatusPill>Produto inativo no catálogo</StatusPill>}</div>
