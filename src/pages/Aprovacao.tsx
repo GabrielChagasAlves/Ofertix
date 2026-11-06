@@ -5,7 +5,7 @@ import { EmptyState, formatCurrency, formatDate, MarketplaceTag, Metric, PageInt
 
 type Offer = { id:string; product_id:string; title:string; affiliate_url:string|null; status:string; approval_status:"pending"|"approved"|"rejected"; approved_at:string|null; approved_by:string|null; rejected_at:string|null; rejected_by:string|null; rejection_reason:string|null; product_variation_id:string|null; price_snapshot:number|null; original_price_snapshot:number|null; variation_label:string|null; created_at:string };
 type ProductVariation = { id:string; product_id:string; external_variation_id:string; name:string; unit_quantity:number|null; price:number; original_price:number|null; currency:string; is_default:boolean; active:boolean };
-type Product = { id:string; marketplace_id:string; title:string; brand:string|null; category:string|null; commercial_category_id:string|null; commercial_category_source:"manual"|"automatic"; origin_type:"national"|"imported"|"unknown"; price:number|null; original_price:number|null; image_url:string|null; product_url:string|null; affiliate_url:string|null; active:boolean };
+type Product = { id:string; marketplace_id:string; title:string; brand:string|null; category:string|null; commercial_category_id:string|null; commercial_category_source:"manual"|"automatic"; origin_type:"national"|"imported"|"unknown"; origin_type_source:"automatic"|"manual"; price:number|null; original_price:number|null; image_url:string|null; product_url:string|null; affiliate_url:string|null; active:boolean };
 type Marketplace = { id:string; name:string; slug:string };
 type OfferCategory = { id:string; name:string; slug:string };
 type AffiliateLink = { product_id:string; affiliate_url:string; status:string; updated_at:string };
@@ -23,7 +23,7 @@ export function Aprovacao(){
    for(let from=0;;from+=1000){const r=await supabase.from("offers").select("id,product_id,title,affiliate_url,status,approval_status,approved_at,approved_by,rejected_at,rejected_by,rejection_reason,product_variation_id,price_snapshot,original_price_snapshot,variation_label,created_at").order("created_at",{ascending:false}).range(from,from+999);if(r.error)throw r.error;all.push(...(r.data as Offer[]||[]));if(!r.data||r.data.length<1000)break;}
    const ids=[...new Set(all.map(x=>x.product_id))];
    const [p,m,cat,l,v,u]=await Promise.all([
-    ids.length?supabase.from("products").select("id,marketplace_id,title,brand,category,commercial_category_id,commercial_category_source,origin_type,price,original_price,image_url,product_url,affiliate_url,active").in("id",ids):Promise.resolve({data:[],error:null}),
+    ids.length?supabase.from("products").select("id,marketplace_id,title,brand,category,commercial_category_id,commercial_category_source,origin_type,origin_type_source,price,original_price,image_url,product_url,affiliate_url,active").in("id",ids):Promise.resolve({data:[],error:null}),
     supabase.from("marketplaces").select("id,name,slug").order("name"),
     supabase.from("offer_categories").select("id,name,slug").eq("active",true).order("priority"),
     ids.length?supabase.from("affiliate_links").select("product_id,affiliate_url,status,updated_at").in("product_id",ids).order("updated_at",{ascending:false}):Promise.resolve({data:[],error:null}),
@@ -86,6 +86,16 @@ export function Aprovacao(){
   }catch(e){setError(e instanceof Error?e.message:"Não foi possível salvar a categoria.");}
   finally{setBusy("");}
  };
+ const saveOrigin=async(productId:string,nextOrigin:"national"|"imported"|"unknown")=>{
+  setBusy("origin:"+productId);setError("");setNotice("");
+  try{
+   const r=await supabase.from("products").update({origin_type:nextOrigin,origin_type_source:"manual",origin_source:"manual_override",origin_country:null}).eq("id",productId).select("id,origin_type,origin_type_source").single();
+   if(r.error)throw r.error;
+   setProducts(current=>current.map(p=>p.id===productId?{...p,origin_type:nextOrigin,origin_type_source:"manual"}:p));
+   setNotice("Origem definida manualmente. As próximas sincronizações preservarão esta escolha.");
+  }catch(e){setError(e instanceof Error?e.message:"Não foi possível salvar a origem.");}
+  finally{setBusy("");}
+ };
  const saveVariation=async(offer:Offer,variationId:string)=>{
   const variation=(vmap.get(offer.product_id)||[]).find(item=>item.id===variationId);
   if(!variation)return;
@@ -122,7 +132,7 @@ export function Aprovacao(){
     return <article className={`approval-card ${selected.includes(o.id)?"is-selected":""}`} key={o.id}>{o.approval_status==="pending"&&<label className="approval-card-select" title="Selecionar oferta"><input type="checkbox" checked={selected.includes(o.id)} onChange={e=>toggleSelected(o.id,e.target.checked)}/><span>Selecionar</span></label>}
      <div className="approval-card-image">{p?.image_url?<img src={p.image_url} alt="" loading="lazy"/>:<PackageCheck size={24}/>}</div>
      <div className="approval-card-main">
-      <div className="approval-card-meta">{source&&<MarketplaceTag name={source.name} slug={source.slug}/>}<StatusPill tone={approved?"success":rejected?"danger":"warning"}>{labels[o.approval_status]}</StatusPill>{p?.origin_type==="national"?<StatusPill tone="success">Nacional</StatusPill>:p?.origin_type==="imported"?<StatusPill tone="warning">Importado</StatusPill>:<StatusPill>Origem não identificada</StatusPill>}{p&&!p.active&&<StatusPill>Produto inativo no catálogo</StatusPill>}</div>
+      <div className="approval-card-meta">{source&&<MarketplaceTag name={source.name} slug={source.slug}/>}<StatusPill tone={approved?"success":rejected?"danger":"warning"}>{labels[o.approval_status]}</StatusPill>{p?.origin_type==="national"?<StatusPill tone="success">Nacional</StatusPill>:p?.origin_type==="imported"?<StatusPill tone="warning">Importado</StatusPill>:<StatusPill>Origem não identificada</StatusPill>}{p&&!p.active&&<StatusPill>Produto inativo no catálogo</StatusPill>}</div>{p&&<label className="approval-category-editor"><span>Origem do produto {p.origin_type_source==="manual"?"· definida manualmente":"· identificação automática"}</span><select value={p.origin_type||"unknown"} disabled={busy==="origin:"+p.id} onChange={e=>void saveOrigin(p.id,e.target.value as "national"|"imported"|"unknown")}><option value="national">Nacional</option><option value="imported">Importado</option><option value="unknown">Não identificado</option></select></label>}
       <h2>{p?.title||o.title}</h2><p className="approval-card-subtitle">{[p?.brand,(commercialCategory?.name||"Sem classificação"),selectedVariation?formatCurrency(selectedVariation.price):p?.price!=null?formatCurrency(p.price):null].filter(Boolean).join(" · ")||"Detalhes indisponíveis"}</p>{productVariations.length>0&&<label className="approval-category-editor"><span>Opção e preço do anúncio</span><select value={selectedVariation?.id||""} disabled={busy==="variation:"+o.id} onChange={e=>void saveVariation(o,e.target.value)}>{productVariations.map(v=><option key={v.id} value={v.id}>{v.name} · {formatCurrency(v.price)}{v.unit_quantity&&v.unit_quantity>1?" · "+v.unit_quantity+" unidades":""}</option>)}</select></label>}<label className="approval-category-editor"><span>Categoria comercial {p?.commercial_category_source==="manual"?"· definida manualmente":"· classificação automática"}</span><select value={p?.commercial_category_id||""} disabled={!p||busy==="category:"+p.id} onChange={e=>p&&void saveCategory(p.id,e.target.value)}><option value="" disabled>Selecione uma categoria</option>{categories.map(cat=><option key={cat.id} value={cat.id}>{cat.name}</option>)}</select></label>
       <div className="approval-card-links">{p?.product_url&&<a href={p.product_url} target="_blank" rel="noreferrer"><ExternalLink size={14}/>Produto original</a>}{valid&&<a href={link?.affiliate_url} target="_blank" rel="noreferrer"><Link2 size={14}/>Link de afiliado</a>}{p?.original_price!=null&&p.price!=null&&p.original_price>p.price&&<span className="approval-discount">-{Math.round((p.original_price-p.price)/p.original_price*100)}%</span>}{!valid&&<span className="approval-link-warning"><XCircle size={14}/>Link não validado</span>}</div>
       <div className="approval-card-audit">{approved?<span>Aprovada em {formatDate(o.approved_at)} por {actor(o.approved_by)}</span>:rejected?<span>Rejeitada em {formatDate(o.rejected_at)} por {actor(o.rejected_by)} · {o.rejection_reason||"Sem motivo informado"}</span>:<span>Recebida em {formatDate(o.created_at)}</span>}</div>
