@@ -27,6 +27,7 @@ type Product = {
   price: number | null;
   original_price: number | null;
   discount_percent: number | null;
+  origin_type: "national" | "imported" | "unknown";
 };
 
 type Channel = {
@@ -65,7 +66,7 @@ function cleanTitle(value: string) {
 
 function buildMessage(offer: Offer, product: Product) {
   const title = cleanTitle(product.title || offer.title || "Oferta");
-  const lines: string[] = ["🔥 OFERTA ENCONTRADA!", "", "🛍️ " + title];
+  const lines: string[] = ["🔥 OFERTA ENCONTRADA!", "", "🛍️ " + title, "", product.origin_type === "national" ? "🇧🇷 Envio nacional" : "🌎 Envio internacional"];
 
   const selectedPrice = offer.price_snapshot !== null && offer.price_snapshot !== undefined ? Number(offer.price_snapshot) : product.price;
   const selectedOriginalPrice = offer.original_price_snapshot !== null && offer.original_price_snapshot !== undefined ? Number(offer.original_price_snapshot) : product.original_price;
@@ -386,7 +387,7 @@ export default {
           await ctx.supabaseAdmin
             .from("products")
             .select(
-              "id,title,price,original_price,discount_percent",
+              "id,title,price,original_price,discount_percent,origin_type",
             )
             .eq("id", offer.product_id)
             .maybeSingle();
@@ -403,6 +404,13 @@ export default {
             },
             404,
           );
+        }
+
+        if (product.origin_type !== "national" && product.origin_type !== "imported") {
+          return json({
+            error: "Publicação bloqueada: origem do produto não identificada. Defina Nacional ou Importado na tela de Aprovação.",
+            origin_type: product.origin_type ?? "unknown",
+          }, 409);
         }
 
         const { data: readyAffiliateLink, error: readyLinkError } = await ctx.supabaseAdmin
