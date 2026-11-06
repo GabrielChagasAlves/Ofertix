@@ -5767,3 +5767,44 @@ a {
 .approval-bulkbar>span{color:#9aa6b7}
 .approval-bulkbar>div{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
 @media(max-width:540px){.approval-bulkbar{align-items:flex-start}.approval-bulkbar>div{width:100%;margin-left:0}.approval-bulkbar>div .approval-button{flex:1;white-space:normal}}
+
+/* APROVACAO — REFINO VISUAL E SELECAO */
+.approval-toolbar{display:grid;grid-template-columns:minmax(220px,1.6fr) repeat(3,minmax(150px,1fr));gap:10px}
+.approval-toolbar .ops-search,.approval-toolbar .ops-select{min-width:0;width:100%;min-height:44px;border-radius:12px}
+.approval-list{gap:16px}
+.approval-card{grid-template-columns:132px minmax(0,1fr) auto;gap:18px;padding:18px;border:1px solid #e2e6f0;border-radius:18px;background:linear-gradient(145deg,#fff 0%,#fafbff 100%);box-shadow:0 8px 24px rgba(35,43,75,.055);transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.approval-card:hover{border-color:#cfc5f7;box-shadow:0 12px 30px rgba(74,55,150,.10);transform:translateY(-1px)}
+.approval-card.is-selected{border-color:#8b6cf0;background:linear-gradient(145deg,#fbf9ff,#f5f1ff);box-shadow:0 0 0 2px rgba(139,108,240,.13),0 10px 26px rgba(74,55,150,.08)}
+.approval-card-image{width:132px;height:132px;border:1px solid #edf0f6;border-radius:14px;background:#fff;padding:7px}
+.approval-card-image img{border-radius:9px}
+.approval-card-main h2{color:#252d49;font-size:15px;line-height:1.45}
+.approval-card-subtitle{color:#7a829b}
+.approval-card-audit{color:#9299ad}
+.approval-card-select{top:12px;left:12px;width:auto;height:30px;gap:7px;padding:0 9px;border:1px solid #e0daf7;border-radius:999px;background:rgba(255,255,255,.96);box-shadow:0 3px 10px rgba(35,30,70,.08);color:#6b52c5;font-size:10px;font-weight:750}
+.approval-card-select input{width:17px;height:17px;margin:0;accent-color:#7652e8}
+.approval-card-select span{display:none}
+.approval-card.is-selected .approval-card-select{border-color:#8b6cf0;background:#7652e8;color:#fff}
+.approval-card.is-selected .approval-card-select input{accent-color:#fff}
+.approval-bulkbar{padding:14px 16px;border:1px solid #e4def8;border-radius:15px;background:linear-gradient(110deg,#fbfaff,#f5f2ff);color:#454064;box-shadow:0 5px 18px rgba(55,43,110,.045)}
+.approval-select-all{font-size:12px;font-weight:750;color:#393456}
+.approval-select-all input{width:18px;height:18px;accent-color:#7652e8}
+.approval-bulkbar>span{color:#796e9e;font-weight:650}
+.approval-button{min-height:39px;border-radius:10px;font-size:11px;transition:filter .15s ease,transform .15s ease}
+.approval-button:hover:not(:disabled){filter:brightness(1.06);transform:translateY(-1px)}
+.approval-button-approve{background:linear-gradient(120deg,#188653,#116b43);color:#fff;box-shadow:0 4px 10px rgba(22,130,79,.14)}
+.approval-button-reject{border-color:#f2cbd2;background:#fff4f5;color:#c44d61}
+.approval-button-secondary{border-color:#e0e4ee;background:#f7f8fc;color:#626c86}
+@media(max-width:900px){.approval-toolbar{grid-template-columns:1fr 1fr}.approval-card{grid-template-columns:108px minmax(0,1fr)}.approval-card-image{width:108px;height:108px}}
+@media(max-width:640px){
+ .approval-toolbar{grid-template-columns:1fr;gap:9px}
+ .approval-card{grid-template-columns:1fr;gap:12px;padding:14px;border-radius:17px}
+ .approval-card-image{width:100%;height:190px;padding:8px;border-radius:13px;background:#fff}
+ .approval-card-select{top:23px;left:23px;width:34px;height:34px;justify-content:center;padding:0;border-radius:11px}
+ .approval-card-select span{display:none}
+ .approval-card-main h2{font-size:15px;line-height:1.5}
+ .approval-card-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+ .approval-card-actions .approval-button{min-height:43px;padding:8px 7px;white-space:normal;line-height:1.25}
+ .approval-bulkbar{display:grid;grid-template-columns:1fr;gap:11px;padding:13px;border-radius:14px}
+ .approval-bulkbar>div{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;margin:0}
+ .approval-bulkbar>div .approval-button{min-width:0;white-space:normal;line-height:1.25}
+}
