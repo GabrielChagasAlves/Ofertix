@@ -4,14 +4,16 @@ import { supabase } from "../lib/supabase";
 import { EmptyState, formatCurrency, formatDate, MarketplaceTag, Metric, PageIntro, StatusPill } from "../components/OperationsUI";
 
 type Marketplace = { id: string; name: string; slug: string };
-type Product = { id: string; marketplace_id: string; title: string; brand: string | null; category: string | null; price: number | null; original_price: number | null; discount_percent: number | null; image_url: string | null; product_url: string | null; affiliate_url: string | null; active: boolean; availability_status: string | null; last_seen_at: string | null; created_at: string };
+type Product = { id: string; marketplace_id: string; title: string; brand: string | null; category: string | null; commercial_category_id: string | null; commercial_category_source: "manual" | "automatic"; origin_type: "national" | "imported" | "unknown"; price: number | null; original_price: number | null; discount_percent: number | null; image_url: string | null; product_url: string | null; affiliate_url: string | null; active: boolean; availability_status: string | null; last_seen_at: string | null; created_at: string };
 type Rule = { id: string; name: string; category: string | null };
+type Category = { id: string; name: string; slug: string };
 type Match = { product_id: string; rule_id: string; status: string; matched_at: string };
 
 export function Produtos() {
   const [products, setProducts] = useState<Product[]>([]);
   const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
   const [rules, setRules] = useState<Rule[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [linkedProductIds, setLinkedProductIds] = useState<Set<string>>(() => new Set());
   const [search, setSearch] = useState("");
@@ -24,17 +26,19 @@ export function Produtos() {
     setLoading(true); setError("");
     try {
       const pageSize = 1000;
-      const [marketplaceResult, rulesResult] = await Promise.all([
+      const [marketplaceResult, rulesResult, categoriesResult] = await Promise.all([
         supabase.from("marketplaces").select("id,name,slug").eq("active", true).order("name"),
         supabase.from("offer_rules").select("id,name,category").eq("active", true),
+        supabase.from("offer_categories").select("id,name,slug").eq("active", true).order("priority"),
       ]);
       if (marketplaceResult.error) throw marketplaceResult.error;
       if (rulesResult.error) throw rulesResult.error;
+      if (categoriesResult.error) throw categoriesResult.error;
 
       const allProducts: Product[] = [];
       for (let from = 0; ; from += pageSize) {
         const { data, error: pageError } = await supabase.from("products")
-          .select("id,marketplace_id,title,brand,category,price,original_price,discount_percent,image_url,product_url,affiliate_url,active,availability_status,last_seen_at,created_at")
+          .select("id,marketplace_id,title,brand,category,commercial_category_id,commercial_category_source,origin_type,price,original_price,discount_percent,image_url,product_url,affiliate_url,active,availability_status,last_seen_at,created_at")
           .order("created_at", { ascending: false }).range(from, from + pageSize - 1);
         if (pageError) throw pageError;
         allProducts.push(...((data ?? []) as Product[]));
@@ -65,6 +69,7 @@ export function Produtos() {
       setProducts(allProducts);
       setMarketplaces(marketplaceResult.data ?? []);
       setRules(rulesResult.data ?? []);
+      setCategories(categoriesResult.data ?? []);
       setMatches(allMatches);
       setLinkedProductIds(linkedIds);
     } catch (loadError) {
@@ -78,6 +83,7 @@ export function Produtos() {
 
   const marketplaceById = useMemo(() => new Map(marketplaces.map((item) => [item.id, item])), [marketplaces]);
   const rulesById = useMemo(() => new Map(rules.map((item) => [item.id, item])), [rules]);
+  const categoriesById = useMemo(() => new Map(categories.map((item) => [item.id, item])), [categories]);
   const matchesByProduct = useMemo(() => {
     const map = new Map<string, Match[]>();
     matches.filter((match) => rulesById.has(match.rule_id)).forEach((match) => {
@@ -137,7 +143,7 @@ export function Produtos() {
           const productRules = (matchesByProduct.get(product.id) ?? []).map((match) => rulesById.get(match.rule_id)?.name).filter(Boolean);
           return <article className="ops-product-card" key={product.id}>
             <div className="ops-product-image">{product.image_url ? <img src={product.image_url} alt="" /> : <Package size={22} />}</div>
-            <div className="ops-product-copy"><div className="ops-product-meta"><MarketplaceTag name={source?.name ?? "Marketplace"} slug={source?.slug} />{product.discount_percent != null && <StatusPill tone="success">{product.discount_percent}% OFF</StatusPill>}</div><h2>{product.title}</h2><p>{product.brand || product.category || "Sem marca informada"}</p><div className="ops-rules">{productRules.length ? productRules.map((rule) => <span key={rule}>{rule}</span>) : <span>Importação anterior sem regra</span>}</div></div>
+            <div className="ops-product-copy"><div className="ops-product-meta"><MarketplaceTag name={source?.name ?? "Marketplace"} slug={source?.slug} />{product.origin_type==="national"?<StatusPill tone="success">Nacional</StatusPill>:product.origin_type==="imported"?<StatusPill tone="warning">Importado</StatusPill>:<StatusPill>Origem não identificada</StatusPill>}{product.discount_percent != null && <StatusPill tone="success">{product.discount_percent}% OFF</StatusPill>}</div><h2>{product.title}</h2><p>{[product.brand || product.category || "Sem marca informada",categoriesById.get(product.commercial_category_id||"")?.name||"Sem categoria comercial",product.commercial_category_source==="manual"?"Categoria manual":null].filter(Boolean).join(" · ")}</p><div className="ops-rules">{productRules.length ? productRules.map((rule) => <span key={rule}>{rule}</span>) : <span>Importação anterior sem regra</span>}</div></div>
             <div className="ops-product-price"><strong>{formatCurrency(product.price)}</strong>{product.original_price && product.original_price > (product.price ?? 0) && <del>{formatCurrency(product.original_price)}</del>}<small>Visto {formatDate(product.last_seen_at || product.created_at)}</small></div>
             <div className="ops-product-actions">{product.product_url && <a className="ops-icon-action" href={product.product_url} target="_blank" rel="noreferrer" aria-label="Abrir produto"><ExternalLink size={16} /></a>}<button className="ops-icon-action" onClick={() => void toggleProduct(product)} aria-label={product.active ? "Desativar produto" : "Ativar produto"}><Power size={16} /></button></div>
           </article>;

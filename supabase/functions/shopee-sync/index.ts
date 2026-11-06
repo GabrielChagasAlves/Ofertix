@@ -121,6 +121,34 @@ const asNullableNumber = (value: unknown) => {
   return Number.isFinite(number) ? number : null;
 };
 
+const asArray = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") { try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; } catch { return []; } }
+  return [];
+};
+const extractVariations = (source: RecordValue) => {
+  const raw = pick(source, ["variations", "item_variations", "itemVariations", "models", "model_list", "modelList", "skus", "price_tiers", "priceTiers", "tiered_pricing"]);
+  return asArray(raw).flatMap((value, index) => {
+    const item = asRecord(value);
+    const price = asNumber(pick(item, ["sale_price", "current_price", "price", "price_min", "amount"]));
+    if (price === null || price <= 0) return [];
+    const quantityValue = asNullableNumber(pick(item, ["unit_quantity", "quantity", "qty", "units", "pack_quantity", "min_quantity"]));
+    const name = asText(pick(item, ["model_name", "variation_name", "name", "sku", "option_name", "tier_name"]), 300)
+      ?? (quantityValue && quantityValue > 1 ? "Kit com " + quantityValue : "Opção " + (index + 1));
+    const externalId = asText(pick(item, ["model_id", "variation_id", "sku_id", "id"]), 128)
+      ?? "derived-" + index + "-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 60);
+    const originalPrice = asNumber(pick(item, ["original_price", "price_before_discount", "list_price", "originalPrice"]));
+    const attributes = asRecord(pick(item, ["attributes", "options", "tier_variations", "specifications"]));
+    return [{ external_variation_id: externalId, name, unit_quantity: quantityValue === null ? null : Math.max(1, Math.trunc(quantityValue)), price, original_price: originalPrice, attributes }];
+  });
+};
+const resolveOrigin = (source: RecordValue) => {
+  const country = asText(pick(source, ["country_of_origin", "countryOfOrigin", "origin_country", "originCountry", "item_origin", "itemOrigin"]), 120);
+  if (!country) return { originType: "unknown", originCountry: null };
+  const normalized = normalText(country);
+  return { originType: ["br", "brasil", "brazil", "made in brazil"].includes(normalized) ? "national" : "imported", originCountry: country };
+};
+
 Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
   if (!SUPABASE_URL || !SERVICE_KEY) return json({ error: "SERVER_CONFIGURATION_ERROR" }, 503);
@@ -228,23 +256,42 @@ Deno.serve(async (request) => {
       const price = asNumber(pick(source, ["sale_price", "salePrice", "price", "price_min", "priceMin"]));
       const originalPrice = asNumber(pick(source, ["price_before_discount", "priceBeforeDiscount", "original_price", "originalPrice", "price"]));
       const explicitDiscount = asNumber(pick(source, ["discount_percentage", "discount_percent", "discountPercent"]));
-      const discountPercent = originalPrice !== null && price !== null && originalPrice > price
-        ? Math.round(((originalPrice - price) / originalPrice) * 10_000) / 100
-        : explicitDiscount;
-      return {
-        externalId,
-        title,
-        price,
-        originalPrice,
-        discountPercent,
+      const discountPercent = originalPrice !== null && price !== null && originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 10_000) / 100 : explicitDiscount;
+      const origin = resolveOrigin(source);
+      return { externalId, title, price, originalPrice, discountPercent, source,
         imageUrl: asText(pick(source, ["image_link", "imageLink", "image_url", "imageUrl", "image"]), 2_000),
         productUrl: asText(pick(source, ["item_link", "itemLink", "product_link", "productLink", "original_link", "originalLink", "url"]), 2_000),
         category: asText(pick(source, ["global_category2", "global_category1", "category_name", "categoryName", "category"]), 500),
         brand: asText(pick(source, ["brand_name", "brandName", "brand"]), 500),
         currency: asText(pick(source, ["currency", "currency_code", "currencyCode"]), 12) ?? "BRL",
+        originType: origin.originType, originCountry: origin.originCountry, variations: extractVariations(source),
       };
-    }).filter((item) => item.externalId && /^\d+$/.test(item.externalId) && item.title && item.price !== null);
+    }).filter((item) => item.externalId && /^\\d+$/.test(item.externalId) && item.title && item.price !== null);
 
+    // Refresh prices for known products even when they no longer match active offer rules.
+    const refreshIds = [...new Set(mapped.map((item) => item.externalId).filter((id): id is string => Boolean(id)))];
+    const { data: refreshProducts, error: refreshProductsError } = refreshIds.length
+      ? await admin.from("products").select("id,external_id").eq("marketplace_id", marketplace.id).in("external_id", refreshIds)
+      : { data: [], error: null };
+    if (refreshProductsError) throw new Error("PRICE_REFRESH_LOOKUP_FAILED");
+    const refreshMap = new Map((refreshProducts ?? []).map((item) => [item.external_id, item.id]));
+    const priceSyncedAt = new Date().toISOString();
+    let pricesRefreshed = 0;
+    const refreshRows = mapped.filter((item) => refreshMap.has(item.externalId as string));
+    for (let index = 0; index < refreshRows.length; index += 25) {
+      const batch = refreshRows.slice(index, index + 25);
+      const results = await Promise.all(batch.map(async (item) => {
+        const productId = refreshMap.get(item.externalId as string);
+        const update: RecordValue = { price: item.price, original_price: item.originalPrice, discount_percent: item.discountPercent, price_synced_at: priceSyncedAt, updated_at: priceSyncedAt };
+        if (item.originType !== "unknown") { update.origin_type = item.originType; update.origin_country = item.originCountry; update.origin_source = "shopee_affiliate_feed"; }
+        const productUpdate = await admin.from("products").update(update).eq("id", productId);
+        if (productUpdate.error) throw productUpdate.error;
+        const listingUpdate = await admin.from("marketplace_listings").update({ price: item.price, original_price: item.originalPrice, discount_percent: item.discountPercent, price_synced_at: priceSyncedAt, updated_at: priceSyncedAt }).eq("marketplace_id", marketplace.id).eq("external_item_id", item.externalId);
+        if (listingUpdate.error) throw listingUpdate.error;
+        return true;
+      }));
+      pricesRefreshed += results.length;
+    }
     const [rulesResult, categoriesResult, termsResult] = await Promise.all([
       admin.from("offer_rules")
         .select("id, marketplace_id, category, min_price, max_price, min_discount_percent")
@@ -317,6 +364,8 @@ Deno.serve(async (request) => {
       product_url: item.productUrl,
       affiliate_url: existingById.get(item.externalId as string)?.affiliate_url ?? null,
       currency: item.currency,
+      price_synced_at: now,
+      ...(item.originType !== "unknown" ? { origin_type: item.originType, origin_country: item.originCountry, origin_source: "shopee_affiliate_feed" } : {}),
       active: true,
       last_seen_at: now,
       updated_at: now,
@@ -328,6 +377,16 @@ Deno.serve(async (request) => {
     if (productError) throw new Error("PRODUCT_UPSERT_FAILED");
 
     const productIds = new Map((savedProducts ?? []).map((item) => [item.external_id, item.id]));
+    const variationRows = eligible.flatMap((item) => {
+      const productId = productIds.get(item.externalId as string);
+      if (!productId || !item.variations.length) return [];
+      return item.variations.map((variation) => ({ product_id: productId, ...variation, currency: item.currency, active: true, last_seen_at: now, updated_at: now }));
+    });
+    if (variationRows.length) {
+      const { error: variationError } = await admin.from("product_variations").upsert(variationRows, { onConflict: "product_id,external_variation_id" });
+      if (variationError) throw new Error("PRODUCT_VARIATION_UPSERT_FAILED");
+    }
+
     const ruleMatches = eligible.flatMap((item) =>
       item.matchedRuleIds.map((ruleId) => ({
         product_id: productIds.get(item.externalId as string),
@@ -357,6 +416,7 @@ Deno.serve(async (request) => {
       original_price: item.originalPrice,
       discount_percent: item.discountPercent,
       currency: item.currency,
+      price_synced_at: now,
       category_id: item.category,
       product_url: item.productUrl,
       image_url: item.imageUrl,
@@ -370,6 +430,41 @@ Deno.serve(async (request) => {
         .from("marketplace_listings")
         .upsert(listingRows, { onConflict: "marketplace_id,external_item_id" });
       if (listingError) throw new Error("LISTING_UPSERT_FAILED");
+    }
+
+    // Gere links para todos os produtos elegíveis que ainda não possuem link.
+    // Antes, esta etapa considerava somente produtos recém-criados e ignorava
+    // produtos antigos que continuavam sem affiliate_url.
+    const newProductIds = eligible
+      .filter((item) => {
+        const existingProduct = existingById.get(item.externalId as string);
+        return !existingProduct?.affiliate_url?.trim();
+      })
+      .map((item) => productIds.get(item.externalId as string))
+      .filter((id): id is string => typeof id === "string");
+    let affiliateLinksCreated = 0;
+    let affiliateLinkErrors = 0;
+    for (let index = 0; index < newProductIds.length; index += 30) {
+      const batchIds = newProductIds.slice(index, index + 30);
+      try {
+        const linkResponse = await fetch(
+          `${SUPABASE_URL}/functions/v1/shopee-affiliate-link-generator`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-ofertix-cron-secret": suppliedSecret,
+            },
+            body: JSON.stringify({ productIds: batchIds }),
+          },
+        );
+        const linkResult = asRecord(await linkResponse.json().catch(() => ({})));
+        affiliateLinksCreated += Math.max(0, Number(linkResult.created ?? 0));
+        affiliateLinkErrors += Math.max(0, Number(linkResult.failed ?? 0));
+        if (!linkResponse.ok) affiliateLinkErrors += batchIds.length;
+      } catch {
+        affiliateLinkErrors += batchIds.length;
+      }
     }
 
     const pageInfo = asRecord(result.pageInfo);
@@ -396,7 +491,10 @@ Deno.serve(async (request) => {
       productsCreated: productRows.filter((item) => !existingById.has(item.external_id as string)).length,
       productsUpdated: productRows.filter((item) => existingById.has(item.external_id as string)).length,
       listingsUpserted: listingRows.length,
-      affiliateLinksCreated: 0,
+      pricesRefreshed,
+      variationsUpserted: variationRows.length,
+      affiliateLinksCreated,
+      affiliateLinkErrors,
       internationalAndNationalSupported: true,
     };
     await finish("succeeded", details);
