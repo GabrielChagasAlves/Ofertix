@@ -152,9 +152,7 @@ export function Login() {
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-brand">
-          <div className="auth-logo">
-            O
-          </div>
+          <img className="auth-logo-image" src="/ofertix-mark.svg" alt="" />
 
           <div>
             <strong>Ofertix</strong>

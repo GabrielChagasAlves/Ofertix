@@ -1,0 +1,16 @@
+{
+  "name": "Ofertix",
+  "short_name": "Ofertix",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07142e",
+  "theme_color": "#07142e",
+  "icons": [
+    {
+      "src": "/ofertix-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
