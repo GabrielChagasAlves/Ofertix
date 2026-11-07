@@ -331,14 +331,12 @@ export function LinksAfiliado() {
       });
       await loadData();
       const statusMessage = data.offer_deferred
-        ? "\nA oferta foi adiada porque o produto ainda não atende aos critérios de elegibilidade."
+        ? "\nO link foi associado, mas o produto ainda não atende aos critérios para gerar uma oferta."
         : data.offer_generation_failed
-          ? "\nO link foi associado, mas houve uma falha operacional ao gerar a oferta."
-          : data.offer_created
-            ? "\nA oferta foi criada e encaminhada para a tela de aprovação."
-            : data.duplicate_offer
-              ? "\nA oferta já estava cadastrada e foi mantida na fila de aprovação."
-              : "";
+          ? "\nO link foi associado, mas ocorreu uma falha ao preparar a oferta para aprovação."
+          : data.offer_created || data.duplicate_offer
+            ? "\nO produto foi encaminhado para a tela de aprovação."
+            : "";
       alert("Link associado com sucesso." + statusMessage);
     } catch (error) {
       console.error("Erro ao associar link pelo cartão:", error);
@@ -406,7 +404,7 @@ export function LinksAfiliado() {
         "Processamento dos links concluído.", "",
         `Links salvos/processados: ${savedLinks}`,
         `Ofertas criadas: ${createdOffers}`,
-        `Ofertas já cadastradas e mantidas na aprovação: ${duplicateOffers}`,
+        `Ofertas encaminhadas/identificadas na aprovação: ${duplicateOffers}`,
         `Ofertas adiadas por elegibilidade: ${deferredOffers}`,
         `Falhas operacionais na geração: ${generationFailures}`,
       ];
