@@ -113,7 +113,11 @@ function buildMessage(offer: Offer, product: Product) {
     ? formatBRL(selectedOriginalPrice) : null;
 
   if (originalPrice && currentPrice) {
-    lines.push("", "💸 De: " + originalPrice, "🔥 Por: " + currentPrice);
+    lines.push(
+      "",
+      "💸 De: " + originalPrice,
+      (imported ? "💰 Preço anunciado: " : "🔥 Por: ") + currentPrice,
+    );
   } else if (currentPrice) {
     lines.push("", (imported ? "💰 Preço anunciado: " : "💰 Preço: ") + currentPrice);
   }
