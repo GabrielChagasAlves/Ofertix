@@ -333,11 +333,11 @@ export function LinksAfiliado() {
       const statusMessage = data.offer_deferred
         ? "\nA oferta foi adiada porque o produto ainda não atende aos critérios de elegibilidade."
         : data.offer_generation_failed
-          ? "\nO link foi processado, mas houve uma falha operacional ao gerar a oferta."
+          ? "\nO link foi associado, mas houve uma falha operacional ao gerar a oferta."
           : data.offer_created
-            ? "\nA oferta foi gerada."
+            ? "\nA oferta foi criada e encaminhada para a tela de aprovação."
             : data.duplicate_offer
-              ? "\nA oferta já existia."
+              ? "\nA oferta já estava cadastrada e foi mantida na fila de aprovação."
               : "";
       alert("Link associado com sucesso." + statusMessage);
     } catch (error) {
@@ -406,7 +406,7 @@ export function LinksAfiliado() {
         "Processamento dos links concluído.", "",
         `Links salvos/processados: ${savedLinks}`,
         `Ofertas criadas: ${createdOffers}`,
-        `Ofertas que já existiam: ${duplicateOffers}`,
+        `Ofertas já cadastradas e mantidas na aprovação: ${duplicateOffers}`,
         `Ofertas adiadas por elegibilidade: ${deferredOffers}`,
         `Falhas operacionais na geração: ${generationFailures}`,
       ];
