@@ -5815,3 +5815,15 @@ a {
 .approval-category-editor select{width:100%;min-height:38px;padding:8px 11px;border:1px solid #dfe4ef;border-radius:9px;background:#fff;color:#303957;font:inherit;font-size:12px}
 .approval-category-editor select:disabled{opacity:.6;cursor:wait}
 @media(max-width:640px){.approval-category-editor{grid-template-columns:1fr;gap:6px}.approval-category-editor select{min-height:42px}}
+
+
+/* Evita o zoom automático do Safari/iOS ao focar campos de formulário.
+   Restrito a telas móveis: a experiência desktop permanece inalterada. */
+@media (max-width: 768px) {
+  input,
+  select,
+  textarea,
+  [contenteditable="true"] {
+    font-size: 16px !important;
+  }
+}
