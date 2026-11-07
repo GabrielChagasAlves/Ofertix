@@ -5815,3 +5815,23 @@ a {
 .approval-category-editor select{width:100%;min-height:38px;padding:8px 11px;border:1px solid #dfe4ef;border-radius:9px;background:#fff;color:#303957;font:inherit;font-size:12px}
 .approval-category-editor select:disabled{opacity:.6;cursor:wait}
 @media(max-width:640px){.approval-category-editor{grid-template-columns:1fr;gap:6px}.approval-category-editor select{min-height:42px}}
+
+
+/* Ofertix brand assets */
+.logo-icon-image {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: block;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.auth-logo-image {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  display: block;
+  border-radius: 14px;
+  object-fit: cover;
+}
