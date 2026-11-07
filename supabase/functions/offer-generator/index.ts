@@ -200,14 +200,12 @@ Deno.serve(async (req) => {
       ? Number(product.discount_percent)
       : null;
 
-  const normalizedCategory = normalize(resolvedCategory);
-  const categoryIntro = normalizedCategory.includes("automotivo") ? "Mais praticidade para o seu veículo."
-    : normalizedCategory.includes("casa") ? "Uma solução útil para facilitar o dia a dia."
-    : normalizedCategory.includes("perfume") ? "Uma opção para quem gosta de fragrâncias marcantes."
-    : normalizedCategory.includes("tecnologia") ? "Tecnologia e praticidade em um só produto."
-    : "Confira os detalhes desta oferta.";
-  const description = typeof product.description === "string" ? product.description.replace(/\\s+/g, " ").trim().slice(0, 180) : "";
-  const message = [categoryIntro, description].filter(Boolean).join("\n\n");
+  // A mensagem deve aproveitar apenas informações reais do cadastro do produto.
+  // Evita introduções genéricas que não descrevem o item.
+  const description = typeof product.description === "string"
+    ? product.description.replace(/\s+/g, " ").replace(/<[^>]*>/g, " ").trim().slice(0, 360)
+    : "";
+  const message = description || "Confira as especificações, opções e condições diretamente no anúncio.";
 
   const { data: existingOffer, error: existingOfferError } = await admin
     .from("offers")
