@@ -24,6 +24,10 @@ type Offer = {
 type Product = {
   id: string;
   title: string;
+  description: string | null;
+  brand: string | null;
+  category: string | null;
+  origin_country: string | null;
   price: number | null;
   original_price: number | null;
   discount_percent: number | null;
@@ -64,9 +68,43 @@ function cleanTitle(value: string) {
   return value.replace(/\s+/g, " ").replace(/\s*[-|•]+\s*/g, " ").trim();
 }
 
+function cleanDescription(value: string | null | undefined) {
+  return (value || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 360);
+}
+
 function buildMessage(offer: Offer, product: Product) {
   const title = cleanTitle(product.title || offer.title || "Oferta");
-  const lines: string[] = ["🔥 OFERTA ENCONTRADA!", "", "🛍️ " + title, "", product.origin_type === "national" ? "🇧🇷 Envio nacional" : "🌎 Envio internacional"];
+  const imported = product.origin_type === "imported";
+  const lines: string[] = [
+    imported ? "🌎 PRODUTO IMPORTADO" : "🔥 OFERTA NACIONAL",
+    "",
+    "🛍️ " + title,
+  ];
+
+  if (product.brand?.trim()) lines.push("🏷️ Marca: " + product.brand.trim());
+  if (product.category?.trim()) lines.push("📂 Categoria: " + product.category.trim());
+
+  const description = cleanDescription(product.description) ||
+    cleanDescription(offer.message);
+  if (description && description.toLocaleLowerCase("pt-BR") !== title.toLocaleLowerCase("pt-BR")) {
+    lines.push("", description);
+  }
+
+  if (imported) {
+    lines.push(
+      "",
+      "🚚 Envio internacional" +
+        (product.origin_country?.trim() ? " • Origem: " + product.origin_country.trim() : ""),
+    );
+  } else {
+    lines.push("", "🇧🇷 Envio nacional");
+  }
+
+  if (offer.variation_label) lines.push("📦 Opção selecionada: " + offer.variation_label);
 
   const selectedPrice = offer.price_snapshot !== null && offer.price_snapshot !== undefined ? Number(offer.price_snapshot) : product.price;
   const selectedOriginalPrice = offer.original_price_snapshot !== null && offer.original_price_snapshot !== undefined ? Number(offer.original_price_snapshot) : product.original_price;
@@ -74,15 +112,10 @@ function buildMessage(offer: Offer, product: Product) {
   const originalPrice = selectedOriginalPrice !== null && selectedPrice !== null && Number(selectedOriginalPrice) > Number(selectedPrice)
     ? formatBRL(selectedOriginalPrice) : null;
 
-  if (offer.message && offer.message.trim() && offer.message.trim() !== title) {
-    lines.push("", offer.message.trim());
-  }
-  if (offer.variation_label) lines.push("📦 Opção: " + offer.variation_label);
-
   if (originalPrice && currentPrice) {
     lines.push("", "💸 De: " + originalPrice, "🔥 Por: " + currentPrice);
   } else if (currentPrice) {
-    lines.push("", "💰 Por: " + currentPrice);
+    lines.push("", (imported ? "💰 Preço anunciado: " : "💰 Preço: ") + currentPrice);
   }
 
   const discount = originalPrice && selectedPrice !== null && selectedOriginalPrice !== null && Number(selectedOriginalPrice) > 0
@@ -95,11 +128,18 @@ function buildMessage(offer: Offer, product: Product) {
     lines.push("🏷️ " + discount.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) + "% OFF");
   }
 
-  if (offer.affiliate_url) {
-    lines.push("", "🛒 COMPRAR AGORA", offer.affiliate_url);
+  if (imported) {
+    lines.push(
+      "",
+      "⚠️ Atenção: por ser um produto importado, o preço anunciado pode não incluir eventuais impostos e taxas de importação. O valor final pode variar conforme a tributação aplicável e as condições informadas no checkout e na entrega.",
+    );
   }
 
-  lines.push("", "⚡ Aproveite enquanto estiver disponível.", "", "#Ofertix #Oferta");
+  if (offer.affiliate_url) {
+    lines.push("", "🛒 Confira a oferta:", offer.affiliate_url);
+  }
+
+  lines.push("", "⚡ Preço e disponibilidade podem mudar.", "", "#Ofertix #Oferta");
 
   const text = lines.join("\n").trim();
   return text.length > 4096 ? text.slice(0, 4093).trimEnd() + "..." : text;
@@ -387,7 +427,7 @@ export default {
           await ctx.supabaseAdmin
             .from("products")
             .select(
-              "id,title,price,original_price,discount_percent,origin_type",
+              "id,title,description,brand,category,origin_country,price,original_price,discount_percent,origin_type",
             )
             .eq("id", offer.product_id)
             .maybeSingle();
