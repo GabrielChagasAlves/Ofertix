@@ -165,8 +165,15 @@ export function ClassificacaoOrigem({ access }: { access: AccessData }) {
     const dy = event.clientY - startRef.current.y;
     startRef.current = null;
     if (Math.abs(dy) > 95 && Math.abs(dy) > Math.abs(dx) * 1.12 && dy < 0) {
+      // Abre uma aba vazia diretamente no gesto do usuário para evitar bloqueio de popup no celular.
+      const popup = current.product_url ? window.open("about:blank", "_blank") : null;
       setExitDirection("up");
-      window.setTimeout(() => { openMarketplace(current); setExitDirection(null); setDrag(null); }, 220);
+      window.setTimeout(() => {
+        if (popup && current.product_url) popup.location.href = current.product_url;
+        else if (!popup) setError("O navegador bloqueou a nova aba. Use o botão Abrir anúncio no marketplace.");
+        else setError("Este produto não possui link do marketplace.");
+        setExitDirection(null); setDrag(null);
+      }, 220);
     } else if (Math.abs(dx) > 105 && Math.abs(dx) > Math.abs(dy) * 1.12) {
       void classify(current, dx < 0 ? "national" : "imported");
     } else { setDrag(null); }
