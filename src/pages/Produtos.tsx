@@ -136,6 +136,7 @@ export function Produtos() {
       <div className="ops-toolbar">
         <label className="ops-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar produto, marca ou categoria" /></label>
         <label className="ops-select"><Filter size={15} /><select value={marketplace} onChange={(event) => setMarketplace(event.target.value)}><option value="all">Todos os marketplaces</option>{marketplaces.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <label className="ops-select"><select value={originFilter} onChange={(event) => setOriginFilter(event.target.value as typeof originFilter)}><option value="all">Todas as origens</option><option value="national">Envio nacional</option><option value="imported">Envio internacional</option><option value="unknown">Envio não identificado</option></select></label>
         <label className="ops-check"><input type="checkbox" checked={showHistory} onChange={(event) => setShowHistory(event.target.checked)} /> Mostrar importações antigas sem regra</label>
       </div>
       {loading ? <div className="ops-empty"><p>Carregando catálogo…</p></div> : visible.length === 0 ? <EmptyState title="Nenhum produto para exibir" detail={showHistory ? "Ajuste os filtros para ver os itens importados." : "Os próximos ciclos incluirão somente produtos que atendam às regras."} /> :
