@@ -22,16 +22,25 @@ export function Aprovacao(){
    const all:Offer[]=[];
    for(let from=0;;from+=1000){const r=await supabase.from("offers").select("id,product_id,title,affiliate_url,status,approval_status,approved_at,approved_by,rejected_at,rejected_by,rejection_reason,product_variation_id,price_snapshot,original_price_snapshot,variation_label,created_at").order("created_at",{ascending:false}).range(from,from+999);if(r.error)throw r.error;all.push(...(r.data as Offer[]||[]));if(!r.data||r.data.length<1000)break;}
    const ids=[...new Set(all.map(x=>x.product_id))];
-   const [p,m,cat,l,v,u]=await Promise.all([
-    ids.length?supabase.from("products").select("id,marketplace_id,title,brand,category,commercial_category_id,commercial_category_source,origin_type,origin_type_source,price,original_price,image_url,product_url,affiliate_url,active").in("id",ids):Promise.resolve({data:[],error:null}),
+   // Divide os IDs em lotes para evitar URLs enormes no PostgREST
+   // quando há centenas de ofertas aguardando aprovação.
+   const idBatches=Array.from({length:Math.ceil(ids.length/80)},(_,i)=>ids.slice(i*80,(i+1)*80));
+   const [pBatches,m,cat,lBatches,vBatches,u]=await Promise.all([
+    Promise.all(idBatches.map(batch=>supabase.from("products").select("id,marketplace_id,title,brand,category,commercial_category_id,commercial_category_source,origin_type,origin_type_source,price,original_price,image_url,product_url,affiliate_url,active").in("id",batch))),
     supabase.from("marketplaces").select("id,name,slug").order("name"),
     supabase.from("offer_categories").select("id,name,slug").eq("active",true).order("priority"),
-    ids.length?supabase.from("affiliate_links").select("product_id,affiliate_url,status,updated_at").in("product_id",ids).order("updated_at",{ascending:false}):Promise.resolve({data:[],error:null}),
-    ids.length?supabase.from("product_variations").select("id,product_id,external_variation_id,name,unit_quantity,price,original_price,currency,is_default,active").in("product_id",ids).eq("active",true).order("price",{ascending:true}):Promise.resolve({data:[],error:null}),
+    Promise.all(idBatches.map(batch=>supabase.from("affiliate_links").select("product_id,affiliate_url,status,updated_at").in("product_id",batch).order("updated_at",{ascending:false}))),
+    Promise.all(idBatches.map(batch=>supabase.from("product_variations").select("id,product_id,external_variation_id,name,unit_quantity,price,original_price,currency,is_default,active").in("product_id",batch).eq("active",true).order("price",{ascending:true}))),
     supabase.auth.getUser()
    ]);
-   if(p.error)throw p.error;if(m.error)throw m.error;if(cat.error)throw cat.error;if(l.error)throw l.error;if(v.error)throw v.error;
-   setOffers(all);setProducts((p.data||[]) as Product[]);setMarketplaces((m.data||[]) as Marketplace[]);setCategories((cat.data||[]) as OfferCategory[]);setLinks((l.data||[]) as AffiliateLink[]);setVariations((v.data||[]) as ProductVariation[]);
+   if(pBatches.some(r=>r.error))throw pBatches.find(r=>r.error)!.error;
+   if(m.error)throw m.error;if(cat.error)throw cat.error;
+   if(lBatches.some(r=>r.error))throw lBatches.find(r=>r.error)!.error;
+   if(vBatches.some(r=>r.error))throw vBatches.find(r=>r.error)!.error;
+   const pData=pBatches.flatMap(r=>r.data||[]);
+   const lData=lBatches.flatMap(r=>r.data||[]);
+   const vData=vBatches.flatMap(r=>r.data||[]);
+   setOffers(all);setProducts(pData as Product[]);setMarketplaces((m.data||[]) as Marketplace[]);setCategories((cat.data||[]) as OfferCategory[]);setLinks(lData as AffiliateLink[]);setVariations(vData as ProductVariation[]);
    const usr=u.data.user;setUserId(usr?.id||"");setUserLabel((typeof usr?.user_metadata?.full_name==="string"&&usr.user_metadata.full_name)||usr?.email||"Você");
   }catch(e){setError(e instanceof Error?e.message:"Falha ao carregar aprovação.");}finally{setLoading(false);}
  },[]);
