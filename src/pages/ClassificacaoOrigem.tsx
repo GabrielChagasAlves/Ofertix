@@ -144,8 +144,9 @@ export function ClassificacaoOrigem({ access }: { access: AccessData }) {
 
   const openMarketplace = (item: Item) => {
     if (!item.product_url) { setError("Este produto não possui link do marketplace."); return; }
-    // Navega na mesma aba para permitir que links universais/deep links abram o app do marketplace.
-    window.location.assign(item.product_url);
+    // Replica o comportamento dos links do catálogo: abre a URL diretamente em nova navegação,
+    // permitindo ao iOS interceptar o universal link e encaminhar para o app instalado.
+    window.open(item.product_url, "_blank", "noopener,noreferrer");
   };
 
   const onPointerDown = (event: React.PointerEvent<HTMLElement>) => {
