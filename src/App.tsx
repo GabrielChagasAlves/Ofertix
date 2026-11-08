@@ -68,6 +68,20 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    const loadAccess = async () => {
+      if (!session) { setAccess(defaultAccess); setAccessLoading(false); return; }
+      setAccessLoading(true);
+      const { data, error } = await supabase.rpc("get_my_access");
+      if (!active) return;
+      setAccess(error || !data ? defaultAccess : data as AccessData);
+      setAccessLoading(false);
+    };
+    void loadAccess();
+    return () => { active = false; };
+  }, [session?.user.id]);
+
   if (loading) {
     return (
       <div className="app-loading">
