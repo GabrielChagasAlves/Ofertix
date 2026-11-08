@@ -36,7 +36,7 @@ function routineName(name: string) {
 function marketplaceName(name: string) {
   const source = name.toLowerCase();
   if (source.includes("shopee")) return "Shopee";
-  if (source.includes("mercado") || source.includes("meli") || source.includes("product-refresh") || source.includes("n8n-product")) return "Mercado Livre";
+  if (source.includes("mercado") || source.includes("meli") || source.includes("product-refresh") || source.includes("product-price") || source.includes("n8n-product")) return "Mercado Livre";
   if (source.includes("publication")) return "Canais";
   return "Ofertix";
 }
@@ -139,7 +139,7 @@ export function Execucoes() {
     setLoadingItems(null);
   };
 
-  const sources = useMemo(() => Array.from(new Set(runs.map((run) => marketplaceName(run.function_name))), [runs]);
+  const sources = useMemo(() => Array.from(new Set(runs.map((run) => marketplaceName(run.function_name)))), [runs]);
   const visible = useMemo(() => runs.filter((run) => {
     const sourceOk = source === "all" || marketplaceName(run.function_name) === source;
     const status = displayStatus(run);
