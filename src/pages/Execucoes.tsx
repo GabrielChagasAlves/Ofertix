@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Activity, AlertTriangle, CheckCircle2, Clock3, Package, RefreshCw,
+  Activity, AlertTriangle, CheckCircle2, Package, RefreshCw,
   Search, XCircle, ChevronDown, ChevronUp, ExternalLink, Filter,
   CircleDashed, Timer, ListChecks, Ban, RotateCw,
 } from "lucide-react";
@@ -72,9 +72,6 @@ function statusLabel(status: string) {
     unavailable: "Indisponível", integrated: "Integrado",
   };
   return labels[status.toLowerCase()] ?? status;
-}
-function asText(value: unknown) {
-  return typeof value === "string" || typeof value === "number" ? String(value) : "";
 }
 function detailEntries(metrics: Record<string, unknown> | null) {
   if (!metrics) return [] as Array<[string, string | number]>;
