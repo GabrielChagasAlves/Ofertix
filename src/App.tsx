@@ -80,7 +80,7 @@ function App() {
     };
     void loadAccess();
     return () => { active = false; };
-  }, [session?.user.id]);
+  }, [session]);
 
   if (loading) {
     return (
