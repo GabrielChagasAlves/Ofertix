@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ExternalLink, Package, RotateCcw, SkipForward, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUp, Check, ExternalLink, Package, RotateCcw, SkipForward, Sparkles } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { MarketplaceTag, PageIntro } from "../components/OperationsUI";
 import { canAction, type AccessData } from "../lib/access";
@@ -43,7 +43,6 @@ export function ClassificacaoOrigem({ access }: { access: AccessData }) {
   const [exitDirection, setExitDirection] = useState<"left" | "right" | "up" | null>(null);
   const cardRef = useRef<HTMLElement | null>(null);
   const startRef = useRef<{ x: number; y: number } | null>(null);
-  const marketsRef = useRef<Market[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -57,7 +56,7 @@ export function ClassificacaoOrigem({ access }: { access: AccessData }) {
       const loaded = (p.data || []) as Item[];
       setItems(loaded);
       const loadedMarkets = (m.data || []) as Market[];
-      setMarkets(loadedMarkets); marketsRef.current = loadedMarkets;
+      setMarkets(loadedMarkets);
       const savedId = readSession().currentId;
       setCurrentId(savedId && loaded.some(x => x.id === savedId) ? savedId : loaded.find(x => x.origin_type === "unknown")?.id || loaded[0]?.id || null);
     } catch (e) {
