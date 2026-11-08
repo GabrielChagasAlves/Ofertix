@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useState} from "react";
-import {CheckCircle2,ExternalLink,Globe2,Package,RefreshCw,Search} from "lucide-react";
+import {CheckCircle2,ExternalLink,Package,RefreshCw,Search} from "lucide-react";
 import {supabase} from "../lib/supabase";
 import {EmptyState,MarketplaceTag,PageIntro,StatusPill} from "../components/OperationsUI";
 import {canAction,type AccessData} from "../lib/access";
