@@ -139,7 +139,7 @@ export function Execucoes() {
     setLoadingItems(null);
   };
 
-  const sources = useMemo(() => Array.from(new Set(runs.map((run) => marketplaceName(run.function_name))), [runs);
+  const sources = useMemo(() => Array.from(new Set(runs.map((run) => marketplaceName(run.function_name))), [runs]);
   const visible = useMemo(() => runs.filter((run) => {
     const sourceOk = source === "all" || marketplaceName(run.function_name) === source;
     const status = displayStatus(run);
