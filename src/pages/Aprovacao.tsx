@@ -66,7 +66,8 @@ export function Aprovacao(){
    else update={approval_status:"rejected",status:"archived",rejected_at:now,rejected_by:userId||null,rejection_reason:"Rejeitado em lote na tela de Aprovação"};
    const r=await supabase.from("offers").update(update).eq("id",o.id).eq("approval_status","pending").select("id").maybeSingle();if(r.error)throw r.error;if(!r.data)throw new Error("Registro alterado em outra ação");done++;
   }catch(e){failures.push(`${o.title}: ${e instanceof Error?e.message:"falha"}`);}}
-  setSelected([]);setBusy("");setNotice(`${done} oferta(s) ${next==="approved"?"aprovada(s) e liberada(s) para publicação":"rejeitada(s)"}.${failures.length?` ${failures.length} falha(s): ${failures.slice(0,3).join("; ")}`:""}`);await load();
+  const completedIds=targets.filter(o=>!failures.some(message=>message.startsWith(`${o.title}:`))).map(o=>o.id);setOffers(current=>current.map(o=>completedIds.includes(o.id)?{...o,approval_status:next,status:next==="approved"?"approved":"archived",...(next==="approved"?{approved_at:now,approved_by:userId||null,rejected_at:null,rejected_by:null,rejection_reason:null}:{rejected_at:now,rejected_by:userId||null,rejection_reason:"Rejeitado em lote na tela de Aprovação"})}:o));
+  setSelected([]);setBusy("");setNotice(`${done} oferta(s) ${next==="approved"?"aprovada(s) e liberada(s) para publicação":"rejeitada(s)"}.${failures.length?` ${failures.length} falha(s): ${failures.slice(0,3).join("; ")}`:""}`);
  };
  const act=async(o:Offer,next:FilterStatus)=>{
   if(next==="all")return;setBusy(o.id);setError("");setNotice("");
@@ -77,7 +78,8 @@ export function Aprovacao(){
    else if(next==="rejected")update={approval_status:"rejected",status:"archived",rejected_at:now,rejected_by:userId||null,rejection_reason:"Rejeitado manualmente na tela de Aprovação"};
    else update={approval_status:"pending",status:"draft",approved_at:null,approved_by:null,rejected_at:null,rejected_by:null,rejection_reason:null};
    const r=await supabase.from("offers").update(update).eq("id",o.id).eq("approval_status",o.approval_status).select("id").maybeSingle();if(r.error)throw r.error;if(!r.data)throw new Error("A oferta mudou em outra ação. Atualize e tente novamente.");
-   setNotice(next==="approved"?"Oferta aprovada. Ela seguirá automaticamente para a fila de publicação do Telegram.":next==="rejected"?"Oferta rejeitada e bloqueada para publicação.":"Oferta voltou para aprovação pendente.");await load();
+   setOffers(current=>current.map(item=>item.id===o.id?{...item,...update,approval_status:next}:item));
+   setNotice(next==="approved"?"Oferta aprovada. Ela seguirá automaticamente para a fila de publicação do Telegram.":next==="rejected"?"Oferta rejeitada e bloqueada para publicação.":"Oferta voltou para aprovação pendente.");
   }catch(e){setError(e instanceof Error?e.message:"Não foi possível atualizar.");}finally{setBusy("");}
  };
  const saveCategory=async(productId:string,nextCategoryId:string)=>{
