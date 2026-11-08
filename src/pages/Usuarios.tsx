@@ -2,7 +2,7 @@ import {useCallback,useEffect,useState} from "react";
 import {ShieldCheck,UserPlus,Users,Save,RefreshCw} from "lucide-react";
 import {supabase} from "../lib/supabase";
 import {PageIntro,StatusPill} from "../components/OperationsUI";
-const screens=[["dashboard","Dashboard"],["products","Produtos"],["origin_classification","Classificação de origem"],["integrations","Integrações"],["rules","Regras"],["affiliate_links","Links de Afiliado"],["approval","Aprovação"],["executions","Execuções"],["publications","Publicações"],["channels","Canais"],["clicks","Cliques"],["settings","Configurações"]];
+const screens=[["dashboard","Dashboard"],["products","Produtos"],["origin_classification","Classificação de origem"],["integrations","Integrações"],["rules","Regras"],["affiliate_links","Links de Afiliado"],["approval","Aprovação"],["executions","Execuções"],["publications","Publicações"],["channels","Canais"],["clicks","Cliques"],["settings","Configurações"],["users","Usuários"]];
 const actions=[["products.origin.update","Classificar origem: nacional/importado"],["products.update","Editar dados gerais de produtos"],["offers.approve","Aprovar ofertas"],["offers.reject","Rejeitar ofertas"]];
 type User={user_id:string;email:string|null;role:string;is_active:boolean;permissions:{screens:Record<string,boolean>;actions:Record<string,boolean>}};
 export function Usuarios(){const [users,setUsers]=useState<User[]>([]),[email,setEmail]=useState(""),[manualEmail,setManualEmail]=useState(""),[manualPassword,setManualPassword]=useState(""),[loading,setLoading]=useState(true),[busy,setBusy]=useState(""),[error,setError]=useState(""),[notice,setNotice]=useState("");
