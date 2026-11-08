@@ -246,8 +246,11 @@ function App() {
 
           <div className="app-page-content">
             <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/produtos" element={<Produtos />} />
+              <Route path="/" element={canScreen(access,"dashboard")?<Dashboard/>:<Navigate to={canScreen(access,"origin_classification")?"/classificacao-origem":"/acesso-restrito"} replace/>} />
+              <Route path="/produtos" element={canScreen(access,"products")?<Produtos/>:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/classificacao-origem" element={canScreen(access,"origin_classification")?<ClassificacaoOrigem/>:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/usuarios" element={canScreen(access,"users")?<Usuarios/>:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/acesso-restrito" element={<div className="page ops-page"><h1>Acesso não autorizado</h1><p>Seu usuário não possui permissão para acessar esta área. Solicite acesso ao administrador.</p></div>} />
               {/* Mantida por compatibilidade. Não aparece no menu principal. */}
               <Route path="/ofertas" element={canScreen(access,"approval")?<Ofertas />:<Navigate to="/acesso-restrito" replace/>} />
               {/* A página de marketplaces é apresentada como Integrações no menu. */}
