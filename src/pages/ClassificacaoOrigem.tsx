@@ -144,8 +144,8 @@ export function ClassificacaoOrigem({ access }: { access: AccessData }) {
 
   const openMarketplace = (item: Item) => {
     if (!item.product_url) { setError("Este produto não possui link do marketplace."); return; }
-    window.open(item.product_url, "_blank", "noopener,noreferrer");
-    setNotice("Anúncio aberto em outra aba. Ao voltar, este mesmo produto continuará selecionado.");
+    // Navega na mesma aba para permitir que links universais/deep links abram o app do marketplace.
+    window.location.assign(item.product_url);
   };
 
   const onPointerDown = (event: React.PointerEvent<HTMLElement>) => {
@@ -164,15 +164,8 @@ export function ClassificacaoOrigem({ access }: { access: AccessData }) {
     const dy = event.clientY - startRef.current.y;
     startRef.current = null;
     if (Math.abs(dy) > 95 && Math.abs(dy) > Math.abs(dx) * 1.12 && dy < 0) {
-      // Abre uma aba vazia diretamente no gesto do usuário para evitar bloqueio de popup no celular.
-      const popup = current.product_url ? window.open("about:blank", "_blank") : null;
-      setExitDirection("up");
-      window.setTimeout(() => {
-        if (popup && current.product_url) popup.location.href = current.product_url;
-        else if (!popup) setError("O navegador bloqueou a nova aba. Use o botão Abrir anúncio no marketplace.");
-        else setError("Este produto não possui link do marketplace.");
-        setExitDirection(null); setDrag(null);
-      }, 220);
+      setDrag(null);
+      openMarketplace(current);
     } else if (Math.abs(dx) > 105 && Math.abs(dx) > Math.abs(dy) * 1.12) {
       void classify(current, dx < 0 ? "national" : "imported");
     } else { setDrag(null); }
@@ -206,7 +199,7 @@ export function ClassificacaoOrigem({ access }: { access: AccessData }) {
         <div className="origin-tinder-progress"><span>Produto {currentIndex + 1} de {filtered.length}</span><span>{Math.round(((currentIndex + 1) / Math.max(filtered.length, 1)) * 100)}%</span></div>
         <div className="origin-tinder-progress-track"><span style={{ width: `${((currentIndex + 1) / Math.max(filtered.length, 1)) * 100}%` }}/></div>
         <div className="origin-tinder-stage">
-          <div className={`origin-tinder-stamp ${swipeLabel === "NACIONAL" ? "is-national" : swipeLabel === "IMPORTADO" ? "is-imported" : "is-open"}`}>{swipeLabel}</div>
+          {swipeLabel && <div className={`origin-tinder-stamp ${swipeLabel === "NACIONAL" ? "is-national" : swipeLabel === "IMPORTADO" ? "is-imported" : "is-open"}`}>{swipeLabel}</div>}
           <article ref={cardRef} className={`origin-tinder-card ${exitDirection ? `is-exiting-${exitDirection}` : ""}`} style={{ transform, transition: drag && !exitDirection ? "none" : "transform .26s cubic-bezier(.2,.75,.25,1), opacity .26s ease" }} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>
             <div className="origin-tinder-image">{current.image_url ? <img src={current.image_url} alt={current.title}/> : <Package size={48}/>}</div>
             <div className="origin-tinder-card-content">
