@@ -42,6 +42,7 @@ export function ClassificacaoOrigem({ access }: { access: AccessData }) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [exitDirection, setExitDirection] = useState<"left" | "right" | "up" | null>(null);
   const cardRef = useRef<HTMLElement | null>(null);
+  const marketplaceLinkRef = useRef<HTMLAnchorElement | null>(null);
   const startRef = useRef<{ x: number; y: number } | null>(null);
 
   const load = useCallback(async () => {
@@ -200,6 +201,7 @@ export function ClassificacaoOrigem({ access }: { access: AccessData }) {
         <div className="origin-tinder-progress"><span>Produto {currentIndex + 1} de {filtered.length}</span><span>{Math.round(((currentIndex + 1) / Math.max(filtered.length, 1)) * 100)}%</span></div>
         <div className="origin-tinder-progress-track"><span style={{ width: `${((currentIndex + 1) / Math.max(filtered.length, 1)) * 100}%` }}/></div>
         <div className="origin-tinder-stage">
+          <a ref={marketplaceLinkRef} href={current.product_url || "#"} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden="true" className="origin-tinder-marketplace-link"/>
           {swipeLabel && <div className={`origin-tinder-stamp ${swipeLabel === "NACIONAL" ? "is-national" : swipeLabel === "IMPORTADO" ? "is-imported" : "is-open"}`}>{swipeLabel}</div>}
           <article ref={cardRef} className={`origin-tinder-card ${exitDirection ? `is-exiting-${exitDirection}` : ""}`} style={{ transform, transition: drag && !exitDirection ? "none" : "transform .26s cubic-bezier(.2,.75,.25,1), opacity .26s ease" }} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>
             <div className="origin-tinder-image">{current.image_url ? <img src={current.image_url} alt={current.title}/> : <Package size={48}/>}</div>
