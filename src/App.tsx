@@ -26,6 +26,10 @@ import { Configuracoes } from "./pages/Configuracoes";
 import { LinksAfiliado } from "./pages/LinksAfiliado";
 import { Execucoes } from "./pages/Execucoes";
 import { Aprovacao } from "./pages/Aprovacao";
+import { ClassificacaoOrigem } from "./pages/ClassificacaoOrigem";
+import { Usuarios } from "./pages/Usuarios";
+import { defaultAccess, canScreen, type AccessData } from "./lib/access";
+import { Navigate } from "react-router-dom";
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -33,6 +37,8 @@ function App() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileNav, setShowMobileNav] = useState(false);
+  const [access, setAccess] = useState<AccessData>(defaultAccess);
+  const [accessLoading, setAccessLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
@@ -53,7 +59,7 @@ function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (mounted) setSession(session);
+      if (mounted) { setSession(session); setAccess(defaultAccess); setAccessLoading(true); }
     });
 
     return () => {
@@ -61,6 +67,20 @@ function App() {
       subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadAccess = async () => {
+      if (!session) { setAccess(defaultAccess); setAccessLoading(false); return; }
+      setAccessLoading(true);
+      const { data, error } = await supabase.rpc("get_my_access");
+      if (!active) return;
+      setAccess(error || !data ? defaultAccess : data as AccessData);
+      setAccessLoading(false);
+    };
+    void loadAccess();
+    return () => { active = false; };
+  }, [session?.user.id]);
 
   if (loading) {
     return (
@@ -73,6 +93,16 @@ function App() {
 
   if (!session) return <Login />;
 
+  // Busca as permissões efetivas no banco após autenticação.
+  // A interface não considera permissões armazenadas apenas no navegador.
+  // O backend também aplica RLS e valida as alterações de origem.
+  if (accessLoading) {
+    return <div className="app-loading"><div className="loading-spinner" /><p>Validando permissões...</p></div>;
+  }
+  if (!access.is_active) {
+    void supabase.auth.signOut();
+    return <Login />;
+  }
   const metadata = session.user.user_metadata ?? {};
   const displayName =
     (typeof metadata.full_name === "string" && metadata.full_name) ||
@@ -87,7 +117,7 @@ function App() {
   return (
     <BrowserRouter>
       <div className="app-shell">
-        <Sidebar isOpen={showMobileNav} onNavigate={() => setShowMobileNav(false)} />
+        <Sidebar isOpen={showMobileNav} onNavigate={() => setShowMobileNav(false)} access={access} />
         {showMobileNav && (
           <button
             type="button"
@@ -216,22 +246,25 @@ function App() {
 
           <div className="app-page-content">
             <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/produtos" element={<Produtos />} />
+              <Route path="/" element={canScreen(access,"dashboard")?<Dashboard/>:<Navigate to={canScreen(access,"origin_classification")?"/classificacao-origem":"/acesso-restrito"} replace/>} />
+              <Route path="/produtos" element={canScreen(access,"products")?<Produtos/>:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/classificacao-origem" element={canScreen(access,"origin_classification")?<ClassificacaoOrigem access={access}/>:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/usuarios" element={canScreen(access,"users")?<Usuarios/>:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/acesso-restrito" element={<div className="page ops-page"><h1>Acesso não autorizado</h1><p>Seu usuário não possui permissão para acessar esta área. Solicite acesso ao administrador.</p></div>} />
               {/* Mantida por compatibilidade. Não aparece no menu principal. */}
-              <Route path="/ofertas" element={<Ofertas />} />
+              <Route path="/ofertas" element={canScreen(access,"approval")?<Ofertas />:<Navigate to="/acesso-restrito" replace/>} />
               {/* A página de marketplaces é apresentada como Integrações no menu. */}
-              <Route path="/marketplaces" element={<Marketplaces />} />
-              <Route path="/regras" element={<Regras />} />
-              <Route path="/links-afiliado" element={<LinksAfiliado />} />
-              <Route path="/aprovacao" element={<Aprovacao />} />
-              <Route path="/execucoes" element={<Execucoes />} />
-              <Route path="/publicacoes" element={<Publicacoes />} />
-              <Route path="/canais" element={<Canais />} />
+              <Route path="/marketplaces" element={canScreen(access,"integrations")?<Marketplaces />:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/regras" element={canScreen(access,"rules")?<Regras />:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/links-afiliado" element={canScreen(access,"affiliate_links")?<LinksAfiliado />:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/aprovacao" element={canScreen(access,"approval")?<Aprovacao />:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/execucoes" element={canScreen(access,"executions")?<Execucoes />:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/publicacoes" element={canScreen(access,"publications")?<Publicacoes />:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/canais" element={canScreen(access,"channels")?<Canais />:<Navigate to="/acesso-restrito" replace/>} />
               {/* Mantida por compatibilidade. */}
-              <Route path="/whatsapp" element={<WhatsApp />} />
-              <Route path="/cliques" element={<Cliques />} />
-              <Route path="/configuracoes" element={<Configuracoes />} />
+              <Route path="/whatsapp" element={canScreen(access,"channels")?<WhatsApp />:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/cliques" element={canScreen(access,"clicks")?<Cliques />:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/configuracoes" element={canScreen(access,"settings")?<Configuracoes />:<Navigate to="/acesso-restrito" replace/>} />
             </Routes>
           </div>
         </main>
