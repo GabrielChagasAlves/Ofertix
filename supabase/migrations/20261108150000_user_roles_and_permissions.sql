@@ -104,5 +104,3 @@ before update on public.products
 for each row execute function public.guard_product_origin_operator_updates();
 
 -- RLS das permissões: somente a Edge Function administrativa usa service role.
-create policy "user_profiles_self_or_admin_read" on public.user_profiles
-for select to authenticated using (user_id=auth.uid() or public.has_ofertix_permission('users.manage'));
