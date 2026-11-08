@@ -248,7 +248,7 @@ function App() {
             <Routes>
               <Route path="/" element={canScreen(access,"dashboard")?<Dashboard/>:<Navigate to={canScreen(access,"origin_classification")?"/classificacao-origem":"/acesso-restrito"} replace/>} />
               <Route path="/produtos" element={canScreen(access,"products")?<Produtos/>:<Navigate to="/acesso-restrito" replace/>} />
-              <Route path="/classificacao-origem" element={canScreen(access,"origin_classification")?<ClassificacaoOrigem/>:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/classificacao-origem" element={canScreen(access,"origin_classification")?<ClassificacaoOrigem access={access}/>:<Navigate to="/acesso-restrito" replace/>} />
               <Route path="/usuarios" element={canScreen(access,"users")?<Usuarios/>:<Navigate to="/acesso-restrito" replace/>} />
               <Route path="/acesso-restrito" element={<div className="page ops-page"><h1>Acesso não autorizado</h1><p>Seu usuário não possui permissão para acessar esta área. Solicite acesso ao administrador.</p></div>} />
               {/* Mantida por compatibilidade. Não aparece no menu principal. */}
