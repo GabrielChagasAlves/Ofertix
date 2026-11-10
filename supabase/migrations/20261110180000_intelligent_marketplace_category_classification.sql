@@ -109,7 +109,7 @@ BEGIN
     SELECT id INTO v_id FROM public.offer_categories WHERE slug='pets' AND active LIMIT 1;
     IF v_id IS NOT NULL THEN RETURN v_id; END IF;
   END IF;
-  IF v_title ~ '(maquiagem|batom|base facial|corretivo|r.mel|cilios|cílios|esmalte|skincare|cuidados com a pele|cosm.tico|pincel de maquiagem|secador de cabelo|chapinha|modelador de cabelo|depilador)' THEN
+  IF v_title !~ '(porta maquiagem|organizador de maquiagem|espelho decorativo)' AND v_title ~ '(maquiagem|batom|base facial|corretivo|r.mel|cilios|cílios|esmalte|skincare|cuidados com a pele|cosm.tico|pincel de maquiagem|secador de cabelo|chapinha|modelador de cabelo|depilador)' THEN
     SELECT id INTO v_id FROM public.offer_categories WHERE slug='beleza' AND active LIMIT 1;
     IF v_id IS NOT NULL THEN RETURN v_id; END IF;
   END IF;
@@ -180,6 +180,8 @@ FROM public.products p
 LEFT JOIN public.offer_categories current_category ON current_category.id = p.commercial_category_id
 LEFT JOIN public.offer_categories suggested
   ON suggested.id = public.classify_product_commercial_category(p.title, p.category);
+
+GRANT SELECT ON public.product_category_classification_preview TO authenticated;
 
 COMMENT ON VIEW public.product_category_classification_preview IS
   'Read-only preview of automatic commercial category suggestions. Does not modify products.';
