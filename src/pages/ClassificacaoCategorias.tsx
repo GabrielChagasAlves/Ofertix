@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, RefreshCw, Search, ShieldCheck } from "lucide-react";
+import { CheckCircle2, RefreshCw, Search, ShieldCheck } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
 type PreviewRow = {
