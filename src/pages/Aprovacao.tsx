@@ -18,7 +18,7 @@ const APPROVAL_PAGE_SIZE=24;
 
 export function Aprovacao(){
  const [offers,setOffers]=useState<Offer[]>([]),[products,setProducts]=useState<Product[]>([]),[marketplaces,setMarketplaces]=useState<Marketplace[]>([]),[categories,setCategories]=useState<OfferCategory[]>([]),[links,setLinks]=useState<AffiliateLink[]>([]),[variations,setVariations]=useState<ProductVariation[]>([]);
- const [userId,setUserId]=useState(""),[userLabel,setUserLabel]=useState("Você"),[search,setSearch]=useState(""),[status,setStatus]=useState<FilterStatus>("pending"),[marketplace,setMarketplace]=useState("all"),[category,setCategory]=useState("all"),[loading,setLoading]=useState(true),[busy,setBusy]=useState(""),[error,setError]=useState(""),[notice,setNotice]=useState(""),[selected,setSelected]=useState<string[]>([]),[page,setPage]=useState(1);
+ const [userId,setUserId]=useState(""),[userLabel,setUserLabel]=useState("Você"),[search,setSearch]=useState(""),[status,setStatus]=useState<FilterStatus>("pending"),[marketplace,setMarketplace]=useState("all"),[category,setCategory]=useState(""),[loading,setLoading]=useState(true),[busy,setBusy]=useState(""),[error,setError]=useState(""),[notice,setNotice]=useState(""),[selected,setSelected]=useState<string[]>([]),[page,setPage]=useState(1);
  const deferredSearch=useDeferredValue(search);
  const load=useCallback(async()=>{
   setLoading(true);setError("");
@@ -60,7 +60,10 @@ export function Aprovacao(){
   const tiers:[1|2|3,Offer[]][] = ([1,2,3] as const).map(priority=>[priority,uniqueOffers.filter(o=>priorityByOffer.get(o.id)===priority).sort((a,b)=>(scoreByOffer.get(b.id)||0)-(scoreByOffer.get(a.id)||0)||new Date(b.created_at).getTime()-new Date(a.created_at).getTime())]);
   return tiers.flatMap(([,items])=>alternateMarketplaceItems(items,o=>{const p=pmap.get(o.product_id);return p?mmap.get(p.marketplace_id)?.slug:null;}));
  },[uniqueOffers,priorityByOffer,scoreByOffer,pmap,mmap]);
- const visible=useMemo(()=>orderedOffers.filter(o=>{const p=pmap.get(o.product_id),m=p?mmap.get(p.marketplace_id):undefined,t=[o.title,p?.title,p?.brand,cmap.get(p?.commercial_category_id||"")?.name,m?.name].filter(Boolean).join(" ").toLowerCase();return(status==="all"||o.approval_status===status)&&(marketplace==="all"||p?.marketplace_id===marketplace)&&(category==="all"||(category==="uncategorized"?!p?.commercial_category_id:p?.commercial_category_id===category))&&(!deferredSearch.trim()||t.includes(deferredSearch.trim().toLowerCase()));}),[orderedOffers,pmap,mmap,cmap,status,marketplace,category,deferredSearch]);
+ const visible=useMemo(()=>orderedOffers.filter(o=>{const p=pmap.get(o.product_id),m=p?mmap.get(p.marketplace_id):undefined,t=[o.title,p?.title,p?.brand,cmap.get(p?.commercial_category_id||"")?.name,m?.name].filter(Boolean).join(" ").toLowerCase();return(status==="all"||o.approval_status===status)&&(marketplace==="all"||p?.marketplace_id===marketplace)&&(category==="uncategorized"?!p?.commercial_category_id:p?.commercial_category_id===category)&&(!deferredSearch.trim()||t.includes(deferredSearch.trim().toLowerCase()));}),[orderedOffers,pmap,mmap,cmap,status,marketplace,category,deferredSearch]);
+ const categoryCounts=useMemo(()=>{const counts=new Map<string,number>();uniqueOffers.filter(o=>o.approval_status==="pending").forEach(o=>{const p=pmap.get(o.product_id),key=p?.commercial_category_id||"uncategorized";counts.set(key,(counts.get(key)||0)+1);});return counts;},[uniqueOffers,pmap]);
+ const selectedCategory=category==="uncategorized"?null:categories.find(item=>item.id===category);
+ const selectedCategoryName=category==="uncategorized"?"Sem classificação":selectedCategory?.name||"Categoria";
  const pageCount=Math.max(1,Math.ceil(visible.length/APPROVAL_PAGE_SIZE));
  const currentPage=Math.min(page,pageCount);
  const pageItems=useMemo(()=>visible.slice((currentPage-1)*APPROVAL_PAGE_SIZE,currentPage*APPROVAL_PAGE_SIZE),[visible,currentPage]);
@@ -145,12 +148,18 @@ export function Aprovacao(){
    <Metric icon={<CheckCircle2 size={19}/>} value={loading?"…":stats.approved} label="Aprovadas" detail="Liberadas para publicação"/>
    <Metric icon={<XCircle size={19}/>} value={loading?"…":stats.rejected} label="Rejeitadas" detail="Bloqueadas para publicação"/>
   </section>
-  <section className="ops-surface">
+  {category===""?<section className="approval-category-picker">
+   <header className="approval-category-picker-header"><div><h2>Escolha uma categoria</h2><p>As ofertas estão separadas conforme a categoria comercial cadastrada no Ofertix.</p></div><span>{stats.pending} pendente(s) no total</span></header>
+   {loading?<div className="ops-empty"><p>Carregando categorias e ofertas…</p></div>:<div className="approval-category-grid">
+    {categories.map(cat=><button type="button" className="approval-category-tile" key={cat.id} onClick={()=>setCategory(cat.id)}><span className="approval-category-tile-icon"><PackageCheck size={20}/></span><span className="approval-category-tile-copy"><strong>{cat.name}</strong><small>Ofertas aguardando aprovação</small></span><span className="approval-category-count">{categoryCounts.get(cat.id)||0}</span></button>)}
+    <button type="button" className="approval-category-tile approval-category-tile-muted" onClick={()=>setCategory("uncategorized")}><span className="approval-category-tile-icon"><Filter size={20}/></span><span className="approval-category-tile-copy"><strong>Sem classificação</strong><small>Produtos que precisam de categoria</small></span><span className="approval-category-count">{categoryCounts.get("uncategorized")||0}</span></button>
+   </div>}
+  </section>:<section className="ops-surface">
+   <div className="approval-category-heading"><button type="button" className="approval-back-button" onClick={()=>{setCategory("");setSearch("");setSelected([]);setPage(1);}}>← Todas as categorias</button><div><h2>{selectedCategoryName}</h2><p>{categoryCounts.get(category)||0} oferta(s) aguardando aprovação nesta categoria</p></div></div>
    <div className="ops-toolbar approval-toolbar">
-    <label className="ops-search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar produto, marca ou categoria"/></label>
+    <label className="ops-search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar produto ou marca"/></label>
     <label className="ops-select"><Filter size={15}/><select value={status} onChange={e=>setStatus(e.target.value as FilterStatus)}><option value="pending">Aguardando aprovação</option><option value="approved">Aprovadas</option><option value="rejected">Rejeitadas</option><option value="all">Todos os status</option></select></label>
     <label className="ops-select"><select value={marketplace} onChange={e=>setMarketplace(e.target.value)}><option value="all">Todos os marketplaces</option>{marketplaces.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label>
-    <label className="ops-select"><select value={category} onChange={e=>setCategory(e.target.value)}><option value="all">Todas as categorias</option><option value="uncategorized">Sem classificação</option>{categories.map(cat=><option key={cat.id} value={cat.id}>{cat.name}</option>)}</select></label>
    </div>
    {!loading&&selectable.length>0&&<div className="approval-bulkbar"><label className="approval-select-all"><input type="checkbox" checked={allSelected} onChange={e=>toggleAll(e.target.checked)}/>Selecionar pendentes desta página</label><span>{selected.filter(id=>selectable.some(o=>o.id===id)).length} selecionada(s)</span><div><button className="approval-button approval-button-approve" disabled={!selected.some(id=>selectable.some(o=>o.id===id))||!!busy} onClick={()=>void bulkAct("approved")}><Check size={15}/>Aprovar selecionadas</button><button className="approval-button approval-button-reject" disabled={!selected.some(id=>selectable.some(o=>o.id===id))||!!busy} onClick={()=>void bulkAct("rejected")}><X size={15}/>Rejeitar selecionadas</button></div></div>}
    {loading?<div className="ops-empty"><p>Carregando ofertas com link de afiliado…</p></div>:visible.length===0?<EmptyState title="Nenhuma oferta encontrada" detail={status==="pending"?"Não há produtos aguardando aprovação com os filtros atuais.":"Ajuste os filtros para consultar o histórico."}/>:<div className="approval-list">{pageItems.map(o=>{
@@ -167,6 +176,6 @@ export function Aprovacao(){
     </article>;
    })}</div>}
    {!loading&&visible.length>APPROVAL_PAGE_SIZE&&<div className="approval-pagination"><span>Mostrando {(currentPage-1)*APPROVAL_PAGE_SIZE+1}–{Math.min(currentPage*APPROVAL_PAGE_SIZE,visible.length)} de {visible.length} ofertas</span><div><button type="button" className="approval-button approval-button-secondary" onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={currentPage===1}>Anterior</button><span className="approval-page-number">Página {currentPage} de {pageCount}</span><button type="button" className="approval-button approval-button-secondary" onClick={()=>setPage(p=>Math.min(pageCount,p+1))} disabled={currentPage===pageCount}>Próxima</button></div></div>}
-  </section>
+  </section>}
  </div>;
 }
