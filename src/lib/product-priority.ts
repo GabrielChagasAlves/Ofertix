@@ -63,6 +63,15 @@ export function getProductPriority(input: PriorityInput): ProductPriority {
   return 3;
 }
 
+export function getProductPriorityScore(input: PriorityInput): number {
+  const priority = getProductPriority(input);
+  const base = priority === 1 ? 80 : priority === 2 ? 55 : 25;
+  const discount = typeof input.discountPercent === "number" && Number.isFinite(input.discountPercent)
+    ? Math.max(0, Math.min(10, input.discountPercent * 0.2))
+    : 0;
+  return Math.round((base + discount) * 100) / 100;
+}
+
 export function getProductPriorityLabel(priority: ProductPriority): string {
   if (priority === 1) return "Essencial";
   if (priority === 2) return "Complementar";
