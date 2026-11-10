@@ -2,12 +2,12 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "rea
 import { Check, CheckCircle2, Clock3, ExternalLink, Filter, Link2, PackageCheck, RefreshCw, Search, X, XCircle } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { alternateMarketplaceItems } from "../lib/marketplace-order";
-import { getProductPriority, getProductPriorityLabel } from "../lib/product-priority";
+import { getProductPriority, getProductPriorityLabel, getProductPriorityScore } from "../lib/product-priority";
 import { EmptyState, formatCurrency, formatDate, MarketplaceTag, Metric, PageIntro, StatusPill } from "../components/OperationsUI";
 
 type Offer = { id:string; product_id:string; title:string; affiliate_url:string|null; status:string; approval_status:"pending"|"approved"|"rejected"; approved_at:string|null; approved_by:string|null; rejected_at:string|null; rejected_by:string|null; rejection_reason:string|null; product_variation_id:string|null; price_snapshot:number|null; original_price_snapshot:number|null; variation_label:string|null; created_at:string };
 type ProductVariation = { id:string; product_id:string; external_variation_id:string; name:string; unit_quantity:number|null; price:number; original_price:number|null; currency:string; is_default:boolean; active:boolean };
-type Product = { id:string; marketplace_id:string; title:string; brand:string|null; category:string|null; commercial_category_id:string|null; commercial_category_source:"manual"|"automatic"; origin_type:"national"|"imported"|"unknown"; origin_type_source:"automatic"|"manual"; price:number|null; original_price:number|null; image_url:string|null; product_url:string|null; affiliate_url:string|null; active:boolean };
+type Product = { id:string; marketplace_id:string; title:string; brand:string|null; category:string|null; commercial_category_id:string|null; commercial_category_source:"manual"|"automatic"; origin_type:"national"|"imported"|"unknown"; origin_type_source:"automatic"|"manual"; price:number|null; discount_percent:number|null; original_price:number|null; image_url:string|null; product_url:string|null; affiliate_url:string|null; active:boolean };
 type Marketplace = { id:string; name:string; slug:string };
 type OfferCategory = { id:string; name:string; slug:string };
 type AffiliateLink = { product_id:string; affiliate_url:string; status:string; updated_at:string };
@@ -30,7 +30,7 @@ export function Aprovacao(){
    // quando há centenas de ofertas aguardando aprovação.
    const idBatches=Array.from({length:Math.ceil(ids.length/80)},(_,i)=>ids.slice(i*80,(i+1)*80));
    const [pBatches,m,cat,lBatches,vBatches,u]=await Promise.all([
-    Promise.all(idBatches.map(batch=>supabase.from("products").select("id,marketplace_id,title,brand,category,commercial_category_id,commercial_category_source,origin_type,origin_type_source,price,original_price,image_url,product_url,affiliate_url,active").in("id",batch))),
+    Promise.all(idBatches.map(batch=>supabase.from("products").select("id,marketplace_id,title,brand,category,commercial_category_id,commercial_category_source,origin_type,origin_type_source,price,discount_percent,original_price,image_url,product_url,affiliate_url,active").in("id",batch))),
     supabase.from("marketplaces").select("id,name,slug").order("name"),
     supabase.from("offer_categories").select("id,name,slug").eq("active",true).order("priority"),
     Promise.all(idBatches.map(batch=>supabase.from("affiliate_links").select("product_id,affiliate_url,status,updated_at").in("product_id",batch).order("updated_at",{ascending:false}))),
@@ -55,10 +55,11 @@ export function Aprovacao(){
  const readyLink=(o:Offer)=>{const p=pmap.get(o.product_id),ready=(lmap.get(o.product_id)||[]).filter(l=>l.status==="ready"&&validUrl(l.affiliate_url));return ready.find(l=>l.affiliate_url===o.affiliate_url)||ready.find(l=>l.affiliate_url===p?.affiliate_url)||ready[0];};
  const uniqueOffers=useMemo(()=>{const byProduct=new Map<string,Offer>();offers.forEach(o=>{const previous=byProduct.get(o.product_id);if(!previous||new Date(o.created_at).getTime()>new Date(previous.created_at).getTime())byProduct.set(o.product_id,o);});return [...byProduct.values()];},[offers]);
  const priorityByOffer=useMemo(()=>new Map(uniqueOffers.map(o=>{const p=pmap.get(o.product_id),cat=p?.commercial_category_id?cmap.get(p.commercial_category_id):undefined;return [o.id,getProductPriority({title:p?.title||o.title,categorySlug:cat?.slug,marketplaceCategory:p?.category,discountPercent:p?.discount_percent??null})] as const;})),[uniqueOffers,pmap,cmap]);
+ const scoreByOffer=useMemo(()=>new Map(uniqueOffers.map(o=>{const p=pmap.get(o.product_id),cat=p?.commercial_category_id?cmap.get(p.commercial_category_id):undefined;return [o.id,getProductPriorityScore({title:p?.title||o.title,categorySlug:cat?.slug,marketplaceCategory:p?.category,discountPercent:p?.discount_percent??null})] as const;})),[uniqueOffers,pmap,cmap]);
  const orderedOffers=useMemo(()=>{
-  const tiers:[1|2|3,Offer[]][]=[1,2,3].map(priority=>[priority,uniqueOffers.filter(o=>priorityByOffer.get(o.id)===priority).sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime())]);
+  const tiers:[1|2|3,Offer[]][]=[1,2,3].map(priority=>[priority,uniqueOffers.filter(o=>priorityByOffer.get(o.id)===priority).sort((a,b)=>(scoreByOffer.get(b.id)||0)-(scoreByOffer.get(a.id)||0)||new Date(b.created_at).getTime()-new Date(a.created_at).getTime())]);
   return tiers.flatMap(([,items])=>alternateMarketplaceItems(items,o=>{const p=pmap.get(o.product_id);return p?mmap.get(p.marketplace_id)?.slug:null;}));
- },[uniqueOffers,priorityByOffer,pmap,mmap]);
+ },[uniqueOffers,priorityByOffer,scoreByOffer,pmap,mmap]);
  const visible=useMemo(()=>orderedOffers.filter(o=>{const p=pmap.get(o.product_id),m=p?mmap.get(p.marketplace_id):undefined,t=[o.title,p?.title,p?.brand,cmap.get(p?.commercial_category_id||"")?.name,m?.name].filter(Boolean).join(" ").toLowerCase();return(status==="all"||o.approval_status===status)&&(marketplace==="all"||p?.marketplace_id===marketplace)&&(category==="all"||(category==="uncategorized"?!p?.commercial_category_id:p?.commercial_category_id===category))&&(!deferredSearch.trim()||t.includes(deferredSearch.trim().toLowerCase()));}),[orderedOffers,pmap,mmap,cmap,status,marketplace,category,deferredSearch]);
  const pageCount=Math.max(1,Math.ceil(visible.length/APPROVAL_PAGE_SIZE));
  const currentPage=Math.min(page,pageCount);
