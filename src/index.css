@@ -5916,3 +5916,5 @@ a {
 .user-permission-check input{width:16px;height:16px;accent-color:#7652e8}
 .user-permission-footer{display:flex;justify-content:flex-end;margin-top:14px;padding-top:13px;border-top:1px solid #edf0f6}
 @media(max-width:760px){.origin-review-card{grid-template-columns:68px minmax(0,1fr)}.origin-review-image{width:68px;height:68px}.origin-review-actions{grid-column:1/-1}.user-invite{grid-template-columns:1fr}.user-permission-columns{grid-template-columns:1fr;gap:14px}.user-permission-card>header{align-items:flex-start;flex-direction:column}}
+
+.approval-pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 2px 2px;color:#9aa6b7;font-size:12px}.approval-pagination>div{display:flex;align-items:center;gap:9px}.approval-page-number{white-space:nowrap;color:#cbd5e1;font-weight:650}@media(max-width:540px){.approval-pagination{align-items:flex-start;flex-direction:column}.approval-pagination>div{width:100%;justify-content:space-between}.approval-pagination .approval-button{flex:1}}
