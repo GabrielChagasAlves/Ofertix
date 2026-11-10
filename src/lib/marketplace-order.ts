@@ -10,9 +10,10 @@ export function alternateMarketplaceItems<T>(items: T[], getSlug: (item: T) => s
     else others.push(item);
   }
   const balanced: T[] = [];
-  while (mercadoLivre.length || shopee.length) {
-    if (mercadoLivre.length) balanced.push(mercadoLivre.shift()!);
-    if (shopee.length) balanced.push(shopee.shift()!);
+  const total = Math.max(mercadoLivre.length, shopee.length);
+  for (let index = 0; index < total; index += 1) {
+    if (index < mercadoLivre.length) balanced.push(mercadoLivre[index]);
+    if (index < shopee.length) balanced.push(shopee[index]);
   }
   return [...balanced, ...others];
 }
