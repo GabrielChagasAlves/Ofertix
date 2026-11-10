@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ofertix — Aprovações</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app" aria-live="polite">
+    <header class="topbar">
+      <div class="brand">
+        <img src="icons/ofertix.svg" alt="">
+        <div><strong>Ofertix</strong><small>Aprovação de ofertas</small></div>
+      </div>
+      <div class="top-actions">
+        <button id="refresh" class="icon-btn" title="Atualizar" aria-label="Atualizar">↻</button>
+        <button id="minimize" class="icon-btn" title="Minimizar" aria-label="Minimizar">—</button>
+      </div>
+    </header>
+    <main id="view" class="view">
+      <div class="loading"><span class="spinner"></span><p>Carregando Ofertix…</p></div>
+    </main>
+    <footer class="footer"><span id="footer-status">Conectando ao Ofertix</span><button id="logout" class="text-btn" hidden>Sair</button></footer>
+  </div>
+  <script src="config.js"></script>
+  <script src="panel.js"></script>
+</body>
+</html>
