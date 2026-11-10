@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, ArrowUp, Check, ExternalLink, Package, RotateCcw, SkipForward, Sparkles } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { alternateMarketplaceItems } from "../lib/marketplace-order";
 import { MarketplaceTag, PageIntro } from "../components/OperationsUI";
 import { canAction, type AccessData } from "../lib/access";
 import "./ClassificacaoOrigem.css";
@@ -70,10 +71,13 @@ export function ClassificacaoOrigem({ access }: { access: AccessData }) {
     try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ currentId, filter, search, skipped, history })); } catch { /* sessão indisponível */ }
   }, [currentId, filter, search, skipped, history]);
 
-  const filtered = useMemo(() => items.filter(x =>
-    (filter === "all" || x.origin_type === filter) &&
-    (!search.trim() || x.title.toLowerCase().includes(search.trim().toLowerCase()))
-  ), [items, filter, search]);
+  const filtered = useMemo(() => {
+    const matching = items.filter(x =>
+      (filter === "all" || x.origin_type === filter) &&
+      (!search.trim() || x.title.toLowerCase().includes(search.trim().toLowerCase()))
+    );
+    return alternateMarketplaceItems(matching, item => markets.find(m => m.id === item.marketplace_id)?.slug);
+  }, [items, markets, filter, search]);
   const current = filtered.find(x => x.id === currentId) || filtered.find(x => !skipped.includes(x.id)) || null;
   const currentIndex = current ? filtered.findIndex(x => x.id === current.id) : -1;
   const nextItem = (fromId: string) => {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, CheckCircle2, Clock3, ExternalLink, Filter, Link2, PackageCheck, RefreshCw, Search, X, XCircle } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { alternateMarketplaceItems } from "../lib/marketplace-order";
 import { EmptyState, formatCurrency, formatDate, MarketplaceTag, Metric, PageIntro, StatusPill } from "../components/OperationsUI";
 
 type Offer = { id:string; product_id:string; title:string; affiliate_url:string|null; status:string; approval_status:"pending"|"approved"|"rejected"; approved_at:string|null; approved_by:string|null; rejected_at:string|null; rejected_by:string|null; rejection_reason:string|null; product_variation_id:string|null; price_snapshot:number|null; original_price_snapshot:number|null; variation_label:string|null; created_at:string };
@@ -50,7 +51,10 @@ export function Aprovacao(){
  const vmap=useMemo(()=>{const map=new Map<string,ProductVariation[]>();variations.forEach(v=>map.set(v.product_id,[...(map.get(v.product_id)||[]),v]));return map;},[variations]);
  const readyLink=(o:Offer)=>{const p=pmap.get(o.product_id),ready=(lmap.get(o.product_id)||[]).filter(l=>l.status==="ready"&&validUrl(l.affiliate_url));return ready.find(l=>l.affiliate_url===o.affiliate_url)||ready.find(l=>l.affiliate_url===p?.affiliate_url)||ready[0];};
  const uniqueOffers=useMemo(()=>{const byProduct=new Map<string,Offer>();offers.forEach(o=>{const previous=byProduct.get(o.product_id);if(!previous||new Date(o.created_at).getTime()>new Date(previous.created_at).getTime())byProduct.set(o.product_id,o);});return [...byProduct.values()];},[offers]);
- const visible=useMemo(()=>uniqueOffers.filter(o=>{const p=pmap.get(o.product_id),m=p?mmap.get(p.marketplace_id):undefined,t=[o.title,p?.title,p?.brand,cmap.get(p?.commercial_category_id||"")?.name,m?.name].filter(Boolean).join(" ").toLowerCase();return(status==="all"||o.approval_status===status)&&(marketplace==="all"||p?.marketplace_id===marketplace)&&(category==="all"||(category==="uncategorized"?!p?.commercial_category_id:p?.commercial_category_id===category))&&(!search.trim()||t.includes(search.trim().toLowerCase()));}),[uniqueOffers,pmap,mmap,cmap,status,marketplace,category,search]);
+ const visible=useMemo(()=>{
+  const filtered=uniqueOffers.filter(o=>{const p=pmap.get(o.product_id),m=p?mmap.get(p.marketplace_id):undefined,t=[o.title,p?.title,p?.brand,cmap.get(p?.commercial_category_id||"")?.name,m?.name].filter(Boolean).join(" ").toLowerCase();return(status==="all"||o.approval_status===status)&&(marketplace==="all"||p?.marketplace_id===marketplace)&&(category==="all"||(category==="uncategorized"?!p?.commercial_category_id:p?.commercial_category_id===category))&&(!search.trim()||t.includes(search.trim().toLowerCase()));});
+  return marketplace==="all" ? alternateMarketplaceItems(filtered,o=>{const p=pmap.get(o.product_id);return p?mmap.get(p.marketplace_id)?.slug:null;}) : filtered;
+ },[uniqueOffers,pmap,mmap,cmap,status,marketplace,category,search]);
  const stats={total:uniqueOffers.length,pending:uniqueOffers.filter(o=>o.approval_status==="pending").length,approved:uniqueOffers.filter(o=>o.approval_status==="approved").length,rejected:uniqueOffers.filter(o=>o.approval_status==="rejected").length};
  const selectable=visible.filter(o=>o.approval_status==="pending");
  const allSelected=selectable.length>0&&selectable.every(o=>selected.includes(o.id));
