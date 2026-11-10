@@ -183,5 +183,18 @@ LEFT JOIN public.offer_categories suggested
 
 GRANT SELECT ON public.product_category_classification_preview TO authenticated;
 
+-- The preview screen is protected by the products permission. Allow those
+-- same users to read active category metadata through this SECURITY INVOKER view.
+DROP POLICY IF EXISTS "product screen users read categories for classification preview"
+  ON public.offer_categories;
+CREATE POLICY "product screen users read categories for classification preview"
+  ON public.offer_categories
+  FOR SELECT
+  TO authenticated
+  USING (
+    active = true
+    AND has_ofertix_permission('screen.products'::text)
+  );
+
 COMMENT ON VIEW public.product_category_classification_preview IS
   'Read-only preview of automatic commercial category suggestions. Does not modify products.';
