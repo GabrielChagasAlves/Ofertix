@@ -3,42 +3,9 @@
   "name": "Ofertix — Aprovações",
   "version": "1.0.0",
   "description": "Aprove e gerencie ofertas do Ofertix em uma janela flutuante em qualquer site.",
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "ofertix-approvals@ofertix.app",
-      "strict_min_version": "128.0"
-    }
-  },
-  "permissions": [
-    "storage"
-  ],
-  "host_permissions": [
-    "https://pndbombvfrxpyqnraqsy.supabase.co/*",
-    "<all_urls>"
-  ],
-  "content_scripts": [
-    {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
-        "content.js"
-      ],
-      "run_at": "document_idle"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "panel.html",
-        "panel.js",
-        "styles.css",
-        "config.js",
-        "icons/ofertix.svg"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
-    }
-  ]
+  "browser_specific_settings": {"gecko":{"id":"ofertix-approvals@ofertix.app","strict_min_version":"128.0"}},
+  "permissions": ["storage"],
+  "host_permissions": ["https://pndbombvfrxpyqnraqsy.supabase.co/*","<all_urls>"],
+  "content_scripts": [{"matches":["<all_urls>"],"js":["content.js"],"run_at":"document_idle"}],
+  "web_accessible_resources": [{"resources":["panel.html","panel.js","styles.css","config.js","icons/ofertix.svg"],"matches":["<all_urls>"]}]
 }
