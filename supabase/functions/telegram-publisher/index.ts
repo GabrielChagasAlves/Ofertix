@@ -32,6 +32,7 @@ type Product = {
   original_price: number | null;
   discount_percent: number | null;
   origin_type: "national" | "imported" | "unknown";
+  image_url?: string | null;
 };
 
 type Channel = {
@@ -147,6 +148,25 @@ function buildMessage(offer: Offer, product: Product) {
 
   const text = lines.join("\n").trim();
   return text.length > 4096 ? text.slice(0, 4093).trimEnd() + "..." : text;
+}
+
+
+function isSafeImageUrl(value: string | null | undefined): value is string {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
+function buildPhotoCaption(message: string, affiliateUrl: string | null) {
+  if (message.length <= 1024) return message;
+  const suffix = affiliateUrl ? `\\n\\n🛒 Confira a oferta:\\n${affiliateUrl}` : "";
+  const prefix = message.split("\\n🛒 Confira a oferta:")[0].trim();
+  const available = Math.max(0, 1024 - suffix.length - 5);
+  return prefix.slice(0, available).trimEnd() + "..." + suffix;
 }
 
 export default {
@@ -431,7 +451,7 @@ export default {
           await ctx.supabaseAdmin
             .from("products")
             .select(
-              "id,title,description,brand,category,origin_country,price,original_price,discount_percent,origin_type",
+              "id,title,description,brand,category,origin_country,price,original_price,discount_percent,origin_type,image_url",
             )
             .eq("id", offer.product_id)
             .maybeSingle();
@@ -487,23 +507,43 @@ export default {
           product as Product,
         );
 
-        const telegramResponse = await fetch(
-          `https://api.telegram.org/bot${botToken}/sendMessage`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              chat_id: channel.identifier,
-              text: message,
-              disable_web_page_preview: true,
-            }),
-          },
-        );
+        let telegramResponse: Response;
+        let telegramData: any;
+        let sentWithPhoto = false;
 
-        const telegramData =
-          await telegramResponse.json();
+        if (isSafeImageUrl((product as Product).image_url)) {
+          telegramResponse = await fetch(
+            `https://api.telegram.org/bot${botToken}/sendPhoto`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id: channel.identifier,
+                photo: (product as Product).image_url,
+                caption: buildPhotoCaption(message, offer.affiliate_url),
+              }),
+            },
+          );
+          telegramData = await telegramResponse.json().catch(() => ({}));
+          sentWithPhoto = telegramResponse.ok && telegramData?.ok === true;
+        }
+
+        // Preserve the offer if Telegram cannot fetch or accept the image.
+        if (!sentWithPhoto) {
+          telegramResponse = await fetch(
+            `https://api.telegram.org/bot${botToken}/sendMessage`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id: channel.identifier,
+                text: message,
+                disable_web_page_preview: true,
+              }),
+            },
+          );
+          telegramData = await telegramResponse.json().catch(() => ({}));
+        }
 
         if (
           !telegramResponse.ok ||
@@ -558,6 +598,7 @@ export default {
           status: "published",
           external_post_id:
             externalPostId || null,
+          media_type: sentWithPhoto ? "photo" : "text_fallback",
         });
       } catch (error) {
         console.error(
