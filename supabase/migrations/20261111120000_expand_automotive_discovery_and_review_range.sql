@@ -33,8 +33,7 @@ WHERE slug = 'automotivo';
 -- Keep high-ticket automotive deals eligible for human review.
 -- The automatic approval ceiling is intentionally not changed.
 UPDATE public.offer_rules
-SET max_price = 10000,
-    updated_at = now()
+SET max_price = 10000
 WHERE active = true
   AND lower(trim(category)) = 'automotivo'
   AND (max_price IS NULL OR max_price < 10000);
