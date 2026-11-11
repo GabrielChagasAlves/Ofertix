@@ -163,8 +163,8 @@ function isSafeImageUrl(value: string | null | undefined): value is string {
 
 function buildPhotoCaption(message: string, affiliateUrl: string | null) {
   if (message.length <= 1024) return message;
-  const suffix = affiliateUrl ? `\\n\\n🛒 Confira a oferta:\\n${affiliateUrl}` : "";
-  const prefix = message.split("\\n🛒 Confira a oferta:")[0].trim();
+  const suffix = affiliateUrl ? `\n\n🛒 Confira a oferta:\n${affiliateUrl}` : "";
+  const prefix = message.split("\n🛒 Confira a oferta:")[0].trim();
   const available = Math.max(0, 1024 - suffix.length - 5);
   return prefix.slice(0, available).trimEnd() + "..." + suffix;
 }
