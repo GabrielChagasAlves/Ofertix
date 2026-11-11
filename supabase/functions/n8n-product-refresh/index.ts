@@ -330,6 +330,14 @@ export default {
       const isCatalogProduct = String(product.product_url ?? "").includes("/p/");
       const isListingId = /^MLB[0-9]+$/i.test(externalId);
 
+      const isSellableListing = (item: any) => {
+        if (num(item?.price) === null) return false;
+        if (item?.status && String(item.status).toLowerCase() !== "active") return false;
+        if (item?.available_quantity !== null && item?.available_quantity !== undefined &&
+            Number(item.available_quantity) <= 0) return false;
+        return true;
+      };
+
       const fetchKnownActiveListings = async (accessToken: string) => {
         const { data: knownListings, error: knownListingsError } = await supabaseAdmin
           .from("marketplace_listings")
@@ -505,13 +513,7 @@ export default {
 
       // A resposta /products/{id} pode conter o preço atual no buy_box_winner,
       // mesmo quando /products/{id}/items não retorna listings.
-      const isSellableListing = (item: any) => {
-        if (num(item?.price) === null) return false;
-        if (item?.status && String(item.status).toLowerCase() !== "active") return false;
-        if (item?.available_quantity !== null && item?.available_quantity !== undefined &&
-            Number(item.available_quantity) <= 0) return false;
-        return true;
-      };
+
 
       let selected =
         (buyBoxListing && isSellableListing(buyBoxListing) ? buyBoxListing : null) ??
