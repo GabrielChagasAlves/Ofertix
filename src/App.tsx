@@ -27,6 +27,7 @@ import { LinksAfiliado } from "./pages/LinksAfiliado";
 import { Execucoes } from "./pages/Execucoes";
 import { Aprovacao } from "./pages/Aprovacao";
 import { ClassificacaoOrigem } from "./pages/ClassificacaoOrigem";
+import { ClassificacaoCategorias } from "./pages/ClassificacaoCategorias";
 import { Usuarios } from "./pages/Usuarios";
 import { defaultAccess, canScreen, type AccessData } from "./lib/access";
 import { Navigate } from "react-router-dom";
@@ -249,6 +250,7 @@ function App() {
               <Route path="/" element={canScreen(access,"dashboard")?<Dashboard/>:<Navigate to={canScreen(access,"origin_classification")?"/classificacao-origem":"/acesso-restrito"} replace/>} />
               <Route path="/produtos" element={canScreen(access,"products")?<Produtos/>:<Navigate to="/acesso-restrito" replace/>} />
               <Route path="/classificacao-origem" element={canScreen(access,"origin_classification")?<ClassificacaoOrigem access={access}/>:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/classificacao-categorias" element={canScreen(access,"products")?<ClassificacaoCategorias/>:<Navigate to="/acesso-restrito" replace/>} />
               <Route path="/usuarios" element={canScreen(access,"users")?<Usuarios/>:<Navigate to="/acesso-restrito" replace/>} />
               <Route path="/acesso-restrito" element={<div className="page ops-page"><h1>Acesso não autorizado</h1><p>Seu usuário não possui permissão para acessar esta área. Solicite acesso ao administrador.</p></div>} />
               {/* Mantida por compatibilidade. Não aparece no menu principal. */}
