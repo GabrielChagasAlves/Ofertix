@@ -197,7 +197,7 @@ export default {
 
     // Consultas REST podem falhar transitoriamente (rede ou JWT com iat futuro).
     // Repetimos apenas erros transitórios e mantemos as falhas definitivas visíveis.
-    const queryWithRetry = async (operation: () => Promise<any>, label: string) => {
+    const queryWithRetry = async (operation: () => PromiseLike<any>, label: string) => {
       let lastError: any = null;
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
