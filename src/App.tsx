@@ -28,6 +28,7 @@ import { Execucoes } from "./pages/Execucoes";
 import { Aprovacao } from "./pages/Aprovacao";
 import { ClassificacaoOrigem } from "./pages/ClassificacaoOrigem";
 import { ClassificacaoCategorias } from "./pages/ClassificacaoCategorias";
+import { Cupons } from "./pages/Cupons";
 import { Usuarios } from "./pages/Usuarios";
 import { defaultAccess, canScreen, type AccessData } from "./lib/access";
 import { Navigate } from "react-router-dom";
