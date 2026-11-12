@@ -20,3 +20,21 @@ drop policy if exists coupons_manage_channels_permission on public.coupons;
 create policy coupons_manage_channels_permission on public.coupons for all to authenticated
 using (public.has_ofertix_permission('screen.channels'))
 with check (public.has_ofertix_permission('screen.channels'));
+
+-- Run the coupon queue every five minutes. Reuse the protected automation secret.
+select cron.schedule(
+  'ofertix-coupon-publisher-every-5-minutes',
+  '*/5 * * * *',
+  $job$
+    select net.http_post(
+      url := 'https://pndbombvfrxpyqnraqsy.supabase.co/functions/v1/coupon-publisher',
+      headers := jsonb_build_object(
+        'Content-Type','application/json',
+        'x-ofertix-cron-secret',
+        (select secret from public.automation_secrets where name='publication_worker' limit 1)
+      ),
+      body := '{}'::jsonb,
+      timeout_milliseconds := 60000
+    );
+  $job$
+);
