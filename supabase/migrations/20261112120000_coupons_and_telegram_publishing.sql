@@ -5,7 +5,7 @@ create table if not exists public.coupons (
  minimum_purchase numeric(12,2), activation_url text not null,
  starts_at timestamptz not null default now(), expires_at timestamptz,
  publish_at timestamptz not null default now(), auto_publish boolean not null default false,
- status text not null default 'draft' check (status in ('draft','scheduled','published','expired','cancelled')),
+ status text not null default 'draft' check (status in ('draft','scheduled','publishing','published','failed','expired','cancelled')),
  published_at timestamptz, created_by uuid references auth.users(id) on delete set null,
  created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
  constraint coupons_minimum_nonnegative check (minimum_purchase is null or minimum_purchase >= 0),
