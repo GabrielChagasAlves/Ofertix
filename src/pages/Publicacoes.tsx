@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Clock3, Megaphone, RefreshCw, Search, Send, XCircle } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { EmptyState, formatDate, Metric, PageIntro, StatusPill } from "../components/OperationsUI";
-import { InstagramPublisher } from "../components/InstagramPublisher";
 
 type Publication = { id: string; offer_id: string; channel_id: string; status: string; attempts: number; published_at: string | null; error_message: string | null; created_at: string };
 type Offer = { id: string; title: string | null; product_id: string; status: string };
