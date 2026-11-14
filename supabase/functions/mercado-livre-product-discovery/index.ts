@@ -272,12 +272,47 @@ Deno.serve(async (req: Request) => {
       .eq("active", true);
     if (Array.isArray(body.term_ids) && body.term_ids.length > 0) {
       termsQuery = termsQuery.in("id", body.term_ids.slice(0, termLimit));
-    } else {
-      termsQuery = termsQuery
-        .order("last_discovered_at", { ascending: true, nullsFirst: true })
-        .order("discovery_count", { ascending: true });
     }
-    const { data: terms, error: termsError } = await termsQuery.limit(termLimit);
+    let terms: any[] | null = null;
+    let termsError: any = null;
+    if (Array.isArray(body.term_ids) && body.term_ids.length > 0) {
+      const result = await termsQuery
+        .order("last_discovered_at", { ascending: true, nullsFirst: true })
+        .order("discovery_count", { ascending: true })
+        .limit(termLimit);
+      terms = result.data;
+      termsError = result.error;
+    } else {
+      // Prioriza Automotivo sem abandonar as demais categorias: 60% das buscas
+      // por execução ficam reservadas ao segmento automotivo.
+      const { data: automotiveCategory, error: automotiveCategoryError } = await db
+        .from("offer_categories").select("id").eq("name", "Automotivo").maybeSingle();
+      if (automotiveCategoryError) throw new Error("Não foi possível identificar a categoria Automotivo.");
+      const automotiveLimit = Math.max(1, Math.ceil(termLimit * 0.6));
+      const otherLimit = Math.max(0, termLimit - automotiveLimit);
+      const automotiveQuery = db.from("search_terms")
+        .select("id, term, category_id, discovery_count, last_discovered_at")
+        .eq("active", true);
+      const automotiveResult = automotiveCategory?.id
+        ? await automotiveQuery.eq("category_id", automotiveCategory.id)
+          .order("last_discovered_at", { ascending: true, nullsFirst: true })
+          .order("discovery_count", { ascending: true }).limit(automotiveLimit)
+        : { data: [], error: null };
+      if (automotiveResult.error) throw new Error("Não foi possível carregar os termos automotivos.");
+      let otherTerms: any[] = [];
+      if (otherLimit > 0) {
+        let otherQuery = db.from("search_terms")
+          .select("id, term, category_id, discovery_count, last_discovered_at")
+          .eq("active", true);
+        if (automotiveCategory?.id) otherQuery = otherQuery.neq("category_id", automotiveCategory.id);
+        const otherResult = await otherQuery
+          .order("last_discovered_at", { ascending: true, nullsFirst: true })
+          .order("discovery_count", { ascending: true }).limit(otherLimit);
+        if (otherResult.error) throw new Error("Não foi possível carregar os termos das demais categorias.");
+        otherTerms = otherResult.data || [];
+      }
+      terms = [...(automotiveResult.data || []), ...otherTerms];
+    }
     if (termsError) throw new Error("Não foi possível carregar os termos ativos de busca.");
     if (!terms?.length) {
       metrics.message = "Nenhum termo de busca ativo.";
