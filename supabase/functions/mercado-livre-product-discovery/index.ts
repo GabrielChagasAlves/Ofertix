@@ -283,35 +283,47 @@ Deno.serve(async (req: Request) => {
       terms = result.data;
       termsError = result.error;
     } else {
-      // Prioriza Automotivo sem abandonar as demais categorias: 60% das buscas
-      // por execução ficam reservadas ao segmento automotivo.
-      const { data: automotiveCategory, error: automotiveCategoryError } = await db
-        .from("offer_categories").select("id").eq("name", "Automotivo").maybeSingle();
-      if (automotiveCategoryError) throw new Error("Não foi possível identificar a categoria Automotivo.");
-      const automotiveLimit = Math.max(1, Math.ceil(termLimit * 0.6));
-      const otherLimit = Math.max(0, termLimit - automotiveLimit);
-      const automotiveQuery = db.from("search_terms")
+      // Distribui a mesma quantidade de buscas entre todas as categorias ativas
+      // que possuem termos ativos. A variedade vem do catálogo de termos, não
+      // de dar peso maior a uma categoria específica.
+      const { data: categories, error: categoriesError } = await db.from("offer_categories")
+        .select("id, name").eq("active", true).order("name", { ascending: true });
+      if (categoriesError) throw new Error("Não foi possível carregar as categorias ativas.");
+      const { data: allTerms, error: allTermsError } = await db.from("search_terms")
         .select("id, term, category_id, discovery_count, last_discovered_at")
-        .eq("active", true);
-      const automotiveResult = automotiveCategory?.id
-        ? await automotiveQuery.eq("category_id", automotiveCategory.id)
-          .order("last_discovered_at", { ascending: true, nullsFirst: true })
-          .order("discovery_count", { ascending: true }).limit(automotiveLimit)
-        : { data: [], error: null };
-      if (automotiveResult.error) throw new Error("Não foi possível carregar os termos automotivos.");
-      let otherTerms: any[] = [];
-      if (otherLimit > 0) {
-        let otherQuery = db.from("search_terms")
-          .select("id, term, category_id, discovery_count, last_discovered_at")
-          .eq("active", true);
-        if (automotiveCategory?.id) otherQuery = otherQuery.neq("category_id", automotiveCategory.id);
-        const otherResult = await otherQuery
-          .order("last_discovered_at", { ascending: true, nullsFirst: true })
-          .order("discovery_count", { ascending: true }).limit(otherLimit);
-        if (otherResult.error) throw new Error("Não foi possível carregar os termos das demais categorias.");
-        otherTerms = otherResult.data || [];
+        .eq("active", true)
+        .order("last_discovered_at", { ascending: true, nullsFirst: true })
+        .order("discovery_count", { ascending: true });
+      if (allTermsError) throw new Error("Não foi possível carregar os termos ativos de busca.");
+
+      const buckets = new Map<string, any[]>();
+      for (const category of categories || []) buckets.set(String(category.id), []);
+      for (const term of allTerms || []) {
+        const bucket = buckets.get(String(term.category_id || ""));
+        if (bucket) bucket.push(term);
       }
-      terms = [...(automotiveResult.data || []), ...otherTerms];
+
+      // Round-robin garante cotas iguais por categoria; categorias sem termos
+      // ativos não entram na divisão. Sobras de limite são distribuídas uma a
+      // uma na ordem das categorias, sem privilégio fixo para Automotivo.
+      const categoryIds = [...buckets.entries()]
+        .filter(([, bucket]) => bucket.length > 0)
+        .map(([id]) => id);
+      const selected: any[] = [];
+      while (selected.length < termLimit) {
+        let addedInRound = false;
+        for (const categoryId of categoryIds) {
+          if (selected.length >= termLimit) break;
+          const bucket = buckets.get(categoryId)!;
+          const nextTerm = bucket.shift();
+          if (nextTerm) {
+            selected.push(nextTerm);
+            addedInRound = true;
+          }
+        }
+        if (!addedInRound) break;
+      }
+      terms = selected;
     }
     if (termsError) throw new Error("Não foi possível carregar os termos ativos de busca.");
     if (!terms?.length) {
