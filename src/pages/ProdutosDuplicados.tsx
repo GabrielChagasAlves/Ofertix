@@ -186,10 +186,9 @@ export function ProdutosDuplicados({ products, marketplaces, onBack, onRefresh }
       // Revalida imediatamente antes da exclusão para reduzir o risco de apagar
       // um produto que recebeu novos vínculos depois da revisão inicial.
       const latestReferences = await inspectReferences(review.removeIds);
-      const blockers = Object.entries(latestReferences).filter(([, count]) => count > 0);
-      if (blockers.length) {
+      if (latestReferences.blockedProductIds.length > 0) {
         setReview({ ...review, references: latestReferences });
-        setError("A exclusão foi bloqueada: existem registros relacionados. Nenhum produto deste grupo foi apagado.");
+        setError(`A exclusão foi bloqueada: ${latestReferences.blockedProductIds.length} produto(s) possuem link de afiliado e publicação realizada. Nenhum produto deste grupo foi apagado.`);
         return;
       }
       const { data, error: deleteError } = await supabase.from("products")
