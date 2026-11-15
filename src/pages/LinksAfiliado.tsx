@@ -528,7 +528,7 @@ export function LinksAfiliado() {
         </div>
         <button type="button" className="affiliate-select-all" onClick={toggleAllVisible} disabled={!displayedProducts.length}>
           {allVisibleSelected ? <CheckSquare size={17} /> : <Square size={17} />}
-          {allVisibleSelected ? "Desmarcar" : "Selecionar todos"}
+          {allVisibleSelected ? "Desmarcar página" : "Selecionar página"}
         </button>
       </div>
 
