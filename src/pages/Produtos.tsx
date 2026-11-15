@@ -124,7 +124,9 @@ export function Produtos() {
     if (updateError) setError(updateError.message); else await load();
   };
 
-  if (showDuplicates) return <ProdutosDuplicados products={products} marketplaces={marketplaces} onBack={() => setShowDuplicates(false)} onRefresh={load} />;\n\n  return <div className="page ops-page">
+  if (showDuplicates) return <ProdutosDuplicados products={products} marketplaces={marketplaces} onBack={() => setShowDuplicates(false)} onRefresh={load} />;
+
+  return <div className="page ops-page">
     <PageIntro eyebrow="CATÁLOGO INTELIGENTE" title="Produtos qualificados" description="Itens encontrados pelas integrações e aprovados pelas regras do Ofertix." actions={<><button className="ops-button ops-button-secondary" onClick={() => setShowDuplicates(true)} disabled={loading}>Gerenciar duplicados</button><button className="ops-button ops-button-secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> Atualizar</button></>} />
     {error && <div className="ops-alert">{error}</div>}
     <section className="ops-metrics">
