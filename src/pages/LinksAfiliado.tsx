@@ -94,6 +94,8 @@ export function LinksAfiliado() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [forms, setForms] = useState<Record<string, AffiliateForm>>({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 30;
 
   async function loadData() {
     setLoading(true);
@@ -207,6 +209,20 @@ export function LinksAfiliado() {
     });
   }, [filteredProducts, showFavoritesOnly, favoriteIds, sortOrder]);
 
+  const pageCount = Math.max(1, Math.ceil(displayedProducts.length / pageSize));
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return displayedProducts.slice(start, start + pageSize);
+  }, [displayedProducts, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, marketplaceFilter, availabilityFilter, sortOrder, showFavoritesOnly]);
+
+  useEffect(() => {
+    if (currentPage > pageCount) setCurrentPage(pageCount);
+  }, [currentPage, pageCount]);
+
   const selectedProducts = useMemo(
     () => selectedIds.map((id) => products.find((product) => product.id === id)).filter((product): product is Product => Boolean(product)),
     [selectedIds, products],
@@ -256,7 +272,7 @@ export function LinksAfiliado() {
   }
 
   function toggleAllVisible() {
-    const visibleIds = displayedProducts.map((product) => product.id);
+    const visibleIds = paginatedProducts.map((product) => product.id);
     const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
     setSelectedIds((current) => allSelected
       ? current.filter((id) => !visibleIds.includes(id))
@@ -421,7 +437,7 @@ export function LinksAfiliado() {
     }
   }
 
-  const allVisibleSelected = displayedProducts.length > 0 && displayedProducts.every((product) => selectedIds.includes(product.id));
+  const allVisibleSelected = paginatedProducts.length > 0 && paginatedProducts.every((product) => selectedIds.includes(product.id));
 
   if (loading) {
     return (
@@ -512,7 +528,7 @@ export function LinksAfiliado() {
         </div>
         <button type="button" className="affiliate-select-all" onClick={toggleAllVisible} disabled={!displayedProducts.length}>
           {allVisibleSelected ? <CheckSquare size={17} /> : <Square size={17} />}
-          {allVisibleSelected ? "Desmarcar" : "Selecionar todos"}
+          {allVisibleSelected ? "Desmarcar página" : "Selecionar página"}
         </button>
       </div>
 
@@ -537,7 +553,7 @@ export function LinksAfiliado() {
         </div>
       ) : (
         <div className={`affiliate-card-grid ${viewMode === "list" ? "is-list-view" : ""}`}>
-          {displayedProducts.map((product, index) => {
+          {paginatedProducts.map((product, index) => {
             const isMercadoLivreProduct = (product.external_id || "").toUpperCase().startsWith("MLB");
             const marketplace = isMercadoLivreProduct
               ? marketplaces.find((item) => item.slug === "mercado_livre")
@@ -608,6 +624,23 @@ export function LinksAfiliado() {
             );
           })}
         </div>
+      )}
+
+      {displayedProducts.length > 0 && (
+        <nav className="affiliate-pagination" aria-label="Paginação dos produtos">
+          <span className="affiliate-pagination-summary">
+            Exibindo {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, displayedProducts.length)} de {displayedProducts.length} produtos
+          </span>
+          <div className="affiliate-pagination-controls">
+            <button type="button" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage === 1}>
+              Anterior
+            </button>
+            <span>Página {currentPage} de {pageCount}</span>
+            <button type="button" onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))} disabled={currentPage === pageCount}>
+              Próxima
+            </button>
+          </div>
+        </nav>
       )}
 
       {showModal && (

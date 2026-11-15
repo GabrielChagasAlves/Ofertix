@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ExternalLink, Filter, Link2, Package, Power, RefreshCw, Search, Tags } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { EmptyState, formatCurrency, formatDate, MarketplaceTag, Metric, PageIntro, StatusPill } from "../components/OperationsUI";
+import { ProdutosDuplicados } from "./ProdutosDuplicados";
 
 type Marketplace = { id: string; name: string; slug: string };
-type Product = { id: string; marketplace_id: string; title: string; brand: string | null; category: string | null; commercial_category_id: string | null; commercial_category_source: "manual" | "automatic"; origin_type: "national" | "imported" | "unknown"; price: number | null; original_price: number | null; discount_percent: number | null; image_url: string | null; product_url: string | null; affiliate_url: string | null; active: boolean; availability_status: string | null; last_seen_at: string | null; created_at: string };
+type Product = { id: string; marketplace_id: string; external_id?: string | null; title: string; brand: string | null; category: string | null; commercial_category_id: string | null; commercial_category_source: "manual" | "automatic"; origin_type: "national" | "imported" | "unknown"; price: number | null; original_price: number | null; discount_percent: number | null; image_url: string | null; product_url: string | null; affiliate_url: string | null; active: boolean; availability_status: string | null; last_seen_at: string | null; created_at: string };
 type Rule = { id: string; name: string; category: string | null };
 type Category = { id: string; name: string; slug: string };
 type Match = { product_id: string; rule_id: string; status: string; matched_at: string };
@@ -21,6 +22,7 @@ export function Produtos() {
   const [showHistory, setShowHistory] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showDuplicates, setShowDuplicates] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -38,7 +40,7 @@ export function Produtos() {
       const allProducts: Product[] = [];
       for (let from = 0; ; from += pageSize) {
         const { data, error: pageError } = await supabase.from("products")
-          .select("id,marketplace_id,title,brand,category,commercial_category_id,commercial_category_source,origin_type,price,original_price,discount_percent,image_url,product_url,affiliate_url,active,availability_status,last_seen_at,created_at")
+          .select("id,marketplace_id,external_id,title,brand,category,commercial_category_id,commercial_category_source,origin_type,price,original_price,discount_percent,image_url,product_url,affiliate_url,active,availability_status,last_seen_at,created_at")
           .order("created_at", { ascending: false }).range(from, from + pageSize - 1);
         if (pageError) throw pageError;
         allProducts.push(...((data ?? []) as Product[]));
@@ -122,8 +124,10 @@ export function Produtos() {
     if (updateError) setError(updateError.message); else await load();
   };
 
+  if (showDuplicates) return <ProdutosDuplicados products={products} marketplaces={marketplaces} onBack={() => setShowDuplicates(false)} onRefresh={load} />;
+
   return <div className="page ops-page">
-    <PageIntro eyebrow="CATÁLOGO INTELIGENTE" title="Produtos qualificados" description="Itens encontrados pelas integrações e aprovados pelas regras do Ofertix." actions={<button className="ops-button ops-button-secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> Atualizar</button>} />
+    <PageIntro eyebrow="CATÁLOGO INTELIGENTE" title="Produtos qualificados" description="Itens encontrados pelas integrações e aprovados pelas regras do Ofertix." actions={<><button className="ops-button ops-button-secondary" onClick={() => setShowDuplicates(true)} disabled={loading}>Gerenciar duplicados</button><button className="ops-button ops-button-secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> Atualizar</button></>} />
     {error && <div className="ops-alert">{error}</div>}
     <section className="ops-metrics">
       <Metric icon={<Package size={19} />} value={loading ? "…" : qualified.length} label="Qualificados" detail="Atendem a pelo menos uma regra" />
