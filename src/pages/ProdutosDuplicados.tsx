@@ -106,6 +106,18 @@ export function ProdutosDuplicados({ products, marketplaces, onBack, onRefresh }
     setRemoveByGroup((current) => ({ ...current, [groupKey]: (current[groupKey] ?? []).filter((id) => id !== productId) }));
   }
 
+  function toggleAllInGroup(group: DuplicateGroup) {
+    const keepId = keepByGroup[group.key];
+    if (!keepId) return;
+    const removableIds = group.items.filter((item) => item.id !== keepId).map((item) => item.id);
+    const currentSelected = removeByGroup[group.key] ?? [];
+    const allSelected = removableIds.length > 0 && removableIds.every((id) => currentSelected.includes(id));
+    setRemoveByGroup((current) => ({
+      ...current,
+      [group.key]: allSelected ? [] : removableIds,
+    }));
+  }
+
   async function prepareReview(group: DuplicateGroup) {
     const keepId = keepByGroup[group.key];
     const removeIds = (removeByGroup[group.key] ?? []).filter((id) => id !== keepId);
@@ -220,9 +232,20 @@ export function ProdutosDuplicados({ products, marketplaces, onBack, onRefresh }
               </div>
               <footer className="duplicate-group-footer">
                 <span>{keepId ? "Anúncio principal escolhido" : "Escolha qual anúncio será preservado"}{selectedIds.length ? ` · ${selectedIds.length} selecionado(s) para remoção` : ""}</span>
-                <button className="ops-button ops-button-primary" disabled={!keepId || !selectedIds.length || loadingReview} onClick={() => void prepareReview(group)}>
-                  <Trash2 size={15} /> {loadingReview ? "Verificando vínculos…" : "Revisar remoção"}
-                </button>
+                <div className="duplicate-group-actions">
+                  <button
+                    className="ops-button ops-button-secondary"
+                    disabled={!keepId}
+                    onClick={() => toggleAllInGroup(group)}
+                  >
+                    {keepId && group.items.filter((item) => item.id !== keepId).every((item) => selectedIds.includes(item.id))
+                      ? "Desmarcar todos"
+                      : "Selecionar todos"}
+                  </button>
+                  <button className="ops-button ops-button-primary" disabled={!keepId || !selectedIds.length || loadingReview} onClick={() => void prepareReview(group)}>
+                    <Trash2 size={15} /> {loadingReview ? "Verificando vínculos…" : "Revisar remoção"}
+                  </button>
+                </div>
               </footer>
             </article>;
           })}
