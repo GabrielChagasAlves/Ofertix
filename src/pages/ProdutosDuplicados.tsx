@@ -24,17 +24,12 @@ type Props = {
   onRefresh: () => Promise<void>;
 };
 type DuplicateGroup = { key: string; title: string; marketplaceId: string; items: Product[] };
-type ReferenceCounts = Record<string, number>;
+type ReferenceCounts = {
+  productsWithAffiliateLink: number;
+  productsWithPublication: number;
+  blockedProductIds: string[];
+};
 type ReviewState = { group: DuplicateGroup; keepId: string; removeIds: string[]; references: ReferenceCounts };
-
-const referenceTables = [
-  { table: "marketplace_listings", label: "Anúncios vinculados" },
-  { table: "offers", label: "Ofertas" },
-  { table: "affiliate_links", label: "Links de afiliado" },
-  { table: "product_availability_history", label: "Histórico de disponibilidade" },
-  { table: "product_rule_matches", label: "Correspondências de regras" },
-  { table: "product_variations", label: "Variações" },
-] as const;
 
 function normalizeTitle(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR")
@@ -42,12 +37,59 @@ function normalizeTitle(value: string) {
 }
 
 async function inspectReferences(productIds: string[]): Promise<ReferenceCounts> {
-  const entries = await Promise.all(referenceTables.map(async ({ table, label }) => {
-    const { count, error } = await supabase.from(table).select("id", { count: "exact", head: true }).in("product_id", productIds);
-    if (error) throw new Error(`Falha ao verificar ${label.toLowerCase()}: ${error.message}`);
-    return [label, count ?? 0] as const;
-  }));
-  return Object.fromEntries(entries);
+  const [productsResult, affiliateLinksResult, offersResult] = await Promise.all([
+    supabase.from("products").select("id, affiliate_url").in("id", productIds),
+    supabase.from("affiliate_links").select("product_id, affiliate_url").in("product_id", productIds),
+    supabase.from("offers").select("id, product_id, affiliate_url, published_at").in("product_id", productIds),
+  ]);
+
+  if (productsResult.error) throw new Error(`Falha ao verificar links dos produtos: ${productsResult.error.message}`);
+  if (affiliateLinksResult.error) throw new Error(`Falha ao verificar links de afiliado: ${affiliateLinksResult.error.message}`);
+  if (offersResult.error) throw new Error(`Falha ao verificar ofertas: ${offersResult.error.message}`);
+
+  const offerIds = (offersResult.data ?? []).map((offer) => offer.id);
+  const [channelPublicationsResult, offerPublicationsResult] = offerIds.length
+    ? await Promise.all([
+      supabase.from("channel_publications").select("offer_id, status").in("offer_id", offerIds),
+      supabase.from("offer_publications").select("offer_id, sent_at").in("offer_id", offerIds),
+    ])
+    : [{ data: [], error: null }, { data: [], error: null }];
+
+  if (channelPublicationsResult.error) throw new Error(`Falha ao verificar publicações nos canais: ${channelPublicationsResult.error.message}`);
+  if (offerPublicationsResult.error) throw new Error(`Falha ao verificar publicações de ofertas: ${offerPublicationsResult.error.message}`);
+
+  const productsWithAffiliateLink = new Set<string>();
+  (productsResult.data ?? []).forEach((product) => {
+    if (product.affiliate_url?.trim()) productsWithAffiliateLink.add(product.id);
+  });
+  (affiliateLinksResult.data ?? []).forEach((link) => {
+    if (link.affiliate_url?.trim()) productsWithAffiliateLink.add(link.product_id);
+  });
+  (offersResult.data ?? []).forEach((offer) => {
+    if (offer.affiliate_url?.trim()) productsWithAffiliateLink.add(offer.product_id);
+  });
+
+  const publishedOfferIds = new Set<string>();
+  (offersResult.data ?? []).forEach((offer) => {
+    if (offer.published_at) publishedOfferIds.add(offer.id);
+  });
+  (channelPublicationsResult.data ?? []).forEach((publication) => {
+    if (publication.status === "published") publishedOfferIds.add(publication.offer_id);
+  });
+  (offerPublicationsResult.data ?? []).forEach((publication) => {
+    if (publication.sent_at) publishedOfferIds.add(publication.offer_id);
+  });
+
+  const productsWithPublication = new Set<string>();
+  (offersResult.data ?? []).forEach((offer) => {
+    if (publishedOfferIds.has(offer.id)) productsWithPublication.add(offer.product_id);
+  });
+
+  return {
+    productsWithAffiliateLink: productsWithAffiliateLink.size,
+    productsWithPublication: productsWithPublication.size,
+    blockedProductIds: productIds.filter((id) => productsWithAffiliateLink.has(id) && productsWithPublication.has(id)),
+  };
 }
 
 export function ProdutosDuplicados({ products, marketplaces, onBack, onRefresh }: Props) {
@@ -182,7 +224,7 @@ export function ProdutosDuplicados({ products, marketplaces, onBack, onRefresh }
     />
     <div className="duplicate-safety-note">
       <ShieldCheck size={19} />
-      <div><strong>Exclusão protegida</strong><p>Um produto só poderá ser removido se não possuir ofertas, links, histórico, anúncios, variações ou correspondências de regras vinculadas. Os registros relacionados nunca serão apagados em cascata por esta tela.</p></div>
+      <div><strong>Regra de proteção</strong><p>A remoção será bloqueada somente quando o mesmo produto tiver link de afiliado e pelo menos uma publicação efetivamente realizada. Outros vínculos, como histórico, regras, anúncios ou ofertas não publicadas, não impedem a remoção.</p></div>
     </div>
     {error && <div className="ops-alert">{error}</div>}
     {message && <div className="duplicate-success"><CheckCircle2 size={17} />{message}</div>}
@@ -257,10 +299,12 @@ export function ProdutosDuplicados({ products, marketplaces, onBack, onRefresh }
         <div className="duplicate-review-heading"><div><span>CONFIRMAÇÃO DE SEGURANÇA</span><h2 id="duplicate-review-title">Revisar remoção</h2></div><button className="ops-icon-action" onClick={() => setReview(null)} disabled={deleting} aria-label="Fechar">×</button></div>
         <p>Você escolheu manter <strong>{review.group.items.find((item) => item.id === review.keepId)?.title}</strong> e remover {review.removeIds.length} anúncio(s).</p>
         <div className="duplicate-reference-list">
-          {Object.entries(review.references).map(([label, count]) => <div key={label}><span>{label}</span><strong>{count}</strong></div>)}
+          <div><span>Produtos com link de afiliado</span><strong>{review.references.productsWithAffiliateLink}</strong></div>
+          <div><span>Produtos com publicação realizada</span><strong>{review.references.productsWithPublication}</strong></div>
+          <div><span>Produtos bloqueados (com os dois critérios)</span><strong>{review.references.blockedProductIds.length}</strong></div>
         </div>
-        {Object.values(review.references).some((count) => count > 0) ? <div className="duplicate-blocked"><AlertTriangle size={18} /><span>Remoção bloqueada. Há registros vinculados aos anúncios selecionados. Nenhum dado será apagado. Para esses casos, será necessário implementar uma mesclagem específica que transfira os vínculos sem criar conflitos.</span></div> : <div className="duplicate-safe"><ShieldCheck size={18} /><span>Nenhum vínculo dependente encontrado. A exclusão removerá somente os produtos selecionados e manterá o anúncio escolhido.</span></div>}
-        <div className="duplicate-modal-actions"><button className="ops-button ops-button-secondary" onClick={() => setReview(null)} disabled={deleting}>Voltar</button><button className="ops-button ops-button-primary" onClick={() => void confirmDeletion()} disabled={deleting || Object.values(review.references).some((count) => count > 0)}><Trash2 size={15} />{deleting ? "Excluindo…" : "Confirmar exclusão"}</button></div>
+        {review.references.blockedProductIds.length > 0 ? <div className="duplicate-blocked"><AlertTriangle size={18} /><span>Remoção bloqueada: {review.references.blockedProductIds.length} produto(s) possuem link de afiliado e publicação realizada. Remova esses itens da seleção para continuar.</span></div> : <div className="duplicate-safe"><ShieldCheck size={18} /><span>Nenhum produto selecionado atende aos dois critérios de bloqueio. A remoção poderá prosseguir; os registros dependentes serão tratados pelas regras de exclusão do banco.</span></div>}
+        <div className="duplicate-modal-actions"><button className="ops-button ops-button-secondary" onClick={() => setReview(null)} disabled={deleting}>Voltar</button><button className="ops-button ops-button-primary" onClick={() => void confirmDeletion()} disabled={deleting || review.references.blockedProductIds.length > 0}><Trash2 size={15} />{deleting ? "Excluindo…" : "Confirmar exclusão"}</button></div>
       </section>
     </div>}
   </div>;
