@@ -372,72 +372,10 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
       const pendingIds = candidateIds.filter((id) => !resolvedIds.has(id));
       if (interruption || pendingIds.length) {
         setReview({ ...review, removeIds: pendingIds });
-        const completedCount = deletedIds.size;
         const detail = interruption || "Existem produtos cujo estado ainda precisa ser conferido.";
-        throw new Error(`Processamento interrompido. ${completedCount} produto(s) foram excluídos e confirmados; ${protectedIds.size} protegido(s) e ${keptIds.size} menor(es) preço(s) foram preservados. ${pendingIds.length} produto(s) permanecem pendentes. ${detail} Atualize o catálogo antes de qualquer nova tentativa.`);
+        throw new Error(`Processamento interrompido. ${deletedIds.size} produto(s) foram excluídos e confirmados; ${protectedIds.size} protegido(s) e ${keptIds.size} menor(es) preço(s) foram preservados. ${pendingIds.length} produto(s) permanecem pendentes. ${detail} Atualize o catálogo antes de qualquer nova tentativa.`);
       }
 
-      const alreadyMissingCount = candidateIds.filter((id) => !deletedIds.has(id) && !protectedIds.has(id) && !keptIds.has(id)).length;
-      setRemoveByGroup((current) => {
-          const next = { ...current };
-          review.groups.forEach((group) => { next[group.key] = []; });
-          return next;
-        });
-        setReview(null);
-        setMessage("Nenhum item foi excluído: todos os selecionados possuem link de afiliado ou publicação e foram preservados.");
-        return;
-      }
-      // Exclui em lotes pequenos e sequenciais para evitar URLs longas,
-      // requisições demoradas e perda de resposta em catálogos grandes.
-      const deleteChunkSize = 10;
-      const deletedIds = new Set<string>();
-      let deletionFailure: string | null = null;
-
-      for (let index = 0; index < eligibleIds.length; index += deleteChunkSize) {
-        const chunk = eligibleIds.slice(index, index + deleteChunkSize);
-        const { data, error: deleteError } = await supabase.from("products")
-          .delete().in("id", chunk).select("id");
-
-        if (deleteError) {
-          deletionFailure = describeError(deleteError, "Falha sem detalhes retornados pelo Supabase.");
-          break;
-        }
-
-        (data ?? []).forEach((row) => deletedIds.add(row.id));
-        if ((data?.length ?? 0) !== chunk.length) {
-          deletionFailure = `O banco confirmou ${data?.length ?? 0} exclusões de ${chunk.length} produtos no lote atual.`;
-          break;
-        }
-      }
-
-      const deletedCount = deletedIds.size;
-      if (deletionFailure) {
-        // Reconsulta os IDs elegíveis para reconciliar o estado caso a conexão
-        // tenha caído depois de o servidor executar algum DELETE.
-        const { data: remainingRows, error: verifyError } = await supabase.from("products")
-          .select("id").in("id", eligibleIds);
-        if (verifyError) {
-          const remainingIds = eligibleIds.filter((id) => !deletedIds.has(id));
-          setReview({ ...review, removeIds: remainingIds });
-          throw new Error(`A exclusão foi interrompida após confirmar ${deletedCount} produto(s). Não foi possível verificar o estado dos demais por falha de rede: ${describeError(verifyError, "erro de verificação")}. Não repita a limpeza completa até atualizar o catálogo.`);
-        }
-
-        const existingIds = new Set((remainingRows ?? []).map((row) => row.id));
-        const confirmedDeletedIds = eligibleIds.filter((id) => !existingIds.has(id));
-        confirmedDeletedIds.forEach((id) => deletedIds.add(id));
-        const pendingIds = eligibleIds.filter((id) => existingIds.has(id));
-        setReview({ ...review, removeIds: pendingIds });
-
-        if (pendingIds.length) {
-          throw new Error(`Exclusão parcial: ${deletedIds.size} produto(s) foram removidos e confirmados; ${pendingIds.length} continuam no catálogo. Causa: ${deletionFailure}. Revise os itens restantes antes de tentar novamente.`);
-        }
-      }
-
-      if (deletedIds.size !== eligibleIds.length) {
-        const remainingCount = eligibleIds.length - deletedIds.size;
-        setReview({ ...review, removeIds: eligibleIds.filter((id) => !deletedIds.has(id)) });
-        throw new Error(`O banco confirmou ${deletedIds.size} exclusões de ${eligibleIds.length}. ${remainingCount} produto(s) continuam pendentes; atualize a lista antes de tentar novamente.`);
-      }
       setRemoveByGroup((current) => {
         const next = { ...current };
         review.groups.forEach((group) => { next[group.key] = []; });
@@ -449,15 +387,21 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
         return next;
       });
       setReview(null);
-      const protectedCount = review.references.blockedProductIds.length + latestReferences.blockedProductIds.length;
-      setMessage(`${deletedCount} produto(s) removido(s) em lote. ${protectedCount ? `${protectedCount} produto(s) protegido(s) foram mantidos.` : ""} Os menores preços e os produtos com link de afiliado/publicação foram preservados.`);
-      // A exclusão já foi confirmada pelo banco. Uma falha ao recarregar o
-      // catálogo não deve ser apresentada como se a exclusão tivesse falhado.
+
+      const alreadyMissingCount = candidateIds.filter((id) =>
+        !deletedIds.has(id) && !protectedIds.has(id) && !keptIds.has(id)
+      ).length;
+      const protectedCount = new Set([
+        ...review.references.blockedProductIds,
+        ...protectedIds,
+      ]).size;
+      setMessage(`${deletedIds.size} produto(s) excluído(s) e confirmados. ${alreadyMissingCount ? `${alreadyMissingCount} já estavam ausentes. ` : ""}${protectedCount} produto(s) com link/publicação foram preservados; ${keptIds.size} menor(es) preço(s) também foram mantidos.`);
+
       try {
         await onRefresh();
       } catch (refreshError) {
         const detail = describeError(refreshError, "Erro desconhecido ao atualizar o catálogo.");
-        setError(`A exclusão foi concluída (${deletedCount} produto(s)), mas não foi possível atualizar a lista: ${detail} Atualize a página para conferir o catálogo.`);
+        setError(`A exclusão foi concluída, mas não foi possível atualizar a lista: ${detail} Atualize a página para conferir o catálogo.`);
       }
     } catch (deleteError) {
       const detail = describeError(deleteError, "O Supabase não retornou detalhes do erro.");
