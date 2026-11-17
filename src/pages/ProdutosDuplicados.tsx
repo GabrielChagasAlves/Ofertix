@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, ArrowLeft, CheckCircle2, ExternalLink, Package, RefreshCw, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ExternalLink, Package, RefreshCw, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { EmptyState, formatCurrency, formatDate, PageIntro, StatusPill } from "../components/OperationsUI";
 import "./ProdutosDuplicados.css";
