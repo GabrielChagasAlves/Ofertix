@@ -196,6 +196,22 @@ async function checkProduct(product: any, token: string) {
           bulkItem?.available_quantity !== undefined &&
           Number.isFinite(bulkQuantity);
 
+        console.info("Diagnóstico /items/bulk para anúncio de terceiro:", {
+          product_id: product.id,
+          item_id: productId,
+          seller_id: String(listingOwner.seller_id),
+          response_is_array: Array.isArray(bulkResponse),
+          response_count: Array.isArray(bulkResponse) ? bulkResponse.length : null,
+          entry_keys: bulkEntry && typeof bulkEntry === "object" ? Object.keys(bulkEntry) : [],
+          status_code: bulkStatusCode || null,
+          root_id: bulkEntry?.id ?? null,
+          body_keys: bulkItem && typeof bulkItem === "object" ? Object.keys(bulkItem) : [],
+          body_id: bulkItem?.id ?? null,
+          item_status: bulkItemStatus || null,
+          quantity_present: bulkHasPublicQuantity,
+          quantity_value: bulkHasPublicQuantity ? bulkQuantity : null,
+        });
+
         if (bulkStatusCode >= 200 && bulkStatusCode < 300 && bulkItem?.id) {
           if (bulkItemStatus === "active" &&
               (!bulkHasPublicQuantity || bulkQuantity > 0)) {
