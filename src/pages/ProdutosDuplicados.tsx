@@ -183,7 +183,7 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
       // Mantém cada conjunto isolado por título + marketplace e ordena seus anúncios
       // do menor preço para o maior; preços ausentes ficam no final.
       group.items.sort((a, b) => (a.price ?? Number.POSITIVE_INFINITY) - (b.price ?? Number.POSITIVE_INFINITY)
-        || a.created_at.localeCompare(b.created_at));
+        || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
     });
     return duplicateGroups.sort((a, b) => {
       const minA = a.items[0]?.price ?? Number.POSITIVE_INFINITY;
@@ -301,13 +301,84 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
     setError("");
     setMessage("");
     try {
-      // Revalida imediatamente antes da exclusão para reduzir o risco de apagar
-      // um produto que recebeu novos vínculos depois da revisão inicial.
-      const latestReferences = await inspectReferences(review.removeIds);
-      const protectedIds = new Set(latestReferences.blockedProductIds);
-      const eligibleIds = review.removeIds.filter((id) => !protectedIds.has(id));
-      if (eligibleIds.length === 0) {
-        setRemoveByGroup((current) => {
+      // A RPC revalida permissões, links, publicações e menor preço dentro
+      // do banco para cada lote, sem enviar milhares de IDs em uma URL.
+      const candidateIds = [...new Set(review.removeIds)];
+      const rpcChunkSize = 100;
+      const deletedIds = new Set<string>();
+      const resolvedIds = new Set<string>();
+      const protectedIds = new Set<string>();
+      const keptIds = new Set<string>();
+      let interruption: string | null = null;
+
+      for (let index = 0; index < candidateIds.length; index += rpcChunkSize) {
+        const chunk = candidateIds.slice(index, index + rpcChunkSize);
+        const { data, error: rpcError } = await supabase.rpc("delete_duplicate_products_batch", {
+          p_candidate_ids: chunk,
+        });
+
+        if (rpcError) {
+          interruption = describeError(rpcError, "Falha ao executar o lote no banco.");
+
+          // A resposta pode ter sido perdida depois da execução. Reconcilia
+          // somente o lote atual (máximo de 100 IDs), nunca o catálogo inteiro.
+          const { data: remainingRows, error: verifyError } = await supabase
+            .from("products")
+            .select("id")
+            .in("id", chunk);
+
+          if (verifyError) {
+            interruption += ` Não foi possível conferir o lote atual: ${describeError(verifyError, "falha de rede")}.`;
+          } else {
+            const existingIds = new Set((remainingRows ?? []).map((row) => row.id));
+            chunk.forEach((id) => {
+              if (!existingIds.has(id)) {
+                deletedIds.add(id);
+                resolvedIds.add(id);
+              }
+            });
+          }
+          break;
+        }
+
+        const result = data as {
+          deleted_ids?: string[];
+          protected_ids?: string[];
+          kept_ids?: string[];
+          missing_ids?: string[];
+        } | null;
+
+        (result?.deleted_ids ?? []).forEach((id) => {
+          deletedIds.add(id);
+          resolvedIds.add(id);
+        });
+        (result?.protected_ids ?? []).forEach((id) => {
+          protectedIds.add(id);
+          resolvedIds.add(id);
+        });
+        (result?.kept_ids ?? []).forEach((id) => {
+          keptIds.add(id);
+          resolvedIds.add(id);
+        });
+        (result?.missing_ids ?? []).forEach((id) => resolvedIds.add(id));
+
+        const unresolvedInChunk = chunk.filter((id) => !resolvedIds.has(id));
+        if (unresolvedInChunk.length) {
+          interruption = `O banco não retornou um estado conclusivo para ${unresolvedInChunk.length} produto(s) do lote.`;
+          break;
+        }
+      }
+
+      const pendingIds = candidateIds.filter((id) => !resolvedIds.has(id));
+      if (interruption || pendingIds.length) {
+        setReview({ ...review, removeIds: pendingIds });
+        const completedCount = deletedIds.size;
+        const detail = interruption || "Existem produtos cujo estado ainda precisa ser conferido.";
+        throw new Error(`Processamento interrompido. ${completedCount} produto(s) foram excluídos e confirmados; ${protectedIds.size} protegido(s) e ${keptIds.size} menor(es) preço(s) foram preservados. ${pendingIds.length} produto(s) permanecem pendentes. ${detail} Atualize o catálogo antes de qualquer nova tentativa.`);
+      }
+
+      const alreadyMissingCount = candidateIds.filter((id) => !deletedIds.has(id) && !protectedIds.has(id) && !keptIds.has(id)).length;
+      setRemoveByGroup((current) => {
           const next = { ...current };
           review.groups.forEach((group) => { next[group.key] = []; });
           return next;
