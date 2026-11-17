@@ -233,8 +233,8 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
         return next;
       });
       setReview(null);
-      const skippedCount = review.removeIds.length - eligibleIds.length + latestReferences.blockedProductIds.length;
-      setMessage(`${deletedCount} produto(s) removido(s). ${latestReferences.blockedProductIds.length ? `${latestReferences.blockedProductIds.length} item(ns) protegido(s) foram mantidos.` : ""} O anúncio escolhido foi preservado.`);
+      const protectedCount = review.references.blockedProductIds.length + latestReferences.blockedProductIds.length;
+      setMessage(`${deletedCount} produto(s) removido(s). ${protectedCount ? `${protectedCount} item(ns) protegido(s) foram mantidos.` : ""} O anúncio escolhido foi preservado.`);
       await onRefresh();
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Não foi possível remover os produtos selecionados.");
