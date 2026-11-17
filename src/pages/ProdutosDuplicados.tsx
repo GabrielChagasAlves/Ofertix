@@ -370,7 +370,7 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
       }
 
       const pendingIds = candidateIds.filter((id) => !resolvedIds.has(id));
-      if (interruption || pendingIds.length) {
+      if (pendingIds.length) {
         setReview({ ...review, removeIds: pendingIds });
         const detail = interruption || "Existem produtos cujo estado ainda precisa ser conferido.";
         throw new Error(`Processamento interrompido. ${deletedIds.size} produto(s) foram excluídos e confirmados; ${protectedIds.size} protegido(s) e ${keptIds.size} menor(es) preço(s) foram preservados. ${pendingIds.length} produto(s) permanecem pendentes. ${detail} Atualize o catálogo antes de qualquer nova tentativa.`);
