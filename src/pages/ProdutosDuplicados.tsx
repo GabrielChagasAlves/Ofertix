@@ -37,6 +37,33 @@ function normalizeTitle(value: string) {
     .replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
 }
 
+function describeError(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message || fallback;
+  if (typeof error === "string" && error.trim()) return error;
+
+  if (error && typeof error === "object") {
+    const value = error as Record<string, unknown>;
+    const parts = [
+      typeof value.message === "string" ? value.message : null,
+      typeof value.details === "string" ? value.details : null,
+      typeof value.hint === "string" ? `Dica: ${value.hint}` : null,
+      typeof value.code === "string" ? `Código: ${value.code}` : null,
+      typeof value.status === "number" || typeof value.status === "string"
+        ? `HTTP: ${value.status}` : null,
+    ].filter((part): part is string => Boolean(part));
+    if (parts.length) return parts.join(" · ");
+
+    try {
+      const serialized = JSON.stringify(error);
+      if (serialized && serialized !== "{}") return serialized.slice(0, 1000);
+    } catch {
+      // Usa a mensagem alternativa para objetos não serializáveis.
+    }
+  }
+
+  return fallback;
+}
+
 async function inspectReferences(productIds: string[]): Promise<ReferenceCounts> {
   // Evita URLs muito extensas no filtro .in() e limita a quantidade de
   // requisições simultâneas durante a análise de grandes catálogos.
@@ -314,11 +341,11 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
       try {
         await onRefresh();
       } catch (refreshError) {
-        const detail = refreshError instanceof Error ? refreshError.message : "Erro desconhecido ao atualizar o catálogo.";
+        const detail = describeError(refreshError, "Erro desconhecido ao atualizar o catálogo.");
         setError(`A exclusão foi concluída (${deletedCount} produto(s)), mas não foi possível atualizar a lista: ${detail} Atualize a página para conferir o catálogo.`);
       }
     } catch (deleteError) {
-      const detail = deleteError instanceof Error ? deleteError.message : "Erro desconhecido.";
+      const detail = describeError(deleteError, "O Supabase não retornou detalhes do erro.");
       setError(`Não foi possível concluir a exclusão dos produtos selecionados: ${detail}`);
     } finally {
       setDeleting(false);
