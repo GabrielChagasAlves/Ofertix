@@ -175,56 +175,67 @@ async function checkProduct(product: any, token: string) {
 
     if (listingOwner?.seller_id && connection?.external_user_id &&
         String(listingOwner.seller_id) !== String(connection.external_user_id)) {
-      // O detalhe privado /items/{id} pode ser restrito para anúncios de terceiros.
-      // A busca pública do site retorna somente anúncios ativos; exigimos encontrar
-      // o ID exato dentro dos resultados do vendedor antes de confirmar disponibilidade.
-      const publicSearchUrl = new URL("https://api.mercadolibre.com/sites/MLB/search");
-      publicSearchUrl.searchParams.set("seller_id", String(listingOwner.seller_id));
-      publicSearchUrl.searchParams.set("q", String(product.title ?? "").slice(0, 120));
-      publicSearchUrl.searchParams.set("limit", "50");
-
+      // A busca pública lista somente anúncios ativos. A API pode retornar
+      // results como strings (IDs), não como objetos. Não filtramos por título:
+      // percorremos páginas do vendedor e comparamos o ID exato do anúncio.
+      let publicItemFound = false;
+      let publicSearchFailed = false;
       try {
-        const publicSearch = await ml(publicSearchUrl.toString(), token);
-        const publicItems = Array.isArray(publicSearch?.results) ? publicSearch.results : [];
-        const exactPublicItem = publicItems.find((item: any) =>
-          String(item?.id ?? "").trim().toUpperCase() === productId.toUpperCase()
-        );
-
-        if (exactPublicItem) {
-          const publicStatus = String(exactPublicItem?.status ?? "active").trim().toLowerCase();
-          const publicQuantity = Number(exactPublicItem?.available_quantity ?? 0);
-          // A busca pública documentada lista apenas anúncios ativos; a quantidade
-          // é referencial. Não inferimos estoque exato, apenas presença ativa do item.
-          if (publicStatus === "active") {
-            const now = new Date().toISOString();
-            const { error: listingUpdateError } = await supabaseAdmin
-              .from("marketplace_listings")
-              .update({
-                active: true,
-                available_quantity: Number.isFinite(publicQuantity) ? publicQuantity : null,
-                last_seen_at: now,
-                updated_at: now,
-              })
-              .eq("product_id", product.id)
-              .eq("marketplace_id", product.marketplace_id)
-              .eq("external_item_id", productId);
-            if (listingUpdateError) {
-              throw new Error("Falha ao atualizar cache da publicação encontrada na busca pública: " + listingUpdateError.message);
-            }
-            return {
-              available: true,
-              catalogStatus: null,
-              listingsCount: 1,
-              activeListings: 1,
-              reason: "Anúncio de terceiro confirmado ativo pela busca pública do Mercado Livre. Quantidade de estoque é referencial; estoque exato não foi confirmado.",
-            };
+        let offset = 0;
+        let total = 0;
+        const pageSize = 100;
+        const maxPages = 10; // até 1.000 resultados por execução
+        for (let page = 0; page < maxPages; page++) {
+          const publicSearchUrl = new URL("https://api.mercadolibre.com/sites/MLB/search");
+          publicSearchUrl.searchParams.set("seller_id", String(listingOwner.seller_id));
+          publicSearchUrl.searchParams.set("limit", String(pageSize));
+          publicSearchUrl.searchParams.set("offset", String(offset));
+          const publicSearch = await ml(publicSearchUrl.toString(), token);
+          const publicItems = Array.isArray(publicSearch?.results) ? publicSearch.results : [];
+          const ids = publicItems.map((item: any) =>
+            String(typeof item === "string" ? item : item?.id ?? "").trim().toUpperCase()
+          );
+          if (ids.includes(productId.toUpperCase())) {
+            publicItemFound = true;
+            break;
           }
+          total = Number(publicSearch?.paging?.total ?? 0);
+          if (!publicItems.length || offset + publicItems.length >= total || publicItems.length < pageSize) {
+            break;
+          }
+          offset += publicItems.length;
         }
       } catch (publicSearchError) {
-        console.warn("Busca pública não conseguiu confirmar anúncio de terceiro:", {
+        publicSearchFailed = true;
+        console.warn("Busca pública não conseguiu consultar anúncios do vendedor:", {
           product_id: product.id,
+          seller_id: String(listingOwner.seller_id),
           error: publicSearchError instanceof Error ? publicSearchError.message : String(publicSearchError),
         });
+      }
+
+      if (publicItemFound) {
+        const now = new Date().toISOString();
+        const { error: listingUpdateError } = await supabaseAdmin
+          .from("marketplace_listings")
+          .update({
+            active: true,
+            last_seen_at: now,
+            updated_at: now,
+          })
+          .eq("product_id", product.id)
+          .eq("marketplace_id", product.marketplace_id)
+          .eq("external_item_id", productId);
+        if (listingUpdateError) {
+          throw new Error("Falha ao atualizar cache da publicação encontrada na busca pública: " + listingUpdateError.message);
+        }
+        return {
+          available: true,
+          catalogStatus: null,
+          listingsCount: 1,
+          activeListings: 1,
+          reason: "Anúncio de terceiro encontrado na busca pública do vendedor e confirmado ativo. A quantidade exata de estoque não é disponibilizada nessa consulta.",
+        };
       }
 
       return {
@@ -233,7 +244,9 @@ async function checkProduct(product: any, token: string) {
         listingsCount: null,
         reason:
           "Anúncio de terceiro (seller_id " + String(listingOwner.seller_id) +
-          "). O detalhe do anúncio é restrito e a busca pública não encontrou o ID exato; disponibilidade permanece não confirmada e nova tentativa agendada.",
+          "). O detalhe privado é restrito e o ID não apareceu nas páginas públicas consultadas" +
+          (publicSearchFailed ? " porque a consulta pública falhou" : " (até 1.000 resultados)") +
+          "; disponibilidade permanece não confirmada e nova tentativa agendada.",
       };
     }
     const item = await ml("https://api.mercadolibre.com/items/" + encodeURIComponent(productId), token);
