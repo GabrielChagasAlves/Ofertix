@@ -30,7 +30,7 @@ import { ClassificacaoOrigem } from "./pages/ClassificacaoOrigem";
 import { ClassificacaoCategorias } from "./pages/ClassificacaoCategorias";
 import { Usuarios } from "./pages/Usuarios";
 import { RevisaoDisponibilidade } from "./pages/RevisaoDisponibilidade";
-import { defaultAccess, canScreen, type AccessData } from "./lib/access";
+import { defaultAccess, canScreen, canAction, type AccessData } from "./lib/access";
 import { Navigate } from "react-router-dom";
 
 function App() {
@@ -287,7 +287,7 @@ function App() {
               <Route path="/links-afiliado" element={canScreen(access,"affiliate_links")?<LinksAfiliado />:<Navigate to="/acesso-restrito" replace/>} />
               <Route path="/aprovacao" element={canScreen(access,"approval")?<Aprovacao />:<Navigate to="/acesso-restrito" replace/>} />
               <Route path="/execucoes" element={canScreen(access,"executions")?<Execucoes />:<Navigate to="/acesso-restrito" replace/>} />
-              <Route path="/revisao-disponibilidade" element={canScreen(access,"executions")?<RevisaoDisponibilidade />:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/revisao-disponibilidade" element={(canScreen(access,"products") && canAction(access,"products.update"))?<RevisaoDisponibilidade />:<Navigate to="/acesso-restrito" replace/>} />
               <Route path="/publicacoes" element={canScreen(access,"publications")?<Publicacoes />:<Navigate to="/acesso-restrito" replace/>} />
               <Route path="/canais" element={canScreen(access,"channels")?<Canais />:<Navigate to="/acesso-restrito" replace/>} />
               {/* Mantida por compatibilidade. */}
