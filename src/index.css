@@ -6011,3 +6011,15 @@ a {
     justify-content: space-between;
   }
 }
+
+
+/* Notificações persistentes de disponibilidade */
+.app-notification-list{display:grid;max-height:420px;overflow:auto}
+.app-notification-item{display:grid;gap:5px;padding:13px 16px;border-bottom:1px solid #eef2f7;text-decoration:none;color:#334155}
+.app-notification-item:hover{background:#f8fafc}
+.app-notification-item.is-unread{background:#f5f3ff}
+.app-notification-item strong{font-size:13px;color:#0f172a}
+.app-notification-item p{font-size:12px;line-height:1.45;margin:0;color:#64748b}
+.app-notification-item small{font-size:10px;color:#94a3b8}
+.app-notification-all{padding:12px 16px;text-align:center;font-size:12px;font-weight:700;color:#6d28d9;text-decoration:none}
+.app-notification-dot{position:absolute;right:7px;top:7px;width:8px;height:8px;border-radius:50%;background:#ef4444;box-shadow:0 0 0 2px #fff}
