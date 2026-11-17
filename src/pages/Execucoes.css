@@ -110,3 +110,68 @@
 .cron-feedback.error{border-color:#fecaca;background:#fef2f2;color:#b91c1c}
 .cron-feedback button{border:0;background:transparent;color:inherit;font-size:20px;cursor:pointer}
 @media(max-width:560px){.cron-manager{padding:14px}.cron-manager-head{flex-direction:column}.cron-grid{grid-template-columns:1fr}}
+
+
+/* Central de automações — layout compacto e orientado à ação */
+.executions-page{gap:16px}
+.cron-console{background:#fff;border:1px solid #e8edf3;border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(15,23,42,.035)}
+.cron-console-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px}
+.cron-eyebrow{display:block;margin-bottom:6px;color:#64748b;font-size:10px;font-weight:750;letter-spacing:.11em}
+.cron-console-heading h2{margin:0;color:#111827;font-size:20px;letter-spacing:-.035em}
+.cron-console-heading p{margin:5px 0 0;color:#64748b;font-size:12px}
+.cron-console-tools{display:flex;align-items:center;gap:9px;flex-shrink:0}
+.cron-total{padding:6px 9px;border-radius:999px;background:#f1f5f9;color:#475569;font-size:11px;font-weight:650}
+.cron-groups{display:grid;gap:16px}
+.cron-group{min-width:0}
+.cron-group-heading{display:flex;align-items:center;justify-content:space-between;margin:0 0 7px;padding:0 1px}
+.cron-group-heading>div{display:flex;align-items:baseline;gap:8px}
+.cron-group-heading h3{margin:0;color:#334155;font-size:13px;font-weight:750}
+.cron-group-heading span{color:#94a3b8;font-size:10px}
+.cron-list{border:1px solid #e9edf3;border-radius:12px;overflow:hidden}
+.cron-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;padding:12px 14px;background:#fff}
+.cron-row+.cron-row{border-top:1px solid #edf1f5}
+.cron-row:hover{background:#fafbff}
+.cron-row.is-paused{background:#fafafa}
+.cron-row-main{min-width:0}
+.cron-row-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cron-row-title strong{color:#172033;font-size:12px;font-weight:700}
+.cron-row-main>p{max-width:920px;margin:4px 0 7px;color:#64748b;font-size:11px;line-height:1.45}
+.cron-row-meta{display:flex;align-items:center;gap:9px;flex-wrap:wrap;color:#64748b;font-size:10px}
+.cron-row-meta>span{display:inline-flex;align-items:center;gap:4px}
+.cron-row-meta code{padding:2px 6px;border-radius:5px;background:#f1f5f9;color:#64748b;font-size:10px}
+.cron-last-run{color:#94a3b8!important}
+.cron-last-run b{font-weight:650}
+.cron-last-run b.success{color:#059669}
+.cron-last-run b.warning{color:#b45309}
+.cron-last-run b.danger{color:#dc2626}
+.cron-row-action{display:flex;align-items:center;justify-content:flex-end}
+.cron-run-compact{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:104px;padding:8px 11px;border:1px solid #dbe3f0;border-radius:8px;background:#fff;color:#334155;font-size:11px;font-weight:700;white-space:nowrap;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.cron-run-compact:hover:not(:disabled){border-color:#a5b4fc;background:#eef2ff;color:#4338ca}
+.cron-run-compact:disabled{opacity:.55;cursor:not-allowed}
+.cron-feedback{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:0 0 13px;padding:10px 12px;border:1px solid #bfdbfe;border-radius:9px;background:#eff6ff;color:#1d4ed8;font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.cron-feedback.success{border-color:#bbf7d0;background:#ecfdf5;color:#047857}
+.cron-feedback.error{border-color:#fecaca;background:#fef2f2;color:#b91c1c}
+.cron-feedback button{flex-shrink:0;border:0;background:transparent;color:inherit;font-size:19px;line-height:1;cursor:pointer}
+.executions-page .ops-metrics{gap:10px}
+.executions-page .ops-metrics>*{min-width:0}
+.executions-page .ops-surface:not(.cron-manager){border-radius:14px}
+.executions-page .execution-card-list{display:grid;gap:7px;padding:0 14px 14px}
+.executions-page .execution-card{border:1px solid #e9edf3;border-radius:10px;overflow:hidden}
+.executions-page .execution-card-toggle{min-height:54px;padding:9px 12px;gap:10px}
+.executions-page .execution-card-heading strong{font-size:12px}
+.executions-page .execution-card-heading small{font-size:10px}
+.executions-page .execution-card-summary{padding:7px 12px;gap:12px;flex-wrap:wrap}
+.executions-page .execution-card-summary span{font-size:10px}
+.executions-page .execution-detail-panel{padding:12px}
+.executions-page .ops-toolbar{padding:13px 14px}
+@media(max-width:720px){
+ .cron-console{padding:14px}
+ .cron-console-heading{flex-direction:column;align-items:stretch}
+ .cron-console-tools{justify-content:space-between}
+ .cron-row{grid-template-columns:minmax(0,1fr);gap:9px;padding:11px}
+ .cron-row-action{justify-content:flex-start}
+ .cron-run-compact{min-width:120px}
+ .cron-row-meta{gap:7px}
+ .executions-page .execution-card-toggle{grid-template-columns:auto minmax(0,1fr) auto}
+ .executions-page .execution-card-state,.executions-page .execution-card-duration{display:none}
+}
