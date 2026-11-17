@@ -1,0 +1,1 @@
+grant insert on public.product_availability_history to authenticated;
