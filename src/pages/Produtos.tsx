@@ -3,6 +3,7 @@ import { CheckCircle2, ExternalLink, Filter, Link2, Package, Power, RefreshCw, S
 import { supabase } from "../lib/supabase";
 import { EmptyState, formatCurrency, formatDate, MarketplaceTag, Metric, PageIntro, StatusPill } from "../components/OperationsUI";
 import { ProdutosDuplicados } from "./ProdutosDuplicados";
+import { canAction, type AccessData } from "../lib/access";
 
 type Marketplace = { id: string; name: string; slug: string };
 type Product = { id: string; marketplace_id: string; external_id?: string | null; title: string; brand: string | null; category: string | null; commercial_category_id: string | null; commercial_category_source: "manual" | "automatic"; origin_type: "national" | "imported" | "unknown"; price: number | null; original_price: number | null; discount_percent: number | null; image_url: string | null; product_url: string | null; affiliate_url: string | null; active: boolean; availability_status: string | null; last_seen_at: string | null; created_at: string };
@@ -10,7 +11,7 @@ type Rule = { id: string; name: string; category: string | null };
 type Category = { id: string; name: string; slug: string };
 type Match = { product_id: string; rule_id: string; status: string; matched_at: string };
 
-export function Produtos() {
+export function Produtos({ access }: { access: AccessData }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
   const [rules, setRules] = useState<Rule[]>([]);
@@ -124,7 +125,7 @@ export function Produtos() {
     if (updateError) setError(updateError.message); else await load();
   };
 
-  if (showDuplicates) return <ProdutosDuplicados products={products} marketplaces={marketplaces} onBack={() => setShowDuplicates(false)} onRefresh={load} />;
+  if (showDuplicates) return <ProdutosDuplicados products={products} marketplaces={marketplaces} canDelete={canAction(access, "products.delete")} onBack={() => setShowDuplicates(false)} onRefresh={load} />;
 
   return <div className="page ops-page">
     <PageIntro eyebrow="CATÁLOGO INTELIGENTE" title="Produtos qualificados" description="Itens encontrados pelas integrações e aprovados pelas regras do Ofertix." actions={<><button className="ops-button ops-button-secondary" onClick={() => setShowDuplicates(true)} disabled={loading}>Gerenciar duplicados</button><button className="ops-button ops-button-secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> Atualizar</button></>} />
