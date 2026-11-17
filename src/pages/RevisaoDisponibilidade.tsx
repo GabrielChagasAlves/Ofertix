@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, ExternalLink, RefreshCw, CheckCircle2, XCircle, Clock3 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { PageIntro } from "../components/OperationsUI";
+import "./RevisaoDisponibilidade.css";
 
 type Product = {
   id: string; external_id: string; title: string; product_url: string | null;
