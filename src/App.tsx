@@ -274,7 +274,7 @@ function App() {
           <div className="app-page-content">
             <Routes>
               <Route path="/" element={canScreen(access,"dashboard")?<Dashboard/>:<Navigate to={canScreen(access,"origin_classification")?"/classificacao-origem":"/acesso-restrito"} replace/>} />
-              <Route path="/produtos" element={canScreen(access,"products")?<Produtos/>:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/produtos" element={canScreen(access,"products")?<Produtos access={access}/>:<Navigate to="/acesso-restrito" replace/>} />
               <Route path="/classificacao-origem" element={canScreen(access,"origin_classification")?<ClassificacaoOrigem access={access}/>:<Navigate to="/acesso-restrito" replace/>} />
               <Route path="/classificacao-categorias" element={canScreen(access,"products")?<ClassificacaoCategorias/>:<Navigate to="/acesso-restrito" replace/>} />
               <Route path="/usuarios" element={canScreen(access,"users")?<Usuarios/>:<Navigate to="/acesso-restrito" replace/>} />
