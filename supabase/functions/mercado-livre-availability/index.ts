@@ -175,7 +175,86 @@ async function checkProduct(product: any, token: string) {
 
     if (listingOwner?.seller_id && connection?.external_user_id &&
         String(listingOwner.seller_id) !== String(connection.external_user_id)) {
-      // A busca pública lista somente anúncios ativos. A API pode retornar
+      // Primeiro tentamos o endpoint oficial bulk por ID conhecido. Diferente
+      // da busca pública por vendedor, ele não exige descobrir a publicação.
+      // available_quantity em recurso público é apenas uma faixa referencial.
+      try {
+        const bulkUrl = new URL("https://api.mercadolibre.com/items/bulk");
+        bulkUrl.searchParams.set("ids", productId);
+        bulkUrl.searchParams.set(
+          "attributes",
+          "body.id,body.status,body.available_quantity,body.sub_status",
+        );
+        const bulkResponse = await ml(bulkUrl.toString(), token);
+        const bulkEntry = Array.isArray(bulkResponse) ? bulkResponse[0] : null;
+        const bulkStatusCode = Number(bulkEntry?.status_code ?? bulkEntry?.code ?? 0);
+        const bulkItem = bulkEntry?.body ?? null;
+        const bulkItemStatus = String(bulkItem?.status ?? "").trim().toLowerCase();
+        const bulkQuantity = Number(bulkItem?.available_quantity);
+        const bulkHasPublicQuantity =
+          bulkItem?.available_quantity !== null &&
+          bulkItem?.available_quantity !== undefined &&
+          Number.isFinite(bulkQuantity);
+
+        if (bulkStatusCode >= 200 && bulkStatusCode < 300 && bulkItem?.id) {
+          if (bulkItemStatus === "active" &&
+              (!bulkHasPublicQuantity || bulkQuantity > 0)) {
+            const now = new Date().toISOString();
+            const { error: bulkListingUpdateError } = await supabaseAdmin
+              .from("marketplace_listings")
+              .update({ active: true, last_seen_at: now, updated_at: now })
+              .eq("product_id", product.id)
+              .eq("marketplace_id", product.marketplace_id)
+              .eq("external_item_id", productId);
+            if (bulkListingUpdateError) {
+              throw new Error("Falha ao atualizar anúncio confirmado pelo bulk: " + bulkListingUpdateError.message);
+            }
+            return {
+              available: true,
+              catalogStatus: null,
+              listingsCount: 1,
+              activeListings: 1,
+              reason: bulkHasPublicQuantity
+                ? "Anúncio de terceiro confirmado ativo pelo endpoint /items/bulk; quantidade pública é referencial, não estoque exato."
+                : "Anúncio de terceiro confirmado com status ativo pelo endpoint /items/bulk; estoque exato não é exposto para terceiros.",
+            };
+          }
+
+          if (bulkItemStatus === "paused" || bulkItemStatus === "closed" ||
+              (bulkHasPublicQuantity && bulkQuantity <= 0)) {
+            const now = new Date().toISOString();
+            const { error: bulkListingUpdateError } = await supabaseAdmin
+              .from("marketplace_listings")
+              .update({ active: false, last_seen_at: now, updated_at: now })
+              .eq("product_id", product.id)
+              .eq("marketplace_id", product.marketplace_id)
+              .eq("external_item_id", productId);
+            if (bulkListingUpdateError) {
+              throw new Error("Falha ao atualizar anúncio indisponível confirmado pelo bulk: " + bulkListingUpdateError.message);
+            }
+            return {
+              available: false,
+              catalogStatus: null,
+              listingsCount: 0,
+              activeListings: 0,
+              reason: "Anúncio de terceiro confirmado indisponível pelo endpoint /items/bulk: status=" +
+                (bulkItemStatus || "não informado") +
+                (bulkHasPublicQuantity ? "; quantidade pública referencial=0." : "."),
+            };
+          }
+        }
+      } catch (bulkError) {
+        console.warn("Consulta /items/bulk não conseguiu confirmar anúncio de terceiro:", {
+          product_id: product.id,
+          item_id: productId,
+          seller_id: String(listingOwner.seller_id),
+          error: bulkError instanceof Error ? bulkError.message : String(bulkError),
+        });
+      }
+
+      // A busca pública por vendedor é uma segunda tentativa. Em algumas
+      // aplicações o Mercado Livre responde 403; isso não invalida o item.
+      // A API pode retornar
       // results como strings (IDs), não como objetos. Não filtramos por título:
       // percorremos páginas do vendedor e comparamos o ID exato do anúncio.
       let publicItemFound = false;
