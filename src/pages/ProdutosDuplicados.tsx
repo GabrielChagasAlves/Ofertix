@@ -20,6 +20,7 @@ type Marketplace = { id: string; name: string; slug: string };
 type Props = {
   products: Product[];
   marketplaces: Marketplace[];
+  canDelete: boolean;
   onBack: () => void;
   onRefresh: () => Promise<void>;
 };
@@ -92,7 +93,7 @@ async function inspectReferences(productIds: string[]): Promise<ReferenceCounts>
   };
 }
 
-export function ProdutosDuplicados({ products, marketplaces, onBack, onRefresh }: Props) {
+export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, onRefresh }: Props) {
   const [search, setSearch] = useState("");
   const [marketplaceFilter, setMarketplaceFilter] = useState("all");
   const [page, setPage] = useState(1);
@@ -116,8 +117,18 @@ export function ProdutosDuplicados({ products, marketplaces, onBack, onRefresh }
       if (current) current.items.push(product);
       else grouped.set(key, { key, title: product.title, marketplaceId: product.marketplace_id, items: [product] });
     });
-    return [...grouped.values()].filter((group) => group.items.length > 1)
-      .sort((a, b) => b.items.length - a.items.length || a.title.localeCompare(b.title, "pt-BR"));
+    const duplicateGroups = [...grouped.values()].filter((group) => group.items.length > 1);
+    duplicateGroups.forEach((group) => {
+      // Mantém cada conjunto isolado por título + marketplace e ordena seus anúncios
+      // do menor preço para o maior; preços ausentes ficam no final.
+      group.items.sort((a, b) => (a.price ?? Number.POSITIVE_INFINITY) - (b.price ?? Number.POSITIVE_INFINITY)
+        || a.created_at.localeCompare(b.created_at));
+    });
+    return duplicateGroups.sort((a, b) => {
+      const minA = a.items[0]?.price ?? Number.POSITIVE_INFINITY;
+      const minB = b.items[0]?.price ?? Number.POSITIVE_INFINITY;
+      return minA - minB || b.items.length - a.items.length || a.title.localeCompare(b.title, "pt-BR");
+    });
   }, [products]);
 
   const filteredGroups = useMemo(() => {
@@ -146,6 +157,11 @@ export function ProdutosDuplicados({ products, marketplaces, onBack, onRefresh }
   function chooseKeep(groupKey: string, productId: string) {
     setKeepByGroup((current) => ({ ...current, [groupKey]: productId }));
     setRemoveByGroup((current) => ({ ...current, [groupKey]: (current[groupKey] ?? []).filter((id) => id !== productId) }));
+  }
+
+  function chooseCheapest(group: DuplicateGroup) {
+    const cheapest = group.items.find((item) => item.price != null);
+    if (cheapest) chooseKeep(group.key, cheapest.id);
   }
 
   function toggleAllInGroup(group: DuplicateGroup) {
@@ -225,6 +241,7 @@ export function ProdutosDuplicados({ products, marketplaces, onBack, onRefresh }
       <ShieldCheck size={19} />
       <div><strong>Regra de proteção</strong><p>A remoção será bloqueada somente quando o mesmo produto tiver link de afiliado e pelo menos uma publicação efetivamente realizada. Outros vínculos, como histórico, regras, anúncios ou ofertas não publicadas, não impedem a remoção.</p></div>
     </div>
+    {!canDelete && <div className="ops-alert">Seu usuário pode consultar os duplicados, mas não possui a permissão <strong>Excluir produtos duplicados</strong>. Solicite essa ação ao administrador.</div>}
     {error && <div className="ops-alert">{error}</div>}
     {message && <div className="duplicate-success"><CheckCircle2 size={17} />{message}</div>}
     <section className="ops-metrics duplicate-metrics">
@@ -250,7 +267,7 @@ export function ProdutosDuplicados({ products, marketplaces, onBack, onRefresh }
                 <StatusPill tone="warning">{group.items.length - 1} possíveis duplicados</StatusPill>
               </header>
               <div className="duplicate-product-list">
-                {group.items.map((product) => {
+                {group.items.map((product, productIndex) => {
                   const isKeep = keepId === product.id;
                   const isSelected = selectedIds.includes(product.id);
                   return <div className={`duplicate-product-row ${isKeep ? "is-keep" : ""} ${isSelected ? "is-selected" : ""}`} key={product.id}>
@@ -260,7 +277,7 @@ export function ProdutosDuplicados({ products, marketplaces, onBack, onRefresh }
                       <span>{product.external_id || "Código externo não informado"} · {product.active ? "Ativo" : "Inativo"} · Incluído em {formatDate(product.created_at)}</span>
                       <div className="duplicate-product-meta">
                         <b>{formatCurrency(product.price)}</b>
-                        {product.affiliate_url ? <StatusPill tone="success">Com link de afiliado</StatusPill> : <StatusPill>Sem link de afiliado</StatusPill>}
+                        {productIndex === 0 && product.price != null && <StatusPill tone="success">Menor preço do grupo</StatusPill>}{product.affiliate_url ? <StatusPill tone="success">Com link de afiliado</StatusPill> : <StatusPill>Sem link de afiliado</StatusPill>}
                         {product.product_url && <a href={product.product_url} target="_blank" rel="noreferrer">Abrir anúncio <ExternalLink size={12} /></a>}
                       </div>
                     </div>
@@ -276,14 +293,15 @@ export function ProdutosDuplicados({ products, marketplaces, onBack, onRefresh }
                 <div className="duplicate-group-actions">
                   <button
                     className="ops-button ops-button-secondary"
-                    disabled={!keepId}
+                    disabled={!canDelete || !keepId}
                     onClick={() => toggleAllInGroup(group)}
                   >
                     {keepId && group.items.filter((item) => item.id !== keepId).every((item) => selectedIds.includes(item.id))
                       ? "Desmarcar todos"
                       : "Selecionar todos"}
                   </button>
-                  <button className="ops-button ops-button-primary" disabled={!keepId || !selectedIds.length || loadingReview} onClick={() => void prepareReview(group)}>
+                  <button className="ops-button ops-button-secondary" disabled={!canDelete || !group.items.some((item) => item.price != null)} onClick={() => chooseCheapest(group)}>Manter menor preço</button>
+                  <button className="ops-button ops-button-primary" disabled={!canDelete || !keepId || !selectedIds.length || loadingReview} onClick={() => void prepareReview(group)}>
                     <Trash2 size={15} /> {loadingReview ? "Verificando vínculos…" : "Revisar remoção"}
                   </button>
                 </div>
@@ -302,7 +320,7 @@ export function ProdutosDuplicados({ products, marketplaces, onBack, onRefresh }
           <div><span>Produtos com publicação realizada</span><strong>{review.references.productsWithPublication}</strong></div>
           <div><span>Produtos bloqueados (com os dois critérios)</span><strong>{review.references.blockedProductIds.length}</strong></div>
         </div>
-        {review.references.blockedProductIds.length > 0 ? <div className="duplicate-blocked"><AlertTriangle size={18} /><span>Remoção bloqueada: {review.references.blockedProductIds.length} produto(s) possuem link de afiliado e publicação realizada. Remova esses itens da seleção para continuar.</span></div> : <div className="duplicate-safe"><ShieldCheck size={18} /><span>Nenhum produto selecionado atende aos dois critérios de bloqueio. A remoção poderá prosseguir; os registros dependentes serão tratados pelas regras de exclusão do banco.</span></div>}
+        {review.references.blockedProductIds.length > 0 ? <div className="duplicate-blocked"><AlertTriangle size={18} /><span>Remoção bloqueada: {review.references.blockedProductIds.length} produto(s) possuem link de afiliado e publicação realizada. Remova esses itens da seleção para continuar.</span></div> : <div className="duplicate-safe"><ShieldCheck size={18} /><span>Nenhum produto selecionado atende aos dois critérios de bloqueio. Atenção: ao confirmar, o banco também excluirá registros dependentes vinculados aos produtos, conforme as regras de integridade.</span></div>}
         <div className="duplicate-modal-actions"><button className="ops-button ops-button-secondary" onClick={() => setReview(null)} disabled={deleting}>Voltar</button><button className="ops-button ops-button-primary" onClick={() => void confirmDeletion()} disabled={deleting || review.references.blockedProductIds.length > 0}><Trash2 size={15} />{deleting ? "Excluindo…" : "Confirmar exclusão"}</button></div>
       </section>
     </div>}
