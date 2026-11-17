@@ -386,6 +386,21 @@ export default {
         searchUrl.searchParams.set("q", String(product.title ?? "").slice(0, 180));
         searchUrl.searchParams.set("limit", "20");
 
+        const { data: knownListings, error: knownListingsError } = await supabaseAdmin
+          .from("marketplace_listings")
+          .select("external_item_id")
+          .eq("product_id", productId)
+          .eq("marketplace_id", connection.marketplace_id)
+          .not("external_item_id", "is", null)
+          .limit(25);
+        if (knownListingsError) {
+          throw new Error("Erro ao consultar IDs de publicações vinculadas: " + knownListingsError.message);
+        }
+        const knownItemIds = new Set<string>([
+          externalId.toUpperCase(),
+          ...(knownListings ?? []).map((row: any) => String(row.external_item_id ?? "").trim().toUpperCase()),
+        ].filter((id) => /^MLB[0-9]+$/.test(id)));
+
         const searchData = await ml<any>(searchUrl.toString(), accessToken);
         const candidates = Array.isArray(searchData?.results) ? searchData.results : [];
 
@@ -398,7 +413,7 @@ export default {
           );
           const items = Array.isArray(catalogItems?.results) ? catalogItems.results : [];
           const exactListing = items.find((item: any) =>
-            String(item?.item_id ?? item?.id ?? "").toUpperCase() === externalId.toUpperCase()
+            knownItemIds.has(String(item?.item_id ?? item?.id ?? "").trim().toUpperCase())
           );
           if (!exactListing || num(exactListing.price) === null) continue;
 
@@ -407,7 +422,7 @@ export default {
               id: candidate.id,
               name: candidate.name ?? product.title,
               buy_box_winner: {
-                item_id: externalId,
+                item_id: String(exactListing.item_id ?? exactListing.id),
                 price: exactListing.price,
                 original_price: exactListing.original_price ?? null,
               },
@@ -460,14 +475,15 @@ export default {
             };
           } catch (itemError) {
             const message = itemError instanceof Error ? itemError.message : String(itemError);
-            if (/HTTP 403/i.test(message)) {
-              // O endpoint /items pode bloquear anúncios de terceiros.
-              // Resolver pelo catálogo e exigir correspondência exata do item_id.
+            if (/HTTP (403|404)|not found/i.test(message)) {
+              // /items pode restringir anúncios de terceiros ou não reconhecer um
+              // external_id antigo. Tentar resolver pelo catálogo usando também os
+              // IDs reais já vinculados em marketplace_listings.
               const catalogMatch = await resolveListingThroughCatalog(accessToken);
               if (catalogMatch) return catalogMatch;
               throw itemError;
             }
-            if (!/HTTP 404|not found/i.test(message)) throw itemError;
+            throw itemError;
           }
         }
 
@@ -555,10 +571,6 @@ export default {
               product_url: itemData?.permalink ?? product.product_url,
               active: product.active,
               price_synced_at: itemNow,
-              availability_status: "available",
-              last_availability_check: itemNow,
-              last_available_at: itemNow,
-              availability_error: null,
               last_seen_at: itemNow,
               updated_at: itemNow,
             };
@@ -646,8 +658,7 @@ export default {
         product_url: detail?.permalink ?? product.product_url ?? "https://www.mercadolivre.com.br/p/" + externalId,
         active: product.active,
         price_synced_at: now,
-        availability_status: "available", last_availability_check: now,
-        last_available_at: now, availability_error: null, last_seen_at: now, updated_at: now,
+        last_seen_at: now, updated_at: now,
       };
 
       const { data: updatedProduct, error: updateError } = await supabaseAdmin.from("products")
