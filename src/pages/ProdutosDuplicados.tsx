@@ -309,9 +309,17 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
       setReview(null);
       const protectedCount = review.references.blockedProductIds.length + latestReferences.blockedProductIds.length;
       setMessage(`${deletedCount} produto(s) removido(s) em lote. ${protectedCount ? `${protectedCount} produto(s) protegido(s) foram mantidos.` : ""} Os menores preços e os produtos com link de afiliado/publicação foram preservados.`);
-      await onRefresh();
+      // A exclusão já foi confirmada pelo banco. Uma falha ao recarregar o
+      // catálogo não deve ser apresentada como se a exclusão tivesse falhado.
+      try {
+        await onRefresh();
+      } catch (refreshError) {
+        const detail = refreshError instanceof Error ? refreshError.message : "Erro desconhecido ao atualizar o catálogo.";
+        setError(`A exclusão foi concluída (${deletedCount} produto(s)), mas não foi possível atualizar a lista: ${detail} Atualize a página para conferir o catálogo.`);
+      }
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "Não foi possível remover os produtos selecionados.");
+      const detail = deleteError instanceof Error ? deleteError.message : "Erro desconhecido.";
+      setError(`Não foi possível concluir a exclusão dos produtos selecionados: ${detail}`);
     } finally {
       setDeleting(false);
     }
