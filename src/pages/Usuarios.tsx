@@ -3,7 +3,7 @@ import {ShieldCheck,UserPlus,Users,Save,RefreshCw} from "lucide-react";
 import {supabase} from "../lib/supabase";
 import {PageIntro,StatusPill} from "../components/OperationsUI";
 const screens=[["dashboard","Dashboard"],["products","Produtos"],["origin_classification","Classificação de origem"],["integrations","Integrações"],["rules","Regras"],["affiliate_links","Links de Afiliado"],["approval","Aprovação"],["executions","Execuções"],["publications","Publicações"],["channels","Canais"],["clicks","Cliques"],["settings","Configurações"],["users","Usuários"]];
-const actions=[["products.origin.update","Classificar origem: nacional/importado"],["products.update","Editar dados gerais de produtos"],["offers.approve","Aprovar ofertas"],["offers.reject","Rejeitar ofertas"]];
+const actions=[["products.origin.update","Classificar origem: nacional/importado"],["products.update","Editar dados gerais de produtos"],["products.delete","Excluir produtos duplicados"],["offers.approve","Aprovar ofertas"],["offers.reject","Rejeitar ofertas"]];
 type User={user_id:string;email:string|null;role:string;is_active:boolean;permissions:{screens:Record<string,boolean>;actions:Record<string,boolean>}};
 export function Usuarios(){const [users,setUsers]=useState<User[]>([]),[email,setEmail]=useState(""),[manualEmail,setManualEmail]=useState(""),[manualPassword,setManualPassword]=useState(""),[loading,setLoading]=useState(true),[busy,setBusy]=useState(""),[error,setError]=useState(""),[notice,setNotice]=useState("");
 const invoke=async(body:Record<string,unknown>)=>{const {data,error}=await supabase.functions.invoke("admin-user-management",{body});if(error)throw error;return data;};
