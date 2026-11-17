@@ -38,51 +38,80 @@ function normalizeTitle(value: string) {
 }
 
 async function inspectReferences(productIds: string[]): Promise<ReferenceCounts> {
-  const [productsResult, affiliateLinksResult, offersResult] = await Promise.all([
-    supabase.from("products").select("id, affiliate_url").in("id", productIds),
-    supabase.from("affiliate_links").select("product_id, affiliate_url").in("product_id", productIds),
-    supabase.from("offers").select("id, product_id, affiliate_url, published_at").in("product_id", productIds),
-  ]);
+  // Evita URLs muito extensas no filtro .in() e limita a quantidade de
+  // requisições simultâneas durante a análise de grandes catálogos.
+  const chunkSize = 100;
+  const chunks: string[][] = [];
+  for (let index = 0; index < productIds.length; index += chunkSize) {
+    chunks.push(productIds.slice(index, index + chunkSize));
+  }
 
-  if (productsResult.error) throw new Error(`Falha ao verificar links dos produtos: ${productsResult.error.message}`);
-  if (affiliateLinksResult.error) throw new Error(`Falha ao verificar links de afiliado: ${affiliateLinksResult.error.message}`);
-  if (offersResult.error) throw new Error(`Falha ao verificar ofertas: ${offersResult.error.message}`);
+  const productsRows: { id: string; affiliate_url: string | null }[] = [];
+  const affiliateLinksRows: { product_id: string; affiliate_url: string | null }[] = [];
+  const offersRows: { id: string; product_id: string; affiliate_url: string | null; published_at: string | null }[] = [];
 
-  const offerIds = (offersResult.data ?? []).map((offer) => offer.id);
-  const [channelPublicationsResult, offerPublicationsResult] = offerIds.length
-    ? await Promise.all([
-      supabase.from("channel_publications").select("offer_id, status").in("offer_id", offerIds),
-      supabase.from("offer_publications").select("offer_id, sent_at").in("offer_id", offerIds),
-    ])
-    : [{ data: [], error: null }, { data: [], error: null }];
+  for (const ids of chunks) {
+    const [productsResult, affiliateLinksResult, offersResult] = await Promise.all([
+      supabase.from("products").select("id, affiliate_url").in("id", ids),
+      supabase.from("affiliate_links").select("product_id, affiliate_url").in("product_id", ids),
+      supabase.from("offers").select("id, product_id, affiliate_url, published_at").in("product_id", ids),
+    ]);
 
-  if (channelPublicationsResult.error) throw new Error(`Falha ao verificar publicações nos canais: ${channelPublicationsResult.error.message}`);
-  if (offerPublicationsResult.error) throw new Error(`Falha ao verificar publicações de ofertas: ${offerPublicationsResult.error.message}`);
+    if (productsResult.error) throw new Error(`Falha ao verificar links dos produtos: ${productsResult.error.message}`);
+    if (affiliateLinksResult.error) throw new Error(`Falha ao verificar links de afiliado: ${affiliateLinksResult.error.message}`);
+    if (offersResult.error) throw new Error(`Falha ao verificar ofertas: ${offersResult.error.message}`);
+
+    productsRows.push(...(productsResult.data ?? []));
+    affiliateLinksRows.push(...(affiliateLinksResult.data ?? []));
+    offersRows.push(...(offersResult.data ?? []));
+  }
+
+  const offerIds = offersRows.map((offer) => offer.id);
+  const offerChunks: string[][] = [];
+  for (let index = 0; index < offerIds.length; index += chunkSize) {
+    offerChunks.push(offerIds.slice(index, index + chunkSize));
+  }
+
+  const channelPublicationsRows: { offer_id: string; status: string | null }[] = [];
+  const offerPublicationsRows: { offer_id: string; sent_at: string | null }[] = [];
+
+  for (const ids of offerChunks) {
+    const [channelPublicationsResult, offerPublicationsResult] = await Promise.all([
+      supabase.from("channel_publications").select("offer_id, status").in("offer_id", ids),
+      supabase.from("offer_publications").select("offer_id, sent_at").in("offer_id", ids),
+    ]);
+
+    if (channelPublicationsResult.error) throw new Error(`Falha ao verificar publicações nos canais: ${channelPublicationsResult.error.message}`);
+    if (offerPublicationsResult.error) throw new Error(`Falha ao verificar publicações de ofertas: ${offerPublicationsResult.error.message}`);
+
+    channelPublicationsRows.push(...(channelPublicationsResult.data ?? []));
+    offerPublicationsRows.push(...(offerPublicationsResult.data ?? []));
+  }
 
   const productsWithAffiliateLink = new Set<string>();
-  (productsResult.data ?? []).forEach((product) => {
+  productsRows.forEach((product) => {
     if (product.affiliate_url?.trim()) productsWithAffiliateLink.add(product.id);
   });
-  (affiliateLinksResult.data ?? []).forEach((link) => {
+  affiliateLinksRows.forEach((link) => {
     if (link.affiliate_url?.trim()) productsWithAffiliateLink.add(link.product_id);
   });
-  (offersResult.data ?? []).forEach((offer) => {
+  offersRows.forEach((offer) => {
     if (offer.affiliate_url?.trim()) productsWithAffiliateLink.add(offer.product_id);
   });
 
   const publishedOfferIds = new Set<string>();
-  (offersResult.data ?? []).forEach((offer) => {
+  offersRows.forEach((offer) => {
     if (offer.published_at) publishedOfferIds.add(offer.id);
   });
-  (channelPublicationsResult.data ?? []).forEach((publication) => {
+  channelPublicationsRows.forEach((publication) => {
     if (publication.status === "published") publishedOfferIds.add(publication.offer_id);
   });
-  (offerPublicationsResult.data ?? []).forEach((publication) => {
+  offerPublicationsRows.forEach((publication) => {
     if (publication.sent_at) publishedOfferIds.add(publication.offer_id);
   });
 
   const productsWithPublication = new Set<string>();
-  (offersResult.data ?? []).forEach((offer) => {
+  offersRows.forEach((offer) => {
     if (publishedOfferIds.has(offer.id)) productsWithPublication.add(offer.product_id);
   });
 
