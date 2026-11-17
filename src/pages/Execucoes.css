@@ -89,3 +89,24 @@
 .draft-force:disabled,.draft-cancel:disabled{opacity:.55;cursor:not-allowed;box-shadow:none}
 .spin{animation:exec-spin .9s linear infinite}
 @keyframes exec-spin{to{transform:rotate(360deg)}}
+
+
+/* Painel de execução individual dos agendamentos */
+.cron-manager{margin-bottom:18px;padding:20px}
+.cron-manager-head{align-items:flex-start}
+.cron-manager-head h2{margin:0 0 5px;font-size:19px;color:#0f172a}
+.cron-manager-head p:not(.ops-eyebrow){margin:0;color:#64748b;font-size:13px}
+.cron-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:13px}
+.cron-card{display:flex;flex-direction:column;min-width:0;padding:16px;border:1px solid #e7ebf1;border-radius:13px;background:#fff}
+.cron-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.cron-card-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:#eef2ff;color:#4f46e5}
+.cron-card h3{margin:0 0 5px;font-size:14px;line-height:1.4;color:#172033}
+.cron-job-name{min-height:28px;color:#8490a2;font-size:10px;overflow-wrap:anywhere}
+.cron-schedule{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0 14px;padding-top:11px;border-top:1px solid #edf0f4;color:#64748b;font-size:11px}
+.cron-schedule code{padding:4px 7px;border-radius:6px;background:#f1f5f9;color:#334155;font-size:11px}
+.cron-run-button{width:100%;justify-content:center;margin-top:auto}
+.cron-feedback{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 13px;margin:0 0 14px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#1d4ed8;font-size:13px}
+.cron-feedback.success{border-color:#bbf7d0;background:#ecfdf5;color:#047857}
+.cron-feedback.error{border-color:#fecaca;background:#fef2f2;color:#b91c1c}
+.cron-feedback button{border:0;background:transparent;color:inherit;font-size:20px;cursor:pointer}
+@media(max-width:560px){.cron-manager{padding:14px}.cron-manager-head{flex-direction:column}.cron-grid{grid-template-columns:1fr}}
