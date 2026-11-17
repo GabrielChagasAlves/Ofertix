@@ -24,19 +24,76 @@ type RunItem = {
   details: Record<string, unknown> | null; created_at: string;
 };
 
-function cronTitle(name: string) {
-  const labels: Record<string, string> = {
-    "ofertix-mercado-livre-availability": "Verificação de disponibilidade · Mercado Livre",
-    "ofertix-mercado-livre-sync": "Descoberta de produtos · Mercado Livre (principal)",
-    "ofertix-mercado-livre-sync-offset": "Descoberta de produtos · Mercado Livre (alternado)",
-    "ofertix-product-price-refresh": "Atualização de preços · Mercado Livre",
-    "ofertix-publication-worker": "Publicação de ofertas (pausado)",
-    "ofertix-publication-worker-every-30-minutes": "Publicação de ofertas (ciclo principal)",
-    "ofertix-publication-worker-offset-every-90-minutes": "Publicação de ofertas (ciclo alternado)",
-    "ofertix-shopee-sync": "Sincronização Shopee (principal)",
-    "ofertix-shopee-sync-offset": "Sincronização Shopee (alternado)",
-  };
-  return labels[name] ?? name.replaceAll("-", " ");
+type CronMeta = { title: string; description: string; group: "Mercado Livre" | "Publicação" | "Shopee"; functionName: string; frequency: string; };
+const cronMeta: Record<string, CronMeta> = {
+  "ofertix-mercado-livre-availability": {
+    title: "Verificar disponibilidade",
+    description: "Reconsulta anúncios ativos do Mercado Livre, atualiza o status de disponibilidade e alimenta o histórico e a fila de revisão.",
+    group: "Mercado Livre", functionName: "mercado-livre-availability", frequency: "A cada hora · minuto 15",
+  },
+  "ofertix-mercado-livre-sync": {
+    title: "Descobrir e integrar produtos",
+    description: "Pesquisa os termos configurados, coleta anúncios e integra produtos e vínculos de publicação ao Ofertix.",
+    group: "Mercado Livre", functionName: "mercado-livre-product-discovery", frequency: "A cada 3 horas · ciclo principal",
+  },
+  "ofertix-mercado-livre-sync-offset": {
+    title: "Descobrir e integrar produtos",
+    description: "Executa a mesma rotina de descoberta em horário alternado para distribuir a carga entre os ciclos.",
+    group: "Mercado Livre", functionName: "mercado-livre-product-discovery", frequency: "A cada 3 horas · ciclo alternado",
+  },
+  "ofertix-product-price-refresh": {
+    title: "Atualizar preços",
+    description: "Consulta os anúncios vinculados e atualiza os preços dos produtos. O lote efetivo é limitado a até 10 produtos por execução.",
+    group: "Mercado Livre", functionName: "product-price-refresh-scheduler", frequency: "A cada 15 minutos",
+  },
+  "ofertix-publication-worker": {
+    title: "Publicar ofertas · legado",
+    description: "Worker de publicação de ofertas aprovadas e agendadas nos canais ativos. Este agendamento está pausado; a execução manual continua disponível.",
+    group: "Publicação", functionName: "publication-worker", frequency: "A cada 10 minutos · pausado",
+  },
+  "ofertix-publication-worker-every-30-minutes": {
+    title: "Processar fila de publicações",
+    description: "Busca ofertas prontas para publicação e processa os envios aos canais configurados, respeitando as regras de cada canal.",
+    group: "Publicação", functionName: "publication-worker", frequency: "A cada 3 horas · ciclo principal",
+  },
+  "ofertix-publication-worker-offset-every-90-minutes": {
+    title: "Processar fila de publicações",
+    description: "Executa o mesmo worker em horário alternado para dar continuidade ao processamento da fila.",
+    group: "Publicação", functionName: "publication-worker", frequency: "A cada 3 horas · ciclo alternado",
+  },
+  "ofertix-shopee-sync": {
+    title: "Sincronizar catálogo Shopee",
+    description: "Consulta os feeds de produtos da Shopee, importa os registros disponíveis e atualiza a base de produtos integrada.",
+    group: "Shopee", functionName: "shopee-sync", frequency: "A cada 3 horas · ciclo principal",
+  },
+  "ofertix-shopee-sync-offset": {
+    title: "Sincronizar catálogo Shopee",
+    description: "Executa a mesma sincronização em horário alternado para distribuir as consultas aos feeds.",
+    group: "Shopee", functionName: "shopee-sync", frequency: "A cada 3 horas · ciclo alternado",
+  },
+};
+function cronInfo(name: string): CronMeta {
+  return cronMeta[name] ?? { title: name.replaceAll("-", " "), description: "Rotina agendada do Ofertix.", group: "Mercado Livre", functionName: name, frequency: "Ver agendamento" };
+}
+function cronSchedule(name: string) {
+  const info = cronInfo(name);
+  return info.frequency;
+}
+async function edgeFunctionError(error: unknown): Promise<string> {
+  const context = (error as { context?: Response } | null)?.context;
+  if (context instanceof Response) {
+    try {
+      const body = await context.clone().json() as Record<string, unknown>;
+      const primary = String(body.error ?? body.message ?? "A função recusou a solicitação.");
+      const details = body.details ? " — " + String(body.details) : "";
+      const status = body.upstream_status ? " (HTTP " + body.upstream_status + ")" : "";
+      return primary + status + details;
+    } catch {
+      const raw = await context.clone().text().catch(() => "");
+      if (raw) return raw.slice(0, 1200);
+    }
+  }
+  return error instanceof Error ? error.message : "Falha ao comunicar com a Edge Function.";
 }
 function routineName(name: string) {
   const labels: Record<string, string> = {
@@ -157,10 +214,11 @@ export function Execucoes() {
     setRunningCron(cron.jobid); setCronFeedback(null);
     const { data, error: requestError } = await supabase.functions.invoke("automation-control", { body: { action: "run_cron", job_name: cron.jobname } });
     if (requestError || data?.success === false) {
-      setCronFeedback({ type: "error", message: requestError?.message || data?.error || "Falha ao solicitar execução." });
+      const detail = requestError ? await edgeFunctionError(requestError) : String(data?.error ?? "Falha ao solicitar execução.");
+      setCronFeedback({ type: "error", message: detail });
     } else {
-      setCronFeedback({ type: "success", message: `Execução de “${cronTitle(cron.jobname)}” enviada. Confira o resultado no histórico abaixo.` });
-      window.setTimeout(() => { void load(); }, 2500);
+      setCronFeedback({ type: "success", message: data?.message || "A rotina respondeu com sucesso. Confira os detalhes no histórico." });
+      await load();
     }
     setRunningCron(null);
   };
@@ -196,23 +254,40 @@ export function Execucoes() {
   return <div className="page ops-page executions-page">
     <PageIntro eyebrow="AUTOMAÇÕES" title="Execuções e histórico" description="Acompanhe cada rotina, os itens processados e o motivo individual de cada falha." actions={<button className="ops-button ops-button-secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> Atualizar</button>} />
     {error && <div className="ops-alert">{error}</div>}
-    <section className="ops-surface cron-manager">
-      <div className="ops-section-head cron-manager-head">
-        <div><p className="ops-eyebrow">CONTROLE MANUAL</p><h2>Agendamentos (crons)</h2><p>Execute uma rotina isoladamente, sem disparar as demais.</p></div>
-        <button className="ops-button ops-button-secondary" onClick={() => void loadCrons()} disabled={loadingCrons}><RefreshCw size={15} /> Atualizar</button>
+    <section className="cron-console">
+      <div className="cron-console-heading">
+        <div><span className="cron-eyebrow">CENTRAL DE AUTOMAÇÕES</span><h2>Rotinas agendadas</h2><p>Entenda o que cada processo faz e execute apenas o que precisa.</p></div>
+        <div className="cron-console-tools"><span className="cron-total">{crons.length} rotinas</span><button className="ops-button ops-button-secondary" onClick={() => { void loadCrons(); void load(); }} disabled={loadingCrons}><RefreshCw size={14} /> Atualizar</button></div>
       </div>
       {cronError && <div className="ops-alert">{cronError}</div>}
-      {cronFeedback && <div className={"cron-feedback " + cronFeedback.type}>{cronFeedback.message}<button type="button" onClick={() => setCronFeedback(null)} aria-label="Fechar">×</button></div>}
-      {loadingCrons ? <div className="ops-empty"><p>Carregando agendamentos…</p></div> : crons.length === 0 ? <EmptyState title="Nenhum cron encontrado" detail="Não foram encontrados agendamentos Ofertix no banco." /> :
-        <div className="cron-grid">{crons.map((cron) => <article className="cron-card" key={cron.jobid}>
-          <div className="cron-card-top"><span className="cron-card-icon"><Clock3 size={18} /></span><StatusPill tone={cron.active ? "success" : "neutral"}>{cron.active ? "Ativo" : "Pausado"}</StatusPill></div>
-          <h3>{cronTitle(cron.jobname)}</h3><small className="cron-job-name">{cron.jobname}</small>
-          <div className="cron-schedule"><span>Agendamento</span><code>{cron.schedule}</code></div>
-          <button className="ops-button ops-button-primary cron-run-button" type="button" onClick={() => void runCron(cron)} disabled={runningCron !== null}>
-            {runningCron === cron.jobid ? <RefreshCw size={15} className="spin" /> : <Play size={15} />}
-            {runningCron === cron.jobid ? "Enviando…" : "Executar agora"}
-          </button>
-        </article>)}</div>}
+      {cronFeedback && <div className={"cron-feedback " + cronFeedback.type}><span>{cronFeedback.message}</span><button type="button" onClick={() => setCronFeedback(null)} aria-label="Fechar">×</button></div>}
+      {loadingCrons ? <div className="ops-empty"><p>Carregando rotinas…</p></div> : crons.length === 0 ? <EmptyState title="Nenhuma rotina encontrada" detail="Não foram encontrados agendamentos do Ofertix." /> :
+        <div className="cron-groups">
+          {(["Mercado Livre", "Publicação", "Shopee"] as const).map((group) => {
+            const groupCrons = crons.filter((cron) => cronInfo(cron.jobname).group === group);
+            if (!groupCrons.length) return null;
+            return <section className="cron-group" key={group}>
+              <div className="cron-group-heading"><div><h3>{group}</h3><span>{groupCrons.length} {groupCrons.length === 1 ? "rotina" : "rotinas"}</span></div></div>
+              <div className="cron-list">{groupCrons.map((cron) => {
+                const info = cronInfo(cron.jobname);
+                const latest = runs.find((run) => run.function_name === info.functionName);
+                const latestStatus = latest ? displayStatus(latest) : null;
+                return <article className={"cron-row " + (!cron.active ? "is-paused" : "")} key={cron.jobid}>
+                  <div className="cron-row-main"><div className="cron-row-title"><strong>{info.title}</strong><StatusPill tone={cron.active ? "success" : "neutral"}>{cron.active ? "Ativo" : "Pausado"}</StatusPill></div>
+                    <p>{info.description}</p>
+                    <div className="cron-row-meta"><span><Clock3 size={13}/>{cronSchedule(cron.jobname)}</span><code>{cron.schedule}</code>
+                      {latest && <span className="cron-last-run">Última: {formatDate(latest.started_at)} · <b className={latestStatus?.tone}>{latestStatus?.label}</b></span>}
+                    </div>
+                  </div>
+                  <div className="cron-row-action"><button className="cron-run-compact" type="button" onClick={() => void runCron(cron)} disabled={runningCron !== null} title={"Executar " + info.title}>
+                    {runningCron === cron.jobid ? <RefreshCw size={14} className="spin" /> : <Play size={14} />}
+                    {runningCron === cron.jobid ? "Executando…" : "Executar"}
+                  </button></div>
+                </article>;
+              })}</div>
+            </section>;
+          })}
+        </div>}
     </section>
     <section className="ops-metrics">
       <Metric icon={<Activity size={19} />} value={loading ? "…" : runs.length} label="Execuções" detail="No período selecionado" />
