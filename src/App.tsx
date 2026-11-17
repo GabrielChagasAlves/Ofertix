@@ -29,6 +29,7 @@ import { Aprovacao } from "./pages/Aprovacao";
 import { ClassificacaoOrigem } from "./pages/ClassificacaoOrigem";
 import { ClassificacaoCategorias } from "./pages/ClassificacaoCategorias";
 import { Usuarios } from "./pages/Usuarios";
+import { RevisaoDisponibilidade } from "./pages/RevisaoDisponibilidade";
 import { defaultAccess, canScreen, type AccessData } from "./lib/access";
 import { Navigate } from "react-router-dom";
 
@@ -36,6 +37,8 @@ function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<Array<{id:string;title:string;message:string|null;run_id:string|null;created_at:string;read_at:string|null}>>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileNav, setShowMobileNav] = useState(false);
   const [access, setAccess] = useState<AccessData>(defaultAccess);
@@ -80,6 +83,33 @@ function App() {
       setAccessLoading(false);
     };
     void loadAccess();
+    return () => { active = false; };
+  }, [session]);
+
+  useEffect(() => {
+    if (!session || !showNotifications) return;
+    let active = true;
+    const loadNotifications = async () => {
+      const { data } = await supabase.from("user_notifications")
+        .select("id,title,message,run_id,created_at,read_at")
+        .order("created_at", { ascending: false }).limit(15);
+      if (!active) return;
+      const rows = (data ?? []) as Array<{id:string;title:string;message:string|null;run_id:string|null;created_at:string;read_at:string|null}>;
+      setNotifications(rows);
+      setUnreadCount(rows.filter(item => !item.read_at).length);
+    };
+    void loadNotifications();
+    return () => { active = false; };
+  }, [session, showNotifications]);
+
+  useEffect(() => {
+    if (!session) { setUnreadCount(0); return; }
+    let active = true;
+    const loadUnread = async () => {
+      const { count } = await supabase.from("user_notifications").select("id", { count: "exact", head: true }).is("read_at", null);
+      if (active) setUnreadCount(count ?? 0);
+    };
+    void loadUnread();
     return () => { active = false; };
   }, [session]);
 
@@ -162,7 +192,7 @@ function App() {
                   }}
                 >
                   <Bell size={20} />
-                  <span className="app-notification-dot" aria-hidden="true" />
+                  {unreadCount > 0 && <span className="app-notification-dot" aria-label={unreadCount + " não lidas"} /> }
                 </button>
 
                 {showNotifications && (
@@ -177,15 +207,11 @@ function App() {
                         <X size={16} />
                       </button>
                     </div>
-                    <div className="app-popover-empty">
-                      <span className="app-popover-empty-icon">
-                        <Bell size={20} />
-                      </span>
-                      <strong>Nenhuma notificação exibida</strong>
-                      <p>
-                        Quando houver alertas disponíveis, eles aparecerão aqui.
-                      </p>
-                    </div>
+                    {notifications.length === 0 ? <div className="app-popover-empty">
+                      <span className="app-popover-empty-icon"><Bell size={20} /></span>
+                      <strong>Nenhuma notificação</strong>
+                      <p>Os alertas das automações aparecerão aqui.</p>
+                    </div> : <div className="app-notification-list">{notifications.map(item => <a key={item.id} className={"app-notification-item " + (!item.read_at ? "is-unread" : "")} href="/revisao-disponibilidade" onClick={() => { void supabase.from("user_notifications").update({read_at:new Date().toISOString()}).eq("id",item.id); }}><strong>{item.title}</strong><p>{item.message}</p><small>{new Date(item.created_at).toLocaleString("pt-BR")}</small></a>)}<a className="app-notification-all" href="/revisao-disponibilidade">Abrir relatório de revisão</a></div>}
                   </div>
                 )}
               </div>
@@ -261,6 +287,7 @@ function App() {
               <Route path="/links-afiliado" element={canScreen(access,"affiliate_links")?<LinksAfiliado />:<Navigate to="/acesso-restrito" replace/>} />
               <Route path="/aprovacao" element={canScreen(access,"approval")?<Aprovacao />:<Navigate to="/acesso-restrito" replace/>} />
               <Route path="/execucoes" element={canScreen(access,"executions")?<Execucoes />:<Navigate to="/acesso-restrito" replace/>} />
+              <Route path="/revisao-disponibilidade" element={canScreen(access,"executions")?<RevisaoDisponibilidade />:<Navigate to="/acesso-restrito" replace/>} />
               <Route path="/publicacoes" element={canScreen(access,"publications")?<Publicacoes />:<Navigate to="/acesso-restrito" replace/>} />
               <Route path="/canais" element={canScreen(access,"channels")?<Canais />:<Navigate to="/acesso-restrito" replace/>} />
               {/* Mantida por compatibilidade. */}
