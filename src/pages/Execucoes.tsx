@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity, AlertTriangle, CheckCircle2, Package, RefreshCw,
   Search, XCircle, ChevronDown, ChevronUp, ExternalLink, Filter,
-  CircleDashed, Timer, ListChecks, Ban, RotateCw,
+  CircleDashed, Timer, ListChecks, Ban, RotateCw, Play, Clock3, PauseCircle,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { EmptyState, formatDate, Metric, PageIntro, StatusPill } from "../components/OperationsUI";
 
+type Cron = { jobid: number; jobname: string; schedule: string; active: boolean };
 type Run = {
   id: string; function_name: string; status: string; started_at: string;
   finished_at: string | null; duration_ms: number | null;
@@ -22,7 +23,7 @@ type RunItem = {
   details: Record<string, unknown> | null; created_at: string;
 };
 
-function routineName(name: string) {
+function cronTitle(name: string) {\n  const labels: Record<string, string> = {\n    "ofertix-mercado-livre-availability": "Verificação de disponibilidade · Mercado Livre",\n    "ofertix-mercado-livre-sync": "Descoberta de produtos · Mercado Livre (principal)",\n    "ofertix-mercado-livre-sync-offset": "Descoberta de produtos · Mercado Livre (alternado)",\n    "ofertix-product-price-refresh": "Atualização de preços · Mercado Livre",\n    "ofertix-publication-worker": "Publicação de ofertas (pausado)",\n    "ofertix-publication-worker-every-30-minutes": "Publicação de ofertas (ciclo principal)",\n    "ofertix-publication-worker-offset-every-90-minutes": "Publicação de ofertas (ciclo alternado)",\n    "ofertix-shopee-sync": "Sincronização Shopee (principal)",\n    "ofertix-shopee-sync-offset": "Sincronização Shopee (alternado)",\n  };\n  return labels[name] ?? name.replaceAll("-", " ");\n}\nfunction routineName(name: string) {
   const labels: Record<string, string> = {
     "mercado-livre-product-discovery": "Descoberta de produtos · Mercado Livre",
     "mercado-livre-availability": "Verificação de disponibilidade · Mercado Livre",
@@ -94,7 +95,7 @@ function detailEntries(metrics: Record<string, unknown> | null) {
 }
 
 export function Execucoes() {
-  const [runs, setRuns] = useState<Run[]>([]);
+  const [runs, setRuns] = useState<Run[]>([]);\n  const [crons, setCrons] = useState<Cron[]>([]);\n  const [loadingCrons, setLoadingCrons] = useState(true);\n  const [cronError, setCronError] = useState("");\n  const [runningCron, setRunningCron] = useState<number | null>(null);\n  const [cronFeedback, setCronFeedback] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
   const [source, setSource] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [period, setPeriod] = useState("24h");
@@ -120,7 +121,7 @@ export function Execucoes() {
     setRuns((data ?? []) as Run[]);
     setLoading(false);
   }, [period]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);\n\n  const loadCrons = useCallback(async () => {\n    setLoadingCrons(true); setCronError("");\n    const { data, error: requestError } = await supabase.functions.invoke("automation-control", { body: { action: "list_crons" } });\n    if (requestError || data?.success === false) setCronError(requestError?.message || data?.error || "Não foi possível carregar os crons.");\n    setCrons((data?.crons ?? []) as Cron[]);\n    setLoadingCrons(false);\n  }, []);\n  useEffect(() => { void loadCrons(); }, [loadCrons]);\n\n  const runCron = async (cron: Cron) => {\n    if (runningCron !== null) return;\n    setRunningCron(cron.jobid); setCronFeedback(null);\n    const { data, error: requestError } = await supabase.functions.invoke("automation-control", { body: { action: "run_cron", job_name: cron.jobname } });\n    if (requestError || data?.success === false) {\n      setCronFeedback({ type: "error", message: requestError?.message || data?.error || "Falha ao solicitar execução." });\n    } else {\n      setCronFeedback({ type: "success", message: `Execução de “${cronTitle(cron.jobname)}” enviada. Confira o resultado no histórico abaixo.` });\n      window.setTimeout(() => { void load(); }, 2500);\n    }\n    setRunningCron(null);\n  };
 
   const openDetails = async (run: Run) => {
     if (expanded === run.id) { setExpanded(null); return; }
