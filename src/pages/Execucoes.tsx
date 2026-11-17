@@ -5,6 +5,7 @@ import {
   CircleDashed, Timer, ListChecks, Ban, RotateCw, Play, Clock3, PauseCircle,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import "./Execucoes.css";
 import { EmptyState, formatDate, Metric, PageIntro, StatusPill } from "../components/OperationsUI";
 
 type Cron = { jobid: number; jobname: string; schedule: string; active: boolean };
