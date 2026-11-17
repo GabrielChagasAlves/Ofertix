@@ -316,12 +316,56 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
         setMessage("Nenhum item foi excluído: todos os selecionados possuem link de afiliado ou publicação e foram preservados.");
         return;
       }
-      const { data, error: deleteError } = await supabase.from("products")
-        .delete().in("id", eligibleIds).select("id");
-      if (deleteError) throw deleteError;
-      const deletedCount = data?.length ?? 0;
-      if (deletedCount !== eligibleIds.length) {
-        throw new Error(`O banco confirmou ${deletedCount} exclusões de ${eligibleIds.length} elegíveis. Confira as permissões e atualize a tela antes de tentar novamente.`);
+      // Exclui em lotes pequenos e sequenciais para evitar URLs longas,
+      // requisições demoradas e perda de resposta em catálogos grandes.
+      const deleteChunkSize = 10;
+      const deletedIds = new Set<string>();
+      let deletionFailure: string | null = null;
+
+      for (let index = 0; index < eligibleIds.length; index += deleteChunkSize) {
+        const chunk = eligibleIds.slice(index, index + deleteChunkSize);
+        const { data, error: deleteError } = await supabase.from("products")
+          .delete().in("id", chunk).select("id");
+
+        if (deleteError) {
+          deletionFailure = describeError(deleteError, "Falha sem detalhes retornados pelo Supabase.");
+          break;
+        }
+
+        (data ?? []).forEach((row) => deletedIds.add(row.id));
+        if ((data?.length ?? 0) !== chunk.length) {
+          deletionFailure = `O banco confirmou ${data?.length ?? 0} exclusões de ${chunk.length} produtos no lote atual.`;
+          break;
+        }
+      }
+
+      const deletedCount = deletedIds.size;
+      if (deletionFailure) {
+        // Reconsulta os IDs elegíveis para reconciliar o estado caso a conexão
+        // tenha caído depois de o servidor executar algum DELETE.
+        const { data: remainingRows, error: verifyError } = await supabase.from("products")
+          .select("id").in("id", eligibleIds);
+        if (verifyError) {
+          const remainingIds = eligibleIds.filter((id) => !deletedIds.has(id));
+          setReview({ ...review, removeIds: remainingIds });
+          throw new Error(`A exclusão foi interrompida após confirmar ${deletedCount} produto(s). Não foi possível verificar o estado dos demais por falha de rede: ${describeError(verifyError, "erro de verificação")}. Não repita a limpeza completa até atualizar o catálogo.`);
+        }
+
+        const existingIds = new Set((remainingRows ?? []).map((row) => row.id));
+        const confirmedDeletedIds = eligibleIds.filter((id) => !existingIds.has(id));
+        confirmedDeletedIds.forEach((id) => deletedIds.add(id));
+        const pendingIds = eligibleIds.filter((id) => existingIds.has(id));
+        setReview({ ...review, removeIds: pendingIds });
+
+        if (pendingIds.length) {
+          throw new Error(`Exclusão parcial: ${deletedIds.size} produto(s) foram removidos e confirmados; ${pendingIds.length} continuam no catálogo. Causa: ${deletionFailure}. Revise os itens restantes antes de tentar novamente.`);
+        }
+      }
+
+      if (deletedIds.size !== eligibleIds.length) {
+        const remainingCount = eligibleIds.length - deletedIds.size;
+        setReview({ ...review, removeIds: eligibleIds.filter((id) => !deletedIds.has(id)) });
+        throw new Error(`O banco confirmou ${deletedIds.size} exclusões de ${eligibleIds.length}. ${remainingCount} produto(s) continuam pendentes; atualize a lista antes de tentar novamente.`);
       }
       setRemoveByGroup((current) => {
         const next = { ...current };
