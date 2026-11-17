@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity, AlertTriangle, CheckCircle2, Package, RefreshCw,
   Search, XCircle, ChevronDown, ChevronUp, ExternalLink, Filter,
-  CircleDashed, Timer, ListChecks, Ban, RotateCw, Play, Clock3, PauseCircle,
+  CircleDashed, Timer, ListChecks, Ban, RotateCw, Play, Clock3,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import "./Execucoes.css";
@@ -196,6 +196,24 @@ export function Execucoes() {
   return <div className="page ops-page executions-page">
     <PageIntro eyebrow="AUTOMAÇÕES" title="Execuções e histórico" description="Acompanhe cada rotina, os itens processados e o motivo individual de cada falha." actions={<button className="ops-button ops-button-secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> Atualizar</button>} />
     {error && <div className="ops-alert">{error}</div>}
+    <section className="ops-surface cron-manager">
+      <div className="ops-section-head cron-manager-head">
+        <div><p className="ops-eyebrow">CONTROLE MANUAL</p><h2>Agendamentos (crons)</h2><p>Execute uma rotina isoladamente, sem disparar as demais.</p></div>
+        <button className="ops-button ops-button-secondary" onClick={() => void loadCrons()} disabled={loadingCrons}><RefreshCw size={15} /> Atualizar</button>
+      </div>
+      {cronError && <div className="ops-alert">{cronError}</div>}
+      {cronFeedback && <div className={"cron-feedback " + cronFeedback.type}>{cronFeedback.message}<button type="button" onClick={() => setCronFeedback(null)} aria-label="Fechar">×</button></div>}
+      {loadingCrons ? <div className="ops-empty"><p>Carregando agendamentos…</p></div> : crons.length === 0 ? <EmptyState title="Nenhum cron encontrado" detail="Não foram encontrados agendamentos Ofertix no banco." /> :
+        <div className="cron-grid">{crons.map((cron) => <article className="cron-card" key={cron.jobid}>
+          <div className="cron-card-top"><span className="cron-card-icon"><Clock3 size={18} /></span><StatusPill tone={cron.active ? "success" : "neutral"}>{cron.active ? "Ativo" : "Pausado"}</StatusPill></div>
+          <h3>{cronTitle(cron.jobname)}</h3><small className="cron-job-name">{cron.jobname}</small>
+          <div className="cron-schedule"><span>Agendamento</span><code>{cron.schedule}</code></div>
+          <button className="ops-button ops-button-primary cron-run-button" type="button" onClick={() => void runCron(cron)} disabled={runningCron !== null}>
+            {runningCron === cron.jobid ? <RefreshCw size={15} className="spin" /> : <Play size={15} />}
+            {runningCron === cron.jobid ? "Enviando…" : "Executar agora"}
+          </button>
+        </article>)}</div>}
+    </section>
     <section className="ops-metrics">
       <Metric icon={<Activity size={19} />} value={loading ? "…" : runs.length} label="Execuções" detail="No período selecionado" />
       <Metric icon={<CheckCircle2 size={19} />} value={loading ? "…" : succeeded} label="Concluídas" detail="Sem falhas registradas" />
