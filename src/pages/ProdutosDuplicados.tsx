@@ -30,7 +30,7 @@ type ReferenceCounts = {
   productsWithPublication: number;
   blockedProductIds: string[];
 };
-type ReviewState = { group: DuplicateGroup; keepId: string; removeIds: string[]; references: ReferenceCounts };
+type ReviewState = { groups: DuplicateGroup[]; keepIds: string[]; removeIds: string[]; references: ReferenceCounts; bulk: boolean };
 
 function normalizeTitle(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR")
@@ -181,6 +181,43 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
     }));
   }
 
+  async function prepareBulkReview() {
+    if (!canDelete || !groups.length) return;
+    setError("");
+    setMessage("");
+    setLoadingReview(true);
+    try {
+      const allIds = groups.flatMap((group) => group.items.map((item) => item.id));
+      const references = await inspectReferences(allIds);
+      const protectedIds = new Set(references.blockedProductIds);
+      const keepIds = new Set<string>();
+      // Opção B: manter sempre o menor preço de cada grupo e todos os produtos
+      // com link de afiliado ou publicação realizada. Os demais sem link são elegíveis.
+      groups.forEach((group) => {
+        const cheapest = group.items.find((item) => item.price != null) ?? group.items[0];
+        if (cheapest) keepIds.add(cheapest.id);
+      });
+      references.blockedProductIds.forEach((id) => keepIds.add(id));
+      const removeIds = allIds.filter((id) => !keepIds.has(id) && !protectedIds.has(id));
+      const nextRemoveByGroup: Record<string, string[]> = {};
+      groups.forEach((group) => {
+        nextRemoveByGroup[group.key] = group.items
+          .filter((item) => removeIds.includes(item.id))
+          .map((item) => item.id);
+      });
+      setRemoveByGroup(nextRemoveByGroup);
+      if (!removeIds.length) {
+        setMessage("Nenhum produto elegível para exclusão. Os menores preços e todos os produtos com link de afiliado ou publicação foram preservados.");
+        return;
+      }
+      setReview({ groups, keepIds: [...keepIds], removeIds, references, bulk: true });
+    } catch (inspectionError) {
+      setError(inspectionError instanceof Error ? inspectionError.message : "Não foi possível verificar os vínculos dos produtos.");
+    } finally {
+      setLoadingReview(false);
+    }
+  }
+
   async function prepareReview(group: DuplicateGroup) {
     const keepId = keepByGroup[group.key];
     const removeIds = (removeByGroup[group.key] ?? []).filter((id) => id !== keepId);
@@ -194,7 +231,7 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
       const eligibleIds = removeIds.filter((id) => !protectedIds.has(id));
       // Itens protegidos saem da seleção, mas não impedem a exclusão dos demais.
       setRemoveByGroup((current) => ({ ...current, [group.key]: eligibleIds }));
-      setReview({ group, keepId, removeIds: eligibleIds, references });
+      setReview({ groups: [group], keepIds: [keepId], removeIds: eligibleIds, references, bulk: false });
     } catch (inspectionError) {
       setError(inspectionError instanceof Error ? inspectionError.message : "Não foi possível verificar os vínculos.");
     } finally {
@@ -214,7 +251,11 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
       const protectedIds = new Set(latestReferences.blockedProductIds);
       const eligibleIds = review.removeIds.filter((id) => !protectedIds.has(id));
       if (eligibleIds.length === 0) {
-        setRemoveByGroup((current) => ({ ...current, [review.group.key]: [] }));
+        setRemoveByGroup((current) => {
+          const next = { ...current };
+          review.groups.forEach((group) => { next[group.key] = []; });
+          return next;
+        });
         setReview(null);
         setMessage("Nenhum item foi excluído: todos os selecionados possuem link de afiliado ou publicação e foram preservados.");
         return;
@@ -226,15 +267,19 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
       if (deletedCount !== eligibleIds.length) {
         throw new Error(`O banco confirmou ${deletedCount} exclusões de ${eligibleIds.length} elegíveis. Confira as permissões e atualize a tela antes de tentar novamente.`);
       }
-      setRemoveByGroup((current) => ({ ...current, [review.group.key]: [] }));
+      setRemoveByGroup((current) => {
+        const next = { ...current };
+        review.groups.forEach((group) => { next[group.key] = []; });
+        return next;
+      });
       setKeepByGroup((current) => {
         const next = { ...current };
-        delete next[review.group.key];
+        review.groups.forEach((group) => { delete next[group.key]; });
         return next;
       });
       setReview(null);
       const protectedCount = review.references.blockedProductIds.length + latestReferences.blockedProductIds.length;
-      setMessage(`${deletedCount} produto(s) removido(s). ${protectedCount ? `${protectedCount} item(ns) protegido(s) foram mantidos.` : ""} O anúncio escolhido foi preservado.`);
+      setMessage(`${deletedCount} produto(s) removido(s) em lote. ${protectedCount ? `${protectedCount} produto(s) protegido(s) foram mantidos.` : ""} Os menores preços e os produtos com link de afiliado/publicação foram preservados.`);
       await onRefresh();
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Não foi possível remover os produtos selecionados.");
@@ -267,6 +312,9 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
         <label className="ops-search"><Search size={17} /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Buscar título ou código MLB" /></label>
         <label className="ops-select"><select value={marketplaceFilter} onChange={(event) => { setMarketplaceFilter(event.target.value); setPage(1); }}><option value="all">Todos os marketplaces</option>{marketplaces.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <button className="ops-button ops-button-secondary" onClick={() => void onRefresh()}><RefreshCw size={15} /> Atualizar catálogo</button>
+        <button className="ops-button ops-button-primary" disabled={!canDelete || !groups.length || loadingReview || deleting} onClick={() => void prepareBulkReview()}>
+          <Trash2 size={15} /> {loadingReview ? "Analisando todos os grupos…" : "Selecionar todos os duplicados"}
+        </button>
       </div>
       {visibleGroups.length === 0 ? <EmptyState title="Nenhum grupo duplicado encontrado" detail="Tente outro termo ou marketplace. A comparação considera títulos normalizados e mantém os marketplaces separados." /> :
         <div className="duplicate-groups">
@@ -326,15 +374,17 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
     </section>
     {review && <div className="duplicate-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !deleting) setReview(null); }}>
       <section className="duplicate-review-modal" role="dialog" aria-modal="true" aria-labelledby="duplicate-review-title">
-        <div className="duplicate-review-heading"><div><span>CONFIRMAÇÃO DE SEGURANÇA</span><h2 id="duplicate-review-title">Revisar remoção</h2></div><button className="ops-icon-action" onClick={() => setReview(null)} disabled={deleting} aria-label="Fechar">×</button></div>
-        <p>Você escolheu manter <strong>{review.group.items.find((item) => item.id === review.keepId)?.title}</strong> e remover {review.removeIds.length} anúncio(s).</p>
+        <div className="duplicate-review-heading"><div><span>CONFIRMAÇÃO DE SEGURANÇA</span><h2 id="duplicate-review-title">{review.bulk ? "Revisar limpeza em massa" : "Revisar remoção"}</h2></div><button className="ops-icon-action" onClick={() => setReview(null)} disabled={deleting} aria-label="Fechar">×</button></div>
+        <p>{review.bulk
+          ? <>A limpeza geral analisou <strong>{review.groups.length} grupos</strong>. Serão removidos <strong>{review.removeIds.length} produtos</strong> sem link de afiliado e sem publicação, mantendo o menor preço de cada grupo e todos os produtos protegidos.</>
+          : <>Você escolheu manter <strong>{review.groups[0].items.find((item) => item.id === review.keepIds[0])?.title}</strong> e remover {review.removeIds.length} anúncio(s).</>}</p>
         <div className="duplicate-reference-list">
           <div><span>Produtos com link de afiliado</span><strong>{review.references.productsWithAffiliateLink}</strong></div>
           <div><span>Produtos com publicação realizada</span><strong>{review.references.productsWithPublication}</strong></div>
           <div><span>Produtos protegidos (link OU publicação)</span><strong>{review.references.blockedProductIds.length}</strong></div>
         </div>
         <div className="duplicate-safe"><ShieldCheck size={18} /><span>{review.references.blockedProductIds.length > 0 ? `${review.references.blockedProductIds.length} item(ns) com link de afiliado ou publicação foram retirados do lote e serão preservados. ` : "Nenhum item protegido foi encontrado. "}Os demais produtos elegíveis poderão ser excluídos em lote. Registros dependentes dos produtos removidos também podem ser excluídos conforme as regras de integridade.</span></div>
-        <div className="duplicate-modal-actions"><button className="ops-button ops-button-secondary" onClick={() => setReview(null)} disabled={deleting}>Voltar</button><button className="ops-button ops-button-primary" onClick={() => void confirmDeletion()} disabled={deleting || review.removeIds.length === 0}><Trash2 size={15} />{deleting ? "Excluindo…" : "Confirmar exclusão"}</button></div>
+        <div className="duplicate-modal-actions"><button className="ops-button ops-button-secondary" onClick={() => setReview(null)} disabled={deleting}>Voltar</button><button className="ops-button ops-button-primary" onClick={() => void confirmDeletion()} disabled={deleting || review.removeIds.length === 0}><Trash2 size={15} />{deleting ? "Excluindo…" : review.bulk ? "Confirmar exclusão em massa" : "Confirmar exclusão"}</button></div>
       </section>
     </div>}
   </div>;
