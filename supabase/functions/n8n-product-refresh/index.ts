@@ -11,6 +11,13 @@ function json(body: unknown, status = 200) { return Response.json(body, { status
 function num(value: unknown): number | null {
   const n = Number(value); return Number.isFinite(n) ? n : null;
 }
+
+function extractListingIdFromUrl(value: unknown): string | null {
+  const raw = String(value ?? "").trim().toUpperCase();
+  const match = raw.match(/MLB-?(\d{6,})/);
+  return match ? `MLB${match[1]}` : null;
+}
+
 function discount(price: number | null, original: number | null) {
   if (price === null || original === null || original <= 0 || price >= original) return null;
   return Number((((original - price) / original) * 100).toFixed(2));
@@ -327,8 +334,10 @@ export default {
 
       // URL /p/ identifica catálogo. Para catálogo, a fonte primária é
       // /products/{id} e /products/{id}/items, nunca uma linha antiga aleatória.
-      const isCatalogProduct = String(product.product_url ?? "").includes("/p/");
-      const isListingId = /^MLB[0-9]+$/i.test(externalId);
+      const permalinkListingId = extractListingIdFromUrl(product.product_url);
+      const isCatalogProduct = String(product.product_url ?? "").includes("/p/") ||
+        Boolean(permalinkListingId && permalinkListingId !== externalId.toUpperCase());
+      const isListingId = /^MLB[0-9]+$/i.test(externalId) && !isCatalogProduct;
 
       const isSellableListing = (item: any) => {
         if (num(item?.price) === null) return false;
@@ -344,7 +353,6 @@ export default {
           .select("external_item_id")
           .eq("product_id", productId)
           .eq("marketplace_id", connection.marketplace_id)
-          .eq("active", true)
           .not("external_item_id", "is", null)
           .limit(10);
         if (knownListingsError) throw new Error("Erro ao consultar publicações vinculadas: " + knownListingsError.message);
