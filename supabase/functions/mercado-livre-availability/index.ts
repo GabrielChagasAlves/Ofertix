@@ -138,6 +138,13 @@ async function ml(url: string, token: string) {
   return payload;
 }
 
+
+function extractListingIdFromUrl(value: unknown): string | null {
+  const raw = String(value ?? "").trim().toUpperCase();
+  const match = raw.match(/MLB-?(\d{6,})/);
+  return match ? `MLB${match[1]}` : null;
+}
+
 async function checkProduct(product: any, token: string) {
   const productId = String(product.external_id ?? "").trim();
 
@@ -149,7 +156,12 @@ async function checkProduct(product: any, token: string) {
   // O endpoint /items/{id} exige autorização compatível com o proprietário
   // do anúncio. Evitamos chamadas sabidamente incompatíveis para anúncios
   // de terceiros e registramos a causa como disponibilidade não confirmada.
-  if (/^MLB\d+$/i.test(productId)) {
+  const permalinkListingId = extractListingIdFromUrl(product.product_url);
+  const isCatalogProduct = String(product.product_url ?? "").includes("/p/") ||
+    Boolean(permalinkListingId && permalinkListingId !== productId.toUpperCase());
+
+  // Só tratar external_id como anúncio quando não houver evidência de catálogo.
+  if (/^MLB\\d+$/i.test(productId) && !isCatalogProduct) {
     const { data: listingOwner, error: ownerError } = await supabaseAdmin
       .from("marketplace_listings")
       .select("seller_id")
@@ -181,10 +193,8 @@ async function checkProduct(product: any, token: string) {
       try {
         const bulkUrl = new URL("https://api.mercadolibre.com/items/bulk");
         bulkUrl.searchParams.set("ids", productId);
-        bulkUrl.searchParams.set(
-          "attributes",
-          "body.id,body.status,body.available_quantity,body.sub_status",
-        );
+        // Sem seleção de atributos: recebemos o payload completo do item.
+        // Isso evita respostas vazias observadas na consulta bulk com attributes.
         const bulkResponse = await ml(bulkUrl.toString(), token);
         const bulkEntry = Array.isArray(bulkResponse) ? bulkResponse[0] : null;
         const bulkStatusCode = Number(bulkEntry?.status_code ?? bulkEntry?.code ?? 0);
