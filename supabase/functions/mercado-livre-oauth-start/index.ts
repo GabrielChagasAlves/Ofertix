@@ -7,6 +7,19 @@ function b64(bytes:Uint8Array){let s="";for(const b of bytes)s+=String.fromCharC
 function randomString(n=64){const b=new Uint8Array(n);crypto.getRandomValues(b);return b64(b)}
 async function challenge(v:string){return b64(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v))))}
 function admin(){const raw=Deno.env.get("SUPABASE_SECRET_KEYS");if(!raw)throw new Error("SUPABASE_SECRET_KEYS não configurado.");const key=JSON.parse(raw).default;if(!key)throw new Error("Secret key padrão do Supabase não encontrada.");return createClient(Deno.env.get("SUPABASE_URL")!,key,{auth:{autoRefreshToken:false,persistSession:false}})}
+function aalFromVerifiedJwt(authorization: string): string | null {
+  try {
+    const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : authorization.trim();
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")));
+    return typeof decoded.aal === "string" ? decoded.aal : null;
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async(req)=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
  if(req.method!=="POST")return json({error:"Use POST."},405);
@@ -14,7 +27,8 @@ Deno.serve(async(req)=>{
  const url=Deno.env.get("SUPABASE_URL")!,anon=Deno.env.get("SUPABASE_ANON_KEY")!;
  const caller=createClient(url,anon,{global:{headers:{Authorization:authorization}},auth:{autoRefreshToken:false,persistSession:false}});
  const {data:{user},error:userError}=await caller.auth.getUser();if(userError||!user)return json({error:"Sessão inválida."},401);
- const {data:aal,error:aalError}=await caller.auth.mfa.getAuthenticatorAssuranceLevel();if(aalError||aal?.currentLevel!=="aal2")return json({error:"Confirme o MFA do administrador antes de conectar o Mercado Livre."},403);
+ // getUser() above validates the JWT; inspect its signed AAL claim directly.
+ if(aalFromVerifiedJwt(authorization)!=="aal2")return json({error:"Confirme o MFA do administrador antes de conectar o Mercado Livre."},403);
  let db;try{db=admin()}catch(e){console.error(e);return json({error:"Configuração interna incompleta."},500)}
  const {data:profile,error:profileError}=await db.from("user_profiles").select("role,is_active").eq("user_id",user.id).maybeSingle();
  if(profileError)return json({error:"Não foi possível validar o perfil administrativo."},500);
