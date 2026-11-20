@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import {
@@ -11,6 +11,7 @@ import {
 
 import { Sidebar } from "./components/Sidebar";
 import { Login } from "./pages/Login";
+import { AdminMfaGate } from "./components/AdminMfaGate";
 import { supabase } from "./lib/supabase";
 
 import { Dashboard } from "./pages/Dashboard";
@@ -43,6 +44,10 @@ function App() {
   const [showMobileNav, setShowMobileNav] = useState(false);
   const [access, setAccess] = useState<AccessData>(defaultAccess);
   const [accessLoading, setAccessLoading] = useState(true);
+  const [mfaVerifiedUserId, setMfaVerifiedUserId] = useState<string | null>(null);
+  const handleAdminMfaVerified = useCallback(() => {
+    if (session?.user.id) setMfaVerifiedUserId(session.user.id);
+  }, [session]);
 
   useEffect(() => {
     let mounted = true;
@@ -63,7 +68,7 @@ function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (mounted) { setSession(session); setAccess(defaultAccess); setAccessLoading(true); }
+      if (mounted) { setSession(session); setAccess(defaultAccess); setAccessLoading(true); setMfaVerifiedUserId(null); }
     });
 
     return () => {
@@ -133,6 +138,9 @@ function App() {
   if (!access.is_active) {
     void supabase.auth.signOut();
     return <Login />;
+  }
+  if (access.role === "admin" && mfaVerifiedUserId !== session.user.id) {
+    return <AdminMfaGate onVerified={handleAdminMfaVerified} />;
   }
   const metadata = session.user.user_metadata ?? {};
   const displayName =
