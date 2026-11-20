@@ -2,8 +2,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});
-const screenKeys=["dashboard","products","origin_classification","integrations","rules","affiliate_links","approval","executions","publications","channels","clicks","settings"];
+const screenKeys=["dashboard","products","origin_classification","integrations","rules","affiliate_links","approval","executions","publications","channels","clicks","settings","users"];
 const actionKeys=["products.origin.update","products.update","offers.approve","offers.reject"];
+const APP_URL="https://ofertix-ofertix.vercel.app";
 Deno.serve(async(req)=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
  if(req.method!=="POST")return json({error:"Método não permitido."},405);
@@ -15,6 +16,8 @@ Deno.serve(async(req)=>{
   const admin=createClient(url,service);
   const {data:profile,error:profileError}=await admin.from("user_profiles").select("role,is_active").eq("user_id",user.id).maybeSingle();
   if(profileError||profile?.role!=="admin"||!profile.is_active)return json({error:"Apenas administradores podem gerenciar usuários."},403);
+  const {data:assurance,error:assuranceError}=await caller.auth.mfa.getAuthenticatorAssuranceLevel();
+  if(assuranceError||assurance?.currentLevel!=="aal2")return json({error:"Confirme o MFA antes de gerenciar usuários.",code:"MFA_REQUIRED"},403);
   const body=await req.json(),action=body.action;
   if(action==="list"){
    const [{data:authData,error:authError},{data:profiles,error:profilesError}]=await Promise.all([admin.auth.admin.listUsers({page:1,perPage:1000}),admin.from("user_profiles").select("user_id,role,is_active,permissions")]);
@@ -24,9 +27,21 @@ Deno.serve(async(req)=>{
   }
   if(action==="invite"){
    const email=String(body.email||"").trim().toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json({error:"Informe um e-mail válido."},400);
-   const {data,error}=await admin.auth.admin.inviteUserByEmail(email,{redirectTo:req.headers.get("origin")||undefined});
+   const {data,error}=await admin.auth.admin.inviteUserByEmail(email,{redirectTo:APP_URL});
    if(error)throw error;
    return json({user_id:data.user?.id,email,invited:true});
+  }
+  if(action==="create_manual"){
+   const email=String(body.email||"").trim().toLowerCase();
+   const password=String(body.password||"");
+   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json({error:"Informe um e-mail válido."},400);
+   if(password.length<12)return json({error:"A senha provisória deve ter pelo menos 12 caracteres."},400);
+   const {data,error}=await admin.auth.admin.createUser({email,password,email_confirm:true,user_metadata:{created_by_admin:true}});
+   if(error)throw error;
+   const permissions={screens:Object.fromEntries(screenKeys.map(k=>[k,false])),actions:Object.fromEntries(actionKeys.map(k=>[k,false]))};
+   const {error:profileUpsertError}=await admin.from("user_profiles").upsert({user_id:data.user.id,role:"operator",is_active:true,permissions,updated_at:new Date().toISOString()},{onConflict:"user_id"});
+   if(profileUpsertError){await admin.auth.admin.deleteUser(data.user.id);throw profileUpsertError;}
+   return json({user_id:data.user.id,email,created:true,role:"operator",is_active:true});
   }
   if(action==="permissions"){
    const id=String(body.user_id||"");if(!id)return json({error:"Usuário inválido."},400);
