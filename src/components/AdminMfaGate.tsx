@@ -65,6 +65,11 @@ export function AdminMfaGate({ onVerified }: { onVerified: () => void }) {
         code: code.trim(),
       });
       if (verifyError) throw verifyError;
+      const { data: assurance, error: assuranceError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (assuranceError) throw assuranceError;
+      if (assurance.currentLevel !== "aal2") {
+        throw new Error("O código foi aceito, mas a sessão ainda não confirmou o nível de segurança necessário. Atualize a página e tente novamente.");
+      }
       onVerified();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Código inválido. Tente novamente.");
