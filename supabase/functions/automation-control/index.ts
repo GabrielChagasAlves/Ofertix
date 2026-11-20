@@ -43,6 +43,111 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const action = String(body?.action ?? "");
 
+
+  if (action === "list_crons" || action === "run_cron") {
+    const { data: profile, error: profileError } = await admin
+      .from("user_profiles").select("role,is_active").eq("user_id", user.id).maybeSingle();
+    if (profileError) return response(req, { success: false, error: profileError.message }, 500);
+    if (!profile || profile.role !== "admin" || !profile.is_active) {
+      return response(req, { success: false, error: "Apenas administradores ativos podem gerenciar execuções manuais." }, 403);
+    }
+    const { data: assurance, error: assuranceError } = await userClient.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (assuranceError || assurance?.currentLevel !== "aal2") {
+      return response(req, { success: false, code: "MFA_REQUIRED", error: "Confirme o MFA para executar ações administrativas." }, 403);
+    }
+    if (action === "list_crons") {
+      const { data, error } = await admin.rpc("list_automation_crons");
+      if (error) return response(req, { success: false, error: error.message }, 500);
+      return response(req, { success: true, crons: data ?? [] });
+    }
+    const jobName = String(body?.job_name ?? "");
+    const jobs: Record<string, { functionName: string; secretName: string; payload: Record<string, unknown> }> = {
+      "ofertix-mercado-livre-availability": { functionName: "mercado-livre-availability", secretName: "mercado_livre_availability", payload: { limit: 10 } },
+      "ofertix-mercado-livre-sync": { functionName: "mercado-livre-product-discovery", secretName: "mercado_livre_product_discovery", payload: { source: "manual", term_limit: 10, result_limit: 50, requested_by: user.id } },
+      "ofertix-mercado-livre-sync-offset": { functionName: "mercado-livre-product-discovery", secretName: "mercado_livre_product_discovery", payload: { source: "manual", term_limit: 10, result_limit: 50, requested_by: user.id } },
+      "ofertix-product-price-refresh": { functionName: "product-price-refresh-scheduler", secretName: "product_price_refresh_scheduler", payload: { limit: 10 } },
+      "ofertix-publication-worker": { functionName: "publication-worker", secretName: "publication_worker", payload: {} },
+      "ofertix-publication-worker-every-30-minutes": { functionName: "publication-worker", secretName: "publication_worker", payload: {} },
+      "ofertix-publication-worker-offset-every-90-minutes": { functionName: "publication-worker", secretName: "publication_worker", payload: {} },
+      "ofertix-shopee-sync": { functionName: "shopee-sync", secretName: "shopee_sync", payload: {} },
+      "ofertix-shopee-sync-offset": { functionName: "shopee-sync", secretName: "shopee_sync", payload: {} },
+    };
+    const job = jobs[jobName];
+    if (!job) return response(req, { success: false, error: "Cron não reconhecido ou não autorizado." }, 400);
+    const { data: cronRows, error: cronError } = await admin.rpc("list_automation_crons");
+    if (cronError) return response(req, { success: false, error: cronError.message }, 500);
+    if (!(cronRows ?? []).some((row: { jobname: string }) => row.jobname === jobName)) {
+      return response(req, { success: false, error: "Cron não encontrado." }, 404);
+    }
+    const { data: secretRow, error: secretError } = await admin.from("automation_secrets")
+      .select("secret").eq("name", job.secretName).maybeSingle();
+    if (secretError) return response(req, { success: false, error: secretError.message }, 500);
+    if (!secretRow?.secret) return response(req, { success: false, error: "Segredo da automação não configurado." }, 500);
+    // Encerrar somente locks antigos: Edge Functions não permanecem ativas por horas.
+    const staleBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const { error: staleError } = await admin.from("automation_runs")
+      .update({
+        status: "failed",
+        finished_at: new Date().toISOString(),
+        error_message: "Execução marcada como travada automaticamente: permaneceu em running por mais de 15 minutos.",
+        errors_count: 1,
+      })
+      .eq("function_name", job.functionName).eq("status", "running").lt("started_at", staleBefore);
+    if (staleError) return response(req, { success: false, error: "Não foi possível verificar execuções antigas: " + staleError.message }, 500);
+
+    const { data: activeRun, error: activeError } = await admin.from("automation_runs")
+      .select("id,started_at").eq("function_name", job.functionName).eq("status", "running")
+      .gte("started_at", staleBefore)
+      .order("started_at", { ascending: false }).limit(1).maybeSingle();
+    if (activeError) return response(req, { success: false, error: activeError.message }, 500);
+    if (activeRun) return response(req, {
+      success: false,
+      code: "RUN_ALREADY_ACTIVE",
+      error: "Esta rotina já está em andamento desde " + activeRun.started_at + ". Aguarde a conclusão antes de iniciar outra.",
+      run: activeRun,
+    }, 409);
+
+    let upstream: Response;
+    try {
+      upstream = await fetch(SUPABASE_URL + "/functions/v1/" + job.functionName, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-ofertix-cron-secret": secretRow.secret },
+        body: JSON.stringify(job.payload),
+      });
+    } catch (error) {
+      return response(req, {
+        success: false,
+        code: "UPSTREAM_UNREACHABLE",
+        error: "Não foi possível alcançar a rotina " + job.functionName + ".",
+        details: error instanceof Error ? error.message : String(error),
+      }, 502);
+    }
+    const rawBody = await upstream.text();
+    let upstreamBody: unknown = rawBody.slice(0, 1800);
+    try { upstreamBody = JSON.parse(rawBody); } catch { /* manter texto */ }
+    if (!upstream.ok) {
+      const detail = typeof upstreamBody === "object" && upstreamBody !== null
+        ? String((upstreamBody as Record<string, unknown>).error ?? (upstreamBody as Record<string, unknown>).message ?? rawBody)
+        : String(upstreamBody);
+      return response(req, {
+        success: false,
+        code: "CRON_EXECUTION_REJECTED",
+        error: "A rotina " + job.functionName + " recusou a execução (HTTP " + upstream.status + ").",
+        upstream_status: upstream.status,
+        details: detail.slice(0, 1800),
+      }, 502);
+    }
+    return response(req, {
+      success: true,
+      accepted: true,
+      job_name: jobName,
+      target_function: job.functionName,
+      upstream_status: upstream.status,
+      result: upstreamBody,
+      message: "A rotina respondeu com sucesso. Consulte o histórico para ver os itens processados.",
+    }, 202);
+  }
+
   if (action === "start") {
     // Não ignorar execuções antigas: o status running precisa ser resolvido explicitamente.
     const { data: active, error } = await admin
@@ -80,5 +185,5 @@ Deno.serve(async (req) => {
     if (updateError) return response(req, { success: false, error: updateError.message }, 500);
     return response(req, { success: true, accepted: true, run_id: active.id, message: "Cancelamento solicitado; a rotina vai parar no próximo ponto seguro." }, 202);
   }
-  return response(req, { success: false, error: "Ação inválida. Use start ou cancel." }, 400);
+  return response(req, { success: false, error: "Ação inválida. Use start, cancel, list_crons ou run_cron." }, 400);
 });
