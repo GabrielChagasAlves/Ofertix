@@ -4,317 +4,137 @@ import {
   EyeOff,
   LockKeyhole,
   Mail,
-  UserPlus,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
 export function Login() {
-  const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
 
-  async function handleSubmit(
-    event: FormEvent<HTMLFormElement>
-  ) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     setErrorMessage("");
-    setSuccessMessage("");
 
-    const normalizedEmail = email.trim();
+    const normalizedEmail = email.trim().toLowerCase();
 
-    if (!normalizedEmail) {
-      setErrorMessage("Informe seu e-mail.");
-      return;
-    }
-
-    if (!password) {
-      setErrorMessage("Informe sua senha.");
-      return;
-    }
-
-    if (password.length < 6) {
-      setErrorMessage(
-        "A senha deve ter pelo menos 6 caracteres."
-      );
+    if (!normalizedEmail || !password) {
+      setErrorMessage("Informe seu e-mail e sua senha.");
       return;
     }
 
     setLoading(true);
 
     try {
-      if (isSignUp) {
-        const redirectUrl = window.location.origin;
+      const { error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
 
-        const { data, error } =
-          await supabase.auth.signUp({
-            email: normalizedEmail,
-            password,
-            options: {
-              emailRedirectTo: redirectUrl,
-            },
-          });
-
-        if (error) {
-          throw error;
-        }
-
-        if (data.session) {
-          setSuccessMessage(
-            "Conta criada com sucesso."
-          );
-        } else {
-          setSuccessMessage(
-            "Conta criada! Enviamos um link de confirmação para seu e-mail."
-          );
-        }
-
-        setPassword("");
-      } else {
-        const { error } =
-          await supabase.auth.signInWithPassword({
-            email: normalizedEmail,
-            password,
-          });
-
-        if (error) {
-          throw error;
-        }
-      }
+      if (error) throw error;
     } catch (error) {
-      console.error(
-        "Erro na autenticação:",
-        error
-      );
+      console.error("Falha na autenticação do Ofertix.");
 
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Não foi possível realizar a autenticação.";
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
 
-      const normalizedMessage =
-        message.toLowerCase();
-
-      if (
-        normalizedMessage.includes(
-          "invalid login credentials"
-        )
-      ) {
-        setErrorMessage(
-          "E-mail ou senha incorretos."
-        );
-      } else if (
-        normalizedMessage.includes(
-          "email not confirmed"
-        )
-      ) {
-        setErrorMessage(
-          "Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada."
-        );
-      } else if (
-        normalizedMessage.includes(
-          "user already registered"
-        )
-      ) {
-        setErrorMessage(
-          "Este e-mail já possui uma conta. Faça login."
-        );
-      } else if (
-        normalizedMessage.includes(
-          "redirect"
-        )
-      ) {
-        setErrorMessage(
-          "A URL de confirmação não está autorizada no Supabase. Verifique a configuração de Redirect URLs."
-        );
+      if (message.includes("too many") || message.includes("rate limit")) {
+        setErrorMessage("Muitas tentativas. Aguarde alguns minutos e tente novamente.");
+      } else if (message.includes("email not confirmed")) {
+        setErrorMessage("A conta ainda precisa ter o e-mail confirmado. Contate um administrador.");
       } else {
-        setErrorMessage(message);
+        // Resposta uniforme para não revelar se um e-mail está cadastrado.
+        setErrorMessage("Não foi possível entrar. Confira suas credenciais ou contate um administrador.");
       }
     } finally {
       setLoading(false);
     }
   }
 
-  function toggleMode() {
-    setIsSignUp((current) => !current);
-    setErrorMessage("");
-    setSuccessMessage("");
-    setPassword("");
-  }
-
   return (
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-brand">
-          <div className="auth-logo">
-            O
-          </div>
-
+          <div className="auth-logo">O</div>
           <div>
             <strong>Ofertix</strong>
-            <span>
-              Automação de ofertas
-            </span>
+            <span>Automação de ofertas</span>
           </div>
         </div>
 
         <div className="auth-header">
-          <h1>
-            {isSignUp
-              ? "Criar sua conta"
-              : "Bem-vindo de volta"}
-          </h1>
-
-          <p>
-            {isSignUp
-              ? "Crie sua conta para começar a utilizar o Ofertix."
-              : "Entre na sua conta para acessar o painel do Ofertix."}
-          </p>
+          <h1>Acesso restrito</h1>
+          <p>Entre com as credenciais da sua conta autorizada no Ofertix.</p>
         </div>
 
-        <form
-          className="auth-form"
-          onSubmit={handleSubmit}
-        >
+        <form className="auth-form" onSubmit={handleSubmit}>
           <div className="auth-field">
-            <label htmlFor="email">
-              E-mail
-            </label>
-
+            <label htmlFor="email">E-mail</label>
             <div className="auth-input-wrapper">
               <Mail size={18} />
-
               <input
                 id="email"
                 type="email"
                 value={email}
-                onChange={(event) =>
-                  setEmail(event.target.value)
-                }
+                onChange={(event) => setEmail(event.target.value)}
                 placeholder="seu@email.com"
-                autoComplete="email"
+                autoComplete="username"
+                required
                 disabled={loading}
               />
             </div>
           </div>
 
           <div className="auth-field">
-            <label htmlFor="password">
-              Senha
-            </label>
-
+            <label htmlFor="password">Senha</label>
             <div className="auth-input-wrapper">
               <LockKeyhole size={18} />
-
               <input
                 id="password"
-                type={
-                  showPassword
-                    ? "text"
-                    : "password"
-                }
+                type={showPassword ? "text" : "password"}
                 value={password}
-                onChange={(event) =>
-                  setPassword(
-                    event.target.value
-                  )
-                }
+                onChange={(event) => setPassword(event.target.value)}
                 placeholder="Digite sua senha"
-                autoComplete={
-                  isSignUp
-                    ? "new-password"
-                    : "current-password"
-                }
+                autoComplete="current-password"
+                required
                 disabled={loading}
               />
-
               <button
                 type="button"
                 className="auth-password-toggle"
-                onClick={() =>
-                  setShowPassword(
-                    (current) => !current
-                  )
-                }
-                aria-label={
-                  showPassword
-                    ? "Ocultar senha"
-                    : "Mostrar senha"
-                }
+                onClick={() => setShowPassword((current) => !current)}
+                aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                 disabled={loading}
               >
-                {showPassword ? (
-                  <EyeOff size={18} />
-                ) : (
-                  <Eye size={18} />
-                )}
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
           </div>
 
           {errorMessage && (
-            <div className="auth-message auth-message-error">
+            <div className="auth-message auth-message-error" role="alert">
               {errorMessage}
             </div>
           )}
 
-          {successMessage && (
-            <div className="auth-message auth-message-success">
-              {successMessage}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            className="auth-submit"
-            disabled={loading}
-          >
+          <button type="submit" className="auth-submit" disabled={loading}>
             {loading ? (
               <span className="auth-submit-loading">
                 <span className="auth-spinner" />
-
-                {isSignUp
-                  ? "Criando conta..."
-                  : "Entrando..."}
+                Validando acesso...
               </span>
             ) : (
               <>
-                {isSignUp ? (
-                  <UserPlus size={18} />
-                ) : (
-                  <LockKeyhole size={18} />
-                )}
-
-                {isSignUp
-                  ? "Criar conta"
-                  : "Entrar no Ofertix"}
+                <LockKeyhole size={18} />
+                Entrar no Ofertix
               </>
             )}
           </button>
         </form>
 
         <div className="auth-switch">
-          <span>
-            {isSignUp
-              ? "Já possui uma conta?"
-              : "Ainda não possui uma conta?"}
-          </span>
-
-          <button
-            type="button"
-            onClick={toggleMode}
-            disabled={loading}
-          >
-            {isSignUp
-              ? "Fazer login"
-              : "Criar conta"}
-          </button>
+          <span>Acesso somente por convite de um administrador.</span>
         </div>
       </div>
     </div>
