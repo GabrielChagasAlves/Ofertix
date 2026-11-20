@@ -5,6 +5,19 @@ const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,
 const screenKeys=["dashboard","products","origin_classification","integrations","rules","affiliate_links","approval","executions","publications","channels","clicks","settings","users"];
 const actionKeys=["products.origin.update","products.update","offers.approve","offers.reject"];
 const APP_URL="https://ofertix-ofertix.vercel.app";
+function aalFromVerifiedJwt(authorization: string): string | null {
+  try {
+    const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : authorization.trim();
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")));
+    return typeof decoded.aal === "string" ? decoded.aal : null;
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async(req)=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
  if(req.method!=="POST")return json({error:"Método não permitido."},405);
@@ -16,8 +29,9 @@ Deno.serve(async(req)=>{
   const admin=createClient(url,service);
   const {data:profile,error:profileError}=await admin.from("user_profiles").select("role,is_active").eq("user_id",user.id).maybeSingle();
   if(profileError||profile?.role!=="admin"||!profile.is_active)return json({error:"Apenas administradores podem gerenciar usuários."},403);
-  const {data:assurance,error:assuranceError}=await caller.auth.mfa.getAuthenticatorAssuranceLevel();
-  if(assuranceError||assurance?.currentLevel!=="aal2")return json({error:"Confirme o MFA antes de gerenciar usuários.",code:"MFA_REQUIRED"},403);
+  // getUser() validates this JWT with Supabase Auth; read its signed AAL claim
+  // instead of asking an SDK client without a persisted session for the assurance level.
+  if(aalFromVerifiedJwt(auth)!=="aal2")return json({error:"Confirme o MFA antes de gerenciar usuários.",code:"MFA_REQUIRED"},403);
   const body=await req.json(),action=body.action;
   if(action==="list"){
    const [{data:authData,error:authError},{data:profiles,error:profilesError}]=await Promise.all([admin.auth.admin.listUsers({page:1,perPage:1000}),admin.from("user_profiles").select("user_id,role,is_active,permissions")]);
