@@ -21,7 +21,20 @@ function corsHeaders(req: Request) {
   };
 }
 function response(req: Request, body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: corsHeaders(req) });
+return new Response(JSON.stringify(body), { status, headers: corsHeaders(req) });
+}
+
+function aalFromVerifiedJwt(authorization: string): string | null {
+  try {
+    const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : authorization.trim();
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")));
+    return typeof decoded.aal === "string" ? decoded.aal : null;
+  } catch {
+    return null;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -51,8 +64,8 @@ Deno.serve(async (req) => {
     if (!profile || profile.role !== "admin" || !profile.is_active) {
       return response(req, { success: false, error: "Apenas administradores ativos podem gerenciar execuções manuais." }, 403);
     }
-    const { data: assurance, error: assuranceError } = await userClient.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (assuranceError || assurance?.currentLevel !== "aal2") {
+    // getUser() above validates the JWT; inspect its signed AAL claim directly.
+    if (aalFromVerifiedJwt(authorization) !== "aal2") {
       return response(req, { success: false, code: "MFA_REQUIRED", error: "Confirme o MFA para executar ações administrativas." }, 403);
     }
     if (action === "list_crons") {
