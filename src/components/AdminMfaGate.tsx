@@ -28,7 +28,7 @@ export function AdminMfaGate({ onVerified }: { onVerified: () => void }) {
           setFactor(verified);
           return;
         }
-        const pending = (data.totp ?? []).find((item) => item.status === "unverified");
+        const pending = (data.all ?? []).find((item) => item.factor_type === "totp" && item.status === "unverified");
         if (pending) {
           const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: pending.id });
           if (unenrollError) throw unenrollError;
