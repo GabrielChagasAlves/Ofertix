@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, ArrowRight, CheckCircle2, Clock3, Package, RefreshCw, Settings2, ShieldCheck } from "lucide-react";
+import { Activity, ArrowRight, CheckCircle2, Clock3, ExternalLink, Package, RefreshCw, Settings2, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { EmptyState, formatDate, MarketplaceTag, Metric, PageIntro, StatusPill } from "../components/OperationsUI";
@@ -18,14 +18,25 @@ export function Marketplaces() {
   const [products, setProducts] = useState<{ marketplace_id: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [canManageConnection, setCanManageConnection] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [connectError, setConnectError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
-    const [marketplaceResult, runResult, productResult] = await Promise.all([
+    const [marketplaceResult, runResult, productResult, authResult] = await Promise.all([
       supabase.from("marketplaces").select("id,name,slug,active").order("name"),
       supabase.from("automation_runs").select("id,function_name,status,started_at,finished_at,products_created,products_updated,metrics").order("started_at", { ascending: false }).limit(40),
       supabase.from("products").select("marketplace_id").eq("active", true),
+      supabase.auth.getUser(),
     ]);
+    const currentUserId = authResult.data.user?.id;
+    if (currentUserId) {
+      const { data: profile } = await supabase.from("user_profiles").select("role,is_active").eq("user_id", currentUserId).maybeSingle();
+      setCanManageConnection(profile?.role === "admin" && profile?.is_active === true);
+    } else {
+      setCanManageConnection(false);
+    }
     const requestError = marketplaceResult.error || runResult.error || productResult.error;
     if (requestError) setError(requestError.message);
     setMarketplaces(marketplaceResult.data ?? []); setRuns(runResult.data ?? []); setProducts(productResult.data ?? []);
@@ -33,12 +44,28 @@ export function Marketplaces() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  const connectMercadoLivre = async () => {
+    setConnecting(true);
+    setConnectError("");
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("mercado-livre-oauth-start", { body: {} });
+      if (invokeError) throw invokeError;
+      if (!data?.authorization_url) throw new Error(data?.error || "Não foi possível iniciar a autorização do Mercado Livre.");
+      window.location.assign(data.authorization_url);
+    } catch (err) {
+      setConnectError(err instanceof Error ? err.message : "Falha ao iniciar a conexão.");
+      setConnecting(false);
+    }
+  };
+
   const productsByMarketplace = useMemo(() => products.reduce<Map<string, number>>((map, product) => map.set(product.marketplace_id, (map.get(product.marketplace_id) ?? 0) + 1), new Map()), [products]);
   const connected = marketplaces.filter((item) => item.active).length;
 
   return <div className="page ops-page">
     <PageIntro eyebrow="INTEGRAÇÕES" title="Marketplaces conectados" description="Acompanhe cada origem de produtos, sem misturar dados ou regras entre marketplaces." actions={<button className="ops-button ops-button-secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> Atualizar</button>} />
     {error && <div className="ops-alert">{error}</div>}
+    {connectError && <div className="ops-alert">{connectError}</div>}
     <section className="ops-metrics">
       <Metric icon={<CheckCircle2 size={19} />} value={loading ? "…" : connected} label="Integrações ativas" detail="Marketplaces habilitados" />
       <Metric icon={<Package size={19} />} value={loading ? "…" : products.length} label="Produtos ativos" detail="Catálogo separado por origem" />
@@ -55,7 +82,9 @@ export function Marketplaces() {
           <p>{shopee ? "Leitura automática do feed de afiliados a cada 30 minutos, com regras, termos e faixa de preço aplicados antes da importação." : "Integração preservada com operação e credenciais próprias, separada da Shopee."}</p>
           <div className="ops-integration-stats"><span><Package size={15} /> {productsByMarketplace.get(marketplace.id) ?? 0} produtos ativos</span><span><Clock3 size={15} /> {lastRun ? "Última execução: " + formatDate(lastRun.finished_at || lastRun.started_at) : "Sem execução registrada"}</span></div>
           {lastRun && <div className="ops-run-summary"><StatusPill tone={lastRun.status === "succeeded" ? "success" : lastRun.status === "failed" ? "danger" : "warning"}>{lastRun.status === "succeeded" ? "Operando" : lastRun.status}</StatusPill><span>{(lastRun.products_created ?? 0) + (lastRun.products_updated ?? 0)} itens tratados no último ciclo</span></div>}
-          <div className="ops-card-footer"><Link to="/execucoes">Ver execuções <ArrowRight size={15} /></Link><Link to="/regras">Ver regras <Settings2 size={15} /></Link></div>
+          <div className="ops-card-footer"><Link to="/execucoes">Ver execuções <ArrowRight size={15} /></Link><Link to="/regras">Ver regras <Settings2 size={15} /></Link>
+            {!shopee && canManageConnection && <button className="ops-button ops-button-secondary" onClick={() => void connectMercadoLivre()} disabled={connecting}><ExternalLink size={15} /> {connecting ? "Conectando..." : "Conectar Mercado Livre"}</button>}
+          </div>
         </article>;
       })}
     </section>
