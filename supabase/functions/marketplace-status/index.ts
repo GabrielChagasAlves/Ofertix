@@ -6,6 +6,19 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+function aalFromVerifiedJwt(authorization: string): string | null {
+  try {
+    const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : authorization.trim();
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")));
+    return typeof decoded.aal === "string" ? decoded.aal : null;
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", {
@@ -21,8 +34,8 @@ Deno.serve(async (req) => {
     const caller = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false } });
     const { data: { user }, error: userError } = await caller.auth.getUser();
     if (userError || !user) return new Response(JSON.stringify({ connected: false, error: "Sessão inválida." }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    const { data: assurance, error: assuranceError } = await caller.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (assuranceError || assurance?.currentLevel !== "aal2") return new Response(JSON.stringify({ connected: false, error: "MFA administrativo necessário." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    // getUser() above validates the JWT; inspect its signed AAL claim directly.
+    if (aalFromVerifiedJwt(authorization) !== "aal2") return new Response(JSON.stringify({ connected: false, error: "MFA administrativo necessário." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const secretKeys = JSON.parse(
       Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}"
