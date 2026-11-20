@@ -17,6 +17,9 @@ export function AdminMfaGate({ onVerified }: { onVerified: () => void }) {
     let active = true;
     async function prepare() {
       try {
+        const { data: assurance, error: assuranceError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        if (assuranceError) throw assuranceError;
+        if (assurance.currentLevel === "aal2") { if (active) onVerified(); return; }
         const { data, error: listError } = await supabase.auth.mfa.listFactors();
         if (listError) throw listError;
         const verified = (data.totp ?? []).find((item) => item.status === "verified");
@@ -27,14 +30,8 @@ export function AdminMfaGate({ onVerified }: { onVerified: () => void }) {
         }
         const pending = (data.totp ?? []).find((item) => item.status === "unverified");
         if (pending) {
-          if (!active) return;
-          setFactor(pending);
-          const { data: assurance, error: assuranceError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-          if (assuranceError) throw assuranceError;
-          if (assurance.nextLevel === "aal2" && assurance.currentLevel === "aal2") {
-            onVerified();
-          }
-          return;
+          const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: pending.id });
+          if (unenrollError) throw unenrollError;
         }
         const { data: enrolled, error: enrollError } = await supabase.auth.mfa.enroll({
           factorType: "totp",
