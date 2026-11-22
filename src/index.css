@@ -6912,3 +6912,23 @@ button, input, select, textarea { color-scheme: dark; }
 .user-permission-footer { display:flex; justify-content:flex-end; padding-top:15px; margin-top:14px; border-top:1px solid rgba(52,80,107,.4); }
 @media(max-width:1000px) { .ops-dashboard-grid { grid-template-columns:1fr; } .user-invite { grid-template-columns:1fr; } }
 @media(max-width:700px) { .user-permission-columns { grid-template-columns:1fr; } .user-permission-card > header { align-items:flex-start; flex-direction:column; } .ops-next-steps { align-items:flex-start; flex-wrap:wrap; } .ops-next-steps a { width:100%; } }
+
+/* FIX MOBILE NAV — evita blur global em Safari/iOS */
+@media (max-width: 750px) {
+  .sidebar,
+  .sidebar.mobile-open {
+    z-index: 100 !important;
+    background: #0c1522 !important;
+    opacity: 1 !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .mobile-nav-backdrop {
+    z-index: 90 !important;
+    background: rgba(2, 8, 15, .58) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    filter: none !important;
+    opacity: 1 !important;
+  }
+}
