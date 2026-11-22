@@ -40,6 +40,7 @@ function App() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Array<{id:string;title:string;message:string|null;run_id:string|null;created_at:string;read_at:string|null}>>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [systemAlert, setSystemAlert] = useState<{ title: string; message: string | null } | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileNav, setShowMobileNav] = useState(false);
   const [access, setAccess] = useState<AccessData>(defaultAccess);
@@ -118,6 +119,19 @@ function App() {
     return () => { active = false; };
   }, [session]);
 
+  useEffect(() => {
+    if (!session?.user.id) return;
+    const channel = supabase.channel("ofertix-system-alerts-" + session.user.id)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "user_notifications", filter: "user_id=eq." + session.user.id }, (payload) => {
+        const notification = payload.new as { notification_type?: string; title?: string; message?: string | null };
+        if (notification.notification_type === "system") {
+          setSystemAlert({ title: notification.title || "Alerta de integração", message: notification.message || "Uma integração precisa de atenção." });
+          setUnreadCount((count) => count + 1);
+        }
+      }).subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [session?.user.id]);
+
   if (loading) {
     return (
       <div className="app-loading">
@@ -167,6 +181,19 @@ function App() {
         )}
 
         <main className="main-content">
+          {systemAlert && (
+            <div className="system-alert-overlay" role="alertdialog" aria-modal="true" aria-labelledby="system-alert-title">
+              <section className="system-alert-dialog">
+                <span className="system-alert-kicker">ALERTA DE INTEGRAÇÃO</span>
+                <h2 id="system-alert-title">{systemAlert.title}</h2>
+                <p>{systemAlert.message}</p>
+                <div className="system-alert-actions">
+                  <a href="/marketplaces">Ver integrações</a>
+                  <button type="button" onClick={() => setSystemAlert(null)}>Entendi</button>
+                </div>
+              </section>
+            </div>
+          )}
           <header className="app-topbar">
             <button
               type="button"
