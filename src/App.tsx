@@ -40,7 +40,7 @@ function App() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Array<{id:string;title:string;message:string|null;run_id:string|null;created_at:string;read_at:string|null}>>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [systemAlert, setSystemAlert] = useState<{ title: string; message: string | null } | null>(null);
+  const [systemAlert, setSystemAlert] = useState<{ id: string; title: string; message: string | null } | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileNav, setShowMobileNav] = useState(false);
   const [access, setAccess] = useState<AccessData>(defaultAccess);
@@ -112,8 +112,13 @@ function App() {
     if (!session) { setUnreadCount(0); return; }
     let active = true;
     const loadUnread = async () => {
-      const { count } = await supabase.from("user_notifications").select("id", { count: "exact", head: true }).is("read_at", null);
-      if (active) setUnreadCount(count ?? 0);
+      const [{ count }, { data: latestSystemAlert }] = await Promise.all([
+        supabase.from("user_notifications").select("id", { count: "exact", head: true }).is("read_at", null),
+        supabase.from("user_notifications").select("id,title,message").eq("notification_type", "system").is("read_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      ]);
+      if (!active) return;
+      setUnreadCount(count ?? 0);
+      if (latestSystemAlert) setSystemAlert({ id: latestSystemAlert.id, title: latestSystemAlert.title, message: latestSystemAlert.message });
     };
     void loadUnread();
     return () => { active = false; };
@@ -125,7 +130,7 @@ function App() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "user_notifications", filter: "user_id=eq." + session.user.id }, (payload) => {
         const notification = payload.new as { notification_type?: string; title?: string; message?: string | null };
         if (notification.notification_type === "system") {
-          setSystemAlert({ title: notification.title || "Alerta de integração", message: notification.message || "Uma integração precisa de atenção." });
+          setSystemAlert({ id: String((payload.new as { id?: string }).id || ""), title: notification.title || "Alerta de integração", message: notification.message || "Uma integração precisa de atenção." });
           setUnreadCount((count) => count + 1);
         }
       }).subscribe();
@@ -189,7 +194,7 @@ function App() {
                 <p>{systemAlert.message}</p>
                 <div className="system-alert-actions">
                   <a href="/marketplaces">Ver integrações</a>
-                  <button type="button" onClick={() => setSystemAlert(null)}>Entendi</button>
+                  <button type="button" onClick={() => { if (systemAlert.id) void supabase.from("user_notifications").update({ read_at: new Date().toISOString() }).eq("id", systemAlert.id); setSystemAlert(null); }}>Entendi</button>
                 </div>
               </section>
             </div>
