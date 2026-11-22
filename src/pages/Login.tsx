@@ -4,7 +4,6 @@ import {
   EyeOff,
   LockKeyhole,
   Mail,
-  Tag,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
@@ -57,7 +56,7 @@ export function Login() {
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-brand">
-          <div className="ofertix-brand-mark auth-brand-mark"><Tag size={24} /></div>
+          <div className="ofertix-brand-mark auth-brand-mark"><img src="/ofertix-mark.svg" alt="" /></div>
           <div>
             <strong>Ofertix</strong>
             <span>Automação de ofertas</span>
