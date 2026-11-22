@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import {
   Bell,
   ChevronDown,
   Menu,
   Search,
   X,
+  UserRound,
 } from "lucide-react";
 
 import { Sidebar } from "./components/Sidebar";
@@ -31,6 +32,7 @@ import { ClassificacaoOrigem } from "./pages/ClassificacaoOrigem";
 import { ClassificacaoCategorias } from "./pages/ClassificacaoCategorias";
 import { Usuarios } from "./pages/Usuarios";
 import { RevisaoDisponibilidade } from "./pages/RevisaoDisponibilidade";
+import { Perfil } from "./pages/Perfil";
 import { defaultAccess, canScreen, canAction, type AccessData } from "./lib/access";
 import { Navigate } from "react-router-dom";
 
@@ -295,6 +297,10 @@ function App() {
                         <small>{session.user.email || "Sessão autenticada"}</small>
                       </span>
                     </div>
+                    <Link to="/perfil" className="app-user-menu-profile-link" onClick={() => setShowUserMenu(false)}>
+                      <span className="app-user-menu-profile-link-icon"><UserRound size={16} /></span>
+                      <span><strong>Meu perfil</strong><small>Foto e informações pessoais</small></span>
+                    </Link>
                     <button
                       type="button"
                       className="app-user-menu-logout"
@@ -313,6 +319,7 @@ function App() {
 
           <div className="app-page-content">
             <Routes>
+              <Route path="/perfil" element={<Perfil />} />
               <Route path="/" element={canScreen(access,"dashboard")?<Dashboard/>:<Navigate to={canScreen(access,"origin_classification")?"/classificacao-origem":"/acesso-restrito"} replace/>} />
               <Route path="/produtos" element={canScreen(access,"products")?<Produtos access={access}/>:<Navigate to="/acesso-restrito" replace/>} />
               <Route path="/classificacao-origem" element={canScreen(access,"origin_classification")?<ClassificacaoOrigem access={access}/>:<Navigate to="/acesso-restrito" replace/>} />
