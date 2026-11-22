@@ -6867,10 +6867,10 @@ button, input, select, textarea { color-scheme: dark; }
 .ops-section-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-bottom:15px; margin-bottom:8px; border-bottom:1px solid rgba(52,80,107,.48); }
 .ops-section-head h2 { color:#edf5fc; font-size:16px; margin:4px 0 0; }
 .ops-section-head a { display:inline-flex; align-items:center; gap:6px; color:#5de4a6; font-size:10px; font-weight:700; }
-.ops-marketplace-row { display:grid; grid-template-columns:auto auto minmax(0,1fr) auto; align-items:center; gap:10px; }
-.ops-marketplace-row strong { color:#f1f7fd; font-size:17px; }
-.ops-marketplace-row > span { color:#8299ae; font-size:10px; }
-.ops-marketplace-row a { color:#5de4a6; font-size:10px; }
+.ops-dashboard-grid .ops-marketplace-row { display:grid; grid-template-columns:auto auto minmax(0,1fr) auto; align-items:center; gap:10px; }
+.ops-dashboard-grid .ops-marketplace-row strong { color:#f1f7fd; font-size:17px; }
+.ops-dashboard-grid .ops-marketplace-row > span { color:#8299ae; font-size:10px; }
+.ops-dashboard-grid .ops-marketplace-row a { color:#5de4a6; font-size:10px; }
 .ops-activity-list { display:flex; flex-direction:column; }
 .ops-activity-row { display:grid; grid-template-columns:8px minmax(0,1fr) auto; align-items:center; gap:11px; padding:12px 2px; border-bottom:1px solid rgba(52,80,107,.36); }
 .ops-activity-row:last-child { border-bottom:0; }
