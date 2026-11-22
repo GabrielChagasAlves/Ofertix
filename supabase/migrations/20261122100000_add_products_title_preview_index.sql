@@ -1,0 +1,1 @@
+create index if not exists products_title_preview_idx on public.products (title);
