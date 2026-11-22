@@ -6,7 +6,7 @@ import { ProdutosDuplicados } from "./ProdutosDuplicados";
 import { canAction, type AccessData } from "../lib/access";
 
 type Marketplace = { id: string; name: string; slug: string };
-type Product = { id: string; marketplace_id: string; external_id?: string | null; title: string; brand: string | null; category: string | null; commercial_category_id: string | null; commercial_category_source: "manual" | "automatic"; origin_type: "national" | "imported" | "unknown"; price: number | null; original_price: number | null; discount_percent: number | null; image_url: string | null; product_url: string | null; affiliate_url: string | null; active: boolean; availability_status: string | null; last_seen_at: string | null; created_at: string };
+type Product = { id: string; marketplace_id: string; external_id?: string | null; affiliate_generation_status?: string | null; title: string; brand: string | null; category: string | null; commercial_category_id: string | null; commercial_category_source: "manual" | "automatic"; origin_type: "national" | "imported" | "unknown"; price: number | null; original_price: number | null; discount_percent: number | null; image_url: string | null; product_url: string | null; affiliate_url: string | null; active: boolean; availability_status: string | null; last_seen_at: string | null; created_at: string };
 type Rule = { id: string; name: string; category: string | null };
 type Category = { id: string; name: string; slug: string };
 type Match = { product_id: string; rule_id: string; status: string; matched_at: string };
@@ -41,7 +41,7 @@ export function Produtos({ access }: { access: AccessData }) {
       const allProducts: Product[] = [];
       for (let from = 0; ; from += pageSize) {
         const { data, error: pageError } = await supabase.from("products")
-          .select("id,marketplace_id,external_id,title,brand,category,commercial_category_id,commercial_category_source,origin_type,price,original_price,discount_percent,image_url,product_url,affiliate_url,active,availability_status,last_seen_at,created_at")
+          .select("id,marketplace_id,external_id,title,brand,category,commercial_category_id,commercial_category_source,origin_type,price,original_price,discount_percent,image_url,product_url,affiliate_url,active,availability_status,affiliate_generation_status,last_seen_at,created_at")
           .order("created_at", { ascending: false }).range(from, from + pageSize - 1);
         if (pageError) throw pageError;
         allProducts.push(...((data ?? []) as Product[]));
@@ -100,7 +100,7 @@ export function Produtos({ access }: { access: AccessData }) {
     return products.filter((product) => {
       const qualified = (matchesByProduct.get(product.id)?.length ?? 0) > 0;
       const searchable = [product.title, product.brand, product.category].filter(Boolean).join(" ").toLowerCase();
-      return (showHistory || qualified) && (marketplace === "all" || product.marketplace_id === marketplace) && (!term || searchable.includes(term));
+      return product.affiliate_generation_status !== "rejected" && (showHistory || qualified) && (marketplace === "all" || product.marketplace_id === marketplace) && (!term || searchable.includes(term));
     });
   }, [products, marketplace, matchesByProduct, search, showHistory]);
 
@@ -116,6 +116,7 @@ export function Produtos({ access }: { access: AccessData }) {
   );
   const pendingAffiliate = qualified.filter((product) =>
     (product.active || pendingRuleProductIds.has(product.id))
+    && product.affiliate_generation_status !== "rejected"
     && !product.affiliate_url?.trim()
     && !linkedProductIds.has(product.id)
   ).length;
