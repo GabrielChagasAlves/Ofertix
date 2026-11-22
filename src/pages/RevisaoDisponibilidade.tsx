@@ -44,13 +44,14 @@ export function RevisaoDisponibilidade() {
       : { availability_status: status, availability_error: null, last_availability_check: now, availability_retry_count: 0, availability_next_retry_at: null, availability_review_required: false, availability_review_status: status === "available" ? "confirmed_available" : "confirmed_unavailable", availability_reviewed_at: now, availability_reviewed_by: auth.user?.id ?? null, availability_review_note: note, ...(status === "available" ? { last_available_at: now } : { last_unavailable_at: now }), updated_at: now };
     const { error: updateError } = await supabase.from("products").update(update).eq("id", product.id);
     if (updateError) { setError("Não foi possível salvar a decisão: " + updateError.message); setBusy(null); return; }
+    let feedback = affiliateReview
+      ? status === "available" ? "Produto aprovado e devolvido à fila do n8n." : "Produto reprovado e removido do catálogo operacional."
+      : status === "available" ? "Produto confirmado como ativo." : "Produto confirmado como indisponível.";
     if (!affiliateReview) {
       const { error: historyError } = await supabase.from("product_availability_history").insert({ product_id: product.id, status, reason: note, checked_at: now });
-      if (historyError) setMessage("Status atualizado, mas não foi possível registrar o histórico: " + historyError.message);
+      if (historyError) feedback = "Status atualizado, mas não foi possível registrar o histórico: " + historyError.message;
     }
-    if (!message) setMessage(affiliateReview
-      ? status === "available" ? "Produto aprovado e devolvido à fila do n8n." : "Produto reprovado e removido do catálogo operacional."
-      : status === "available" ? "Produto confirmado como ativo." : "Produto confirmado como indisponível.");
+    setMessage(feedback);
     await load(); setBusy(null);
   };
 
