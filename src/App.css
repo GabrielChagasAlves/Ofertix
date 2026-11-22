@@ -182,3 +182,13 @@
     border-right-color: var(--border);
   }
 }
+
+
+.system-alert-overlay { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 20px; background: rgba(15, 23, 42, .58); backdrop-filter: blur(3px); }
+.system-alert-dialog { width: min(100%, 480px); padding: 26px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface, #fff); color: var(--text-h, #172033); box-shadow: 0 24px 80px rgba(0, 0, 0, .24); }
+.system-alert-kicker { display: inline-block; margin-bottom: 10px; color: #b45309; font-size: 11px; font-weight: 800; letter-spacing: .1em; }
+.system-alert-dialog h2 { margin: 0 0 10px; font-size: 21px; }
+.system-alert-dialog p { margin: 0; color: var(--text, #475569); line-height: 1.6; }
+.system-alert-actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 24px; }
+.system-alert-actions a { color: var(--accent, #2563eb); font-weight: 700; text-decoration: none; }
+.system-alert-actions button { border: 0; border-radius: 9px; padding: 10px 16px; background: var(--accent, #2563eb); color: white; font-weight: 700; cursor: pointer; }
