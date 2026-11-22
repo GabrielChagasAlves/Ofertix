@@ -7042,3 +7042,303 @@ button, input, select, textarea { color-scheme: dark; }
   .affiliate-summary-card { min-height: 56px; padding: 8px 10px !important; border-right: 0 !important; border-bottom: 1px solid rgba(66,91,119,.35) !important; }
   .affiliate-summary-card:last-child { border-bottom: 0 !important; }
 }
+
+
+/* APROVACAO — cards compactos dark / mobile-first */
+.approval-page .approval-list {
+  display: grid;
+  gap: 12px;
+}
+.approval-page .approval-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr) 148px;
+  align-items: start;
+  gap: 14px;
+  padding: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(74, 103, 133, .52);
+  border-radius: 17px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(39, 212, 139, .075), transparent 28%),
+    linear-gradient(145deg, #14263a 0%, #0d1b2a 100%);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .14), inset 0 1px rgba(255,255,255,.025);
+  transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease, background .2s ease;
+  animation: approval-card-enter .32s ease both;
+}
+.approval-page .approval-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(53, 220, 151, .48);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, .22), 0 0 0 1px rgba(53, 220, 151, .06);
+}
+.approval-page .approval-card.is-selected {
+  border-color: rgba(54, 224, 151, .82);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(39, 212, 139, .13), transparent 34%),
+    linear-gradient(145deg, #153348 0%, #10283a 100%);
+  box-shadow: 0 0 0 2px rgba(39, 212, 139, .12), 0 12px 28px rgba(0,0,0,.2);
+}
+.approval-page .approval-card-image {
+  width: 104px;
+  height: 112px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 7px;
+  border: 1px solid rgba(92, 122, 151, .34);
+  border-radius: 13px;
+  background: linear-gradient(145deg, #1b3046, #102235);
+  color: #63e5aa;
+}
+.approval-page .approval-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #f3f6fa;
+}
+.approval-page .approval-card-main { min-width: 0; }
+.approval-page .approval-card-meta { gap: 6px; margin: 0 0 9px; }
+.approval-page .approval-card-main h2 {
+  margin: 0;
+  color: #f1f7fc;
+  font-size: 14px;
+  line-height: 1.42;
+  letter-spacing: -.015em;
+}
+.approval-page .approval-card-subtitle {
+  margin: 5px 0 9px;
+  color: #91a8bd;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.approval-page .approval-category-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(145px, 205px);
+  align-items: center;
+  gap: 8px;
+  margin: 7px 0 0;
+  color: #91a8bd;
+  font-size: 10px;
+  font-weight: 600;
+}
+.approval-page .approval-category-editor select {
+  width: 100%;
+  min-width: 0;
+  min-height: 35px;
+  padding: 6px 9px;
+  border: 1px solid #304a63;
+  border-radius: 9px;
+  background: #0b1927;
+  color: #e8f1f8;
+  font-size: 11px;
+  color-scheme: dark;
+}
+.approval-page .approval-category-editor select:focus {
+  outline: none;
+  border-color: #31d990;
+  box-shadow: 0 0 0 3px rgba(49, 217, 144, .1);
+}
+.approval-page .approval-card-links {
+  gap: 9px 13px;
+  margin-top: 10px;
+}
+.approval-page .approval-card-links a {
+  color: #72baff;
+  font-size: 10px;
+  font-weight: 650;
+}
+.approval-page .approval-discount {
+  border: 1px solid rgba(49, 217, 144, .22);
+  border-radius: 999px;
+  background: rgba(49, 217, 144, .1);
+  color: #69e5ad;
+}
+.approval-page .approval-link-warning { color: #ff9a9f; font-size: 10px; }
+.approval-page .approval-card-audit {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(74, 103, 133, .28);
+  color: #718ba2;
+  font-size: 9px;
+  line-height: 1.45;
+}
+.approval-page .approval-card-actions {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+  padding-top: 1px;
+}
+.approval-page .approval-button {
+  min-width: 0;
+  min-height: 36px;
+  padding: 8px 9px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 750;
+  white-space: normal;
+  line-height: 1.25;
+  transition: transform .16s ease, border-color .16s ease, filter .16s ease, box-shadow .16s ease;
+}
+.approval-page .approval-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+.approval-page .approval-button-approve {
+  border: 1px solid rgba(48, 221, 145, .36);
+  background: linear-gradient(135deg, #0e8a5a, #08704b);
+  color: #effff7;
+  box-shadow: 0 5px 14px rgba(10, 139, 88, .16);
+}
+.approval-page .approval-button-reject {
+  border: 1px solid rgba(255, 112, 130, .25);
+  background: rgba(116, 38, 53, .22);
+  color: #ff9da8;
+}
+.approval-page .approval-button-secondary {
+  border: 1px solid #304a63;
+  background: #172b40;
+  color: #c4d5e3;
+}
+.approval-page .approval-card-select {
+  top: 10px;
+  left: 10px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(125, 154, 181, .5);
+  border-radius: 9px;
+  background: rgba(9, 23, 36, .94);
+  box-shadow: 0 4px 12px rgba(0,0,0,.24);
+}
+.approval-page .approval-card-select input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #27d48b;
+}
+.approval-page .approval-card.is-selected .approval-card-select {
+  border-color: #31d990;
+  background: #0d6346;
+}
+.approval-page .approval-bulkbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin: 0 0 12px;
+  border: 1px solid rgba(74, 103, 133, .5);
+  border-radius: 14px;
+  background: linear-gradient(120deg, #14263a, #0e1d2c);
+  color: #d9e6f0;
+  box-shadow: inset 0 1px rgba(255,255,255,.025);
+}
+.approval-page .approval-select-all { color: #dce9f3; font-size: 11px; font-weight: 700; }
+.approval-page .approval-select-all input { accent-color: #27d48b; }
+.approval-page .approval-bulkbar > span { color: #8fa8bd; font-size: 10px; }
+.approval-page .approval-bulkbar > div { gap: 7px; }
+.approval-page .approval-notice {
+  border-color: rgba(49, 217, 144, .25);
+  border-radius: 12px;
+  background: rgba(24, 151, 99, .09);
+  color: #76e5b3;
+}
+.approval-page .approval-toolbar .ops-search,
+.approval-page .approval-toolbar .ops-select {
+  border-color: #304a63;
+  background: #0e1c2b;
+  color: #a9bfd1;
+}
+.approval-page .approval-toolbar input,
+.approval-page .approval-toolbar select {
+  color: #eaf2f8;
+  background-color: transparent;
+}
+@keyframes approval-card-enter {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 900px) {
+  .approval-page .approval-card {
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .approval-page .approval-card-image { width: 92px; height: 104px; }
+  .approval-page .approval-card-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(74, 103, 133, .28);
+  }
+  .approval-page .approval-card-actions .approval-button { flex: 1 1 0; }
+}
+@media (max-width: 640px) {
+  .approval-page .ops-surface { padding: 11px; border-radius: 16px; }
+  .approval-page .approval-list { gap: 10px; }
+  .approval-page .approval-card {
+    grid-template-columns: 82px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    padding: 11px;
+    border-radius: 15px;
+  }
+  .approval-page .approval-card-image {
+    width: 82px;
+    height: 96px;
+    padding: 5px;
+    border-radius: 11px;
+  }
+  .approval-page .approval-card-meta { gap: 5px; margin-bottom: 6px; }
+  .approval-page .approval-card-main h2 { font-size: 12px; line-height: 1.35; }
+  .approval-page .approval-card-subtitle { margin: 4px 0 6px; font-size: 10px; }
+  .approval-page .approval-category-editor {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    margin-top: 7px;
+    font-size: 9px;
+  }
+  .approval-page .approval-category-editor select { min-height: 34px; font-size: 11px; }
+  .approval-page .approval-card-links { gap: 7px 10px; margin-top: 8px; }
+  .approval-page .approval-card-audit { margin-top: 7px; padding-top: 6px; }
+  .approval-page .approval-card-actions {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+    padding-top: 9px;
+  }
+  .approval-page .approval-card-actions .approval-button {
+    min-height: 38px;
+    padding: 7px 6px;
+    font-size: 10px;
+  }
+  .approval-page .approval-card-select { top: 8px; left: 8px; width: 25px; height: 25px; }
+  .approval-page .approval-bulkbar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 9px;
+    padding: 11px;
+  }
+  .approval-page .approval-bulkbar > div {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    margin: 0;
+  }
+  .approval-page .approval-bulkbar > div .approval-button { min-height: 37px; font-size: 10px; }
+}
+@media (max-width: 390px) {
+  .approval-page .approval-card { grid-template-columns: 70px minmax(0,1fr); padding: 9px; gap: 8px; }
+  .approval-page .approval-card-image { width: 70px; height: 84px; }
+  .approval-page .approval-card-main h2 { font-size: 11px; }
+  .approval-page .approval-category-editor select { min-height: 32px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .approval-page .approval-card { animation: none; transition: none; }
+  .approval-page .approval-card:hover,
+  .approval-page .approval-button:hover:not(:disabled) { transform: none; }
+}
