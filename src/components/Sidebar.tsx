@@ -1,4 +1,4 @@
-import { Users, Boxes,Cable,ChevronRight,ClipboardCheck,Gauge,Globe2,Link2,LogOut,Megaphone,MousePointerClick,PlayCircle,Settings,Tags,BrainCircuit,AlertTriangle } from "lucide-react";
+import { Users, Boxes,Cable,ChevronRight,ClipboardCheck,Gauge,Globe2,Link2,LogOut,Megaphone,MousePointerClick,PlayCircle,Settings,Tags,BrainCircuit,AlertTriangle,Tag } from "lucide-react";
 import { NavLink,useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { canScreen, canAction, type AccessData } from "../lib/access";
@@ -15,7 +15,7 @@ export function Sidebar({ isOpen = false, onNavigate, access }: SidebarProps){
  const navigate=useNavigate();
  const handleLogout=async()=>{await supabase.auth.signOut();navigate("/");};
  return <aside className={`sidebar${isOpen ? " mobile-open" : ""}`}>
-  <div className="sidebar-logo"><div className="logo-icon"><span>O</span></div><div><strong>Ofertix</strong><span>Automação de ofertas</span></div></div>
+  <div className="sidebar-logo"><div className="ofertix-brand-mark" aria-label="Ofertix"><Tag size={23} /></div><div><strong>Ofertix</strong><span>Automação de ofertas</span></div></div>
   <nav className="sidebar-nav"><div className="nav-section-title">PRINCIPAL</div>{menuItems.filter(item=>{const keys:Record<string,string>={"/":"dashboard","/produtos":"products","/classificacao-categorias":"products","/marketplaces":"integrations","/regras":"rules","/links-afiliado":"affiliate_links","/aprovacao":"approval","/execucoes":"executions","/revisao-disponibilidade":"products","/publicacoes":"publications","/canais":"channels","/cliques":"clicks"};return canScreen(access,keys[item.path]||"") && (item.path!=="/revisao-disponibilidade" || canAction(access,"products.update"));}).map(item=>{const Icon=item.icon;return <NavLink key={item.path} to={item.path} end={item.path==="/"} onClick={onNavigate} className={({isActive})=>isActive?"nav-item active":"nav-item"}><Icon size={17} strokeWidth={1.9}/><span>{item.label}</span><ChevronRight size={14} strokeWidth={1.8} style={{marginLeft:"auto",opacity:.5}}/></NavLink>;})}</nav>
   {canScreen(access,"origin_classification")&&<NavLink to="/classificacao-origem" onClick={onNavigate} className={({isActive})=>isActive?"nav-item active":"nav-item"}><Globe2 size={17}/><span>Classificação de origem</span><ChevronRight size={14} style={{marginLeft:"auto",opacity:.5}}/></NavLink>}
   {canScreen(access,"users")&&<NavLink to="/usuarios" onClick={onNavigate} className={({isActive})=>isActive?"nav-item active":"nav-item"}><Users size={17}/><span>Usuários</span><ChevronRight size={14} style={{marginLeft:"auto",opacity:.5}}/></NavLink>}
