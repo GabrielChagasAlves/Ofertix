@@ -100,7 +100,7 @@ export function Produtos({ access }: { access: AccessData }) {
     return products.filter((product) => {
       const qualified = (matchesByProduct.get(product.id)?.length ?? 0) > 0;
       const searchable = [product.title, product.brand, product.category].filter(Boolean).join(" ").toLowerCase();
-      return product.affiliate_generation_status !== "rejected" && (showHistory || qualified) && (marketplace === "all" || product.marketplace_id === marketplace) && (!term || searchable.includes(term));
+      return (showHistory || !["rejected", "manual_review"].includes(product.affiliate_generation_status || "")) && (showHistory || qualified) && (marketplace === "all" || product.marketplace_id === marketplace) && (!term || searchable.includes(term));
     });
   }, [products, marketplace, matchesByProduct, search, showHistory]);
 
