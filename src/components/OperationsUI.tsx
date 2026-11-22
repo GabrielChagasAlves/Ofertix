@@ -7,7 +7,10 @@ export function PageIntro({ eyebrow, title, description, actions }: { eyebrow: s
 }
 
 export function Metric({ icon, label, value, detail }: { icon: ReactNode; label: string; value: ReactNode; detail: string }) {
-  return <article className="ops-metric"><span className="ops-metric-icon">{icon}</span><strong>{value}</strong><span>{label}</span><small>{detail}</small></article>;
+  return <article className="ops-metric">
+    <span className="ops-metric-icon">{icon}</span>
+    <div className="ops-metric-copy"><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>
+  </article>;
 }
 
 export function StatusPill({ tone = "neutral", children }: { tone?: Tone; children: ReactNode }) {
