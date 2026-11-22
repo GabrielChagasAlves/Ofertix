@@ -148,10 +148,20 @@ export function Produtos({ access }: { access: AccessData }) {
           const source = marketplaceById.get(product.marketplace_id);
           const productRules = (matchesByProduct.get(product.id) ?? []).map((match) => rulesById.get(match.rule_id)?.name).filter(Boolean);
           return <article className="ops-product-card" key={product.id}>
-            <div className="ops-product-image">{product.image_url ? <img src={product.image_url} alt="" /> : <Package size={22} />}</div>
-            <div className="ops-product-copy"><div className="ops-product-meta"><MarketplaceTag name={source?.name ?? "Marketplace"} slug={source?.slug} />{product.origin_type==="national"?<StatusPill tone="success">Nacional</StatusPill>:product.origin_type==="imported"?<StatusPill tone="warning">Importado</StatusPill>:<StatusPill>Origem não identificada</StatusPill>}{product.discount_percent != null && <StatusPill tone="success">{product.discount_percent}% OFF</StatusPill>}</div><h2>{product.title}</h2><p>{[product.brand || product.category || "Sem marca informada",categoriesById.get(product.commercial_category_id||"")?.name||"Sem categoria comercial",product.commercial_category_source==="manual"?"Categoria manual":null].filter(Boolean).join(" · ")}</p><div className="ops-rules">{productRules.length ? productRules.map((rule) => <span key={rule}>{rule}</span>) : <span>Importação anterior sem regra</span>}</div></div>
-            <div className="ops-product-price"><strong>{formatCurrency(product.price)}</strong>{product.original_price && product.original_price > (product.price ?? 0) && <del>{formatCurrency(product.original_price)}</del>}<small>Visto {formatDate(product.last_seen_at || product.created_at)}</small></div>
-            <div className="ops-product-actions">{product.product_url && <a className="ops-icon-action" href={product.product_url} target="_blank" rel="noreferrer" aria-label="Abrir produto"><ExternalLink size={16} /></a>}<button className="ops-icon-action" onClick={() => void toggleProduct(product)} aria-label={product.active ? "Desativar produto" : "Ativar produto"}><Power size={16} /></button></div>
+            <div className="ops-product-image">
+              <Package size={25} className="ops-product-image-fallback" />
+              {product.image_url && <img src={product.image_url} alt={product.title} loading="lazy" onError={(event) => event.currentTarget.remove()} />}
+            </div>
+            <div className="ops-product-copy">
+              <div className="ops-product-meta"><MarketplaceTag name={source?.name ?? "Marketplace"} slug={source?.slug} />{product.origin_type==="national"?<StatusPill tone="success">Nacional</StatusPill>:product.origin_type==="imported"?<StatusPill tone="warning">Importado</StatusPill>:<StatusPill>Origem não identificada</StatusPill>}{product.discount_percent != null && <StatusPill tone="success">{product.discount_percent}% OFF</StatusPill>}</div>
+              <h2>{product.title}</h2>
+              <p>{[product.brand || product.category || "Sem marca informada",categoriesById.get(product.commercial_category_id||"")?.name||"Sem categoria comercial",product.commercial_category_source==="manual"?"Categoria manual":null].filter(Boolean).join(" · ")}</p>
+              <div className="ops-rules">{productRules.length ? productRules.map((rule) => <span key={rule}>{rule}</span>) : <span>Importação anterior sem regra</span>}</div>
+            </div>
+            <div className="ops-product-footer">
+              <div className="ops-product-price"><strong>{formatCurrency(product.price)}</strong>{product.original_price && product.original_price > (product.price ?? 0) && <del>{formatCurrency(product.original_price)}</del>}<small>Visto {formatDate(product.last_seen_at || product.created_at)}</small></div>
+              <div className="ops-product-actions">{product.product_url && <a className="ops-icon-action" href={product.product_url} target="_blank" rel="noreferrer" aria-label="Abrir produto"><ExternalLink size={16} /></a>}<button className="ops-icon-action" onClick={() => void toggleProduct(product)} aria-label={product.active ? "Desativar produto" : "Ativar produto"}><Power size={16} /></button></div>
+            </div>
           </article>;
         })}</div>}
     </section>
