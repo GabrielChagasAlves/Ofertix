@@ -588,7 +588,8 @@ export function LinksAfiliado() {
                 </div>
 
                 <div className="affiliate-card-image-wrap">
-                  {product.image_url ? <img src={product.image_url} alt={product.title} className="affiliate-card-image" loading="lazy" /> : <div className="affiliate-card-image-placeholder"><ShoppingBag size={37} /><span>Imagem não disponível</span></div>}
+                  <div className="affiliate-card-image-placeholder"><ShoppingBag size={37} /><span>Imagem não disponível</span></div>
+                  {product.image_url && <img src={product.image_url} alt={product.title} className="affiliate-card-image" loading="lazy" onError={(event) => event.currentTarget.remove()} />}
                   <span className="affiliate-new-badge">NOVO · SEM LINK</span>
                   {discount !== null && discount > 0 && <span className="affiliate-discount-badge">-{discount.toFixed(0)}%</span>}
                 </div>
