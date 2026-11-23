@@ -24,8 +24,18 @@ type RunItem = {
   details: Record<string, unknown> | null; created_at: string;
 };
 
-type CronMeta = { title: string; description: string; group: "Mercado Livre" | "Publicação" | "Shopee"; functionName: string; frequency: string; };
+type CronMeta = { title: string; description: string; group: "Mercado Livre" | "Publicação" | "Shopee" | "Ofertix"; functionName: string; frequency: string; };
 const cronMeta: Record<string, CronMeta> = {
+  "ofertix-duplicate-cleanup-every-5-minutes": {
+    title: "Limpeza de produtos duplicados",
+    description: "A cada cinco minutos identifica grupos duplicados e mantém somente o produto de menor preço.",
+    group: "Ofertix", functionName: "duplicate-cleanup", frequency: "A cada 5 minutos",
+  },
+  "ofertix-offer-auto-classifier": {
+    title: "Aprovação automática de ofertas",
+    description: "Avalia ofertas elegíveis e aplica as regras automáticas de aprovação.",
+    group: "Ofertix", functionName: "offer-auto-classifier", frequency: "A cada hora · minuto 40",
+  },
   "ofertix-mercado-livre-availability": {
     title: "Verificar disponibilidade",
     description: "Reconsulta anúncios ativos do Mercado Livre, atualiza o status de disponibilidade e alimenta o histórico e a fila de revisão.",
@@ -110,7 +120,7 @@ function marketplaceName(name: string) {
   const source = name.toLowerCase();
   if (source.includes("shopee")) return "Shopee";
   if (source.includes("mercado") || source.includes("meli") || source.includes("product-refresh") || source.includes("product-price") || source.includes("n8n-product")) return "Mercado Livre";
-  if (source.includes("publication")) return "Canais";
+  if (source.includes("publication")) return "Canais";\n  if (source.includes("duplicate") || source.includes("classifier")) return "Ofertix";
   return "Ofertix";
 }
 function duration(ms: number | null) {
@@ -250,6 +260,26 @@ export function Execucoes() {
   const warnings = runs.filter((run) => displayStatus(run).tone === "warning").length;
   const created = runs.reduce((sum, run) => sum + (run.products_created ?? metric(run.metrics, "products_created") ?? metric(run.metrics, "productsCreated") ?? 0), 0);
   const updated = runs.reduce((sum, run) => sum + (run.products_updated ?? metric(run.metrics, "products_updated") ?? metric(run.metrics, "productsUpdated") ?? 0), 0);
+  const completedRuns = runs.filter((run) => run.status !== "running");
+  const successRate = completedRuns.length ? Math.round((succeeded / completedRuns.length) * 100) : 0;
+  const durations = runs.map((run) => run.duration_ms).filter((value): value is number => value != null && value >= 0);
+  const averageDuration = durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : 0;
+  const activeCrons = crons.filter((cron) => cron.active).length;
+  const chartBuckets = useMemo(() => {
+    const count = period === "24h" ? 12 : 7;
+    const span = period === "24h" ? 2 * 3600000 : period === "7d" ? 24 * 3600000 : period === "30d" ? 4 * 24 * 3600000 : 7 * 24 * 3600000;
+    const now = Date.now();
+    return Array.from({ length: count }, (_, index) => {
+      const end = now - (count - index - 1) * span;
+      const start = end - span;
+      const bucketRuns = runs.filter((run) => {
+        const time = new Date(run.started_at).getTime();
+        return time >= start && time < end;
+      });
+      return { label: period === "24h" ? new Date(start).toLocaleTimeString("pt-BR", { hour: "2-digit" }) : new Date(start).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }), total: bucketRuns.length, success: bucketRuns.filter((run) => displayStatus(run).tone === "success").length, errors: bucketRuns.filter((run) => displayStatus(run).tone === "danger").length };
+    });
+  }, [runs, period]);
+  const chartMax = Math.max(1, ...chartBuckets.map((bucket) => bucket.total));
 
   return <div className="page ops-page executions-page">
     <PageIntro eyebrow="AUTOMAÇÕES" title="Execuções e histórico" description="Acompanhe cada rotina, os itens processados e o motivo individual de cada falha." actions={<button className="ops-button ops-button-secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> Atualizar</button>} />
@@ -263,7 +293,7 @@ export function Execucoes() {
       {cronFeedback && <div className={"cron-feedback " + cronFeedback.type}><span>{cronFeedback.message}</span><button type="button" onClick={() => setCronFeedback(null)} aria-label="Fechar">×</button></div>}
       {loadingCrons ? <div className="ops-empty"><p>Carregando rotinas…</p></div> : crons.length === 0 ? <EmptyState title="Nenhuma rotina encontrada" detail="Não foram encontrados agendamentos do Ofertix." /> :
         <div className="cron-groups">
-          {(["Mercado Livre", "Publicação", "Shopee"] as const).map((group) => {
+          {(["Ofertix", "Mercado Livre", "Publicação", "Shopee"] as const).map((group) => {
             const groupCrons = crons.filter((cron) => cronInfo(cron.jobname).group === group);
             if (!groupCrons.length) return null;
             return <section className="cron-group" key={group}>
@@ -294,6 +324,25 @@ export function Execucoes() {
       <Metric icon={<CheckCircle2 size={19} />} value={loading ? "…" : succeeded} label="Concluídas" detail="Sem falhas registradas" />
       <Metric icon={<AlertTriangle size={19} />} value={loading ? "…" : warnings + failures} label="Com ocorrências" detail={failures + " falhas · " + warnings + " parciais"} />
       <Metric icon={<Package size={19} />} value={loading ? "…" : created + updated} label="Produtos tratados" detail={created + " integrados · " + updated + " atualizados"} />
+    </section>
+    <section className="execution-analytics">
+      <div className="execution-analytics-heading"><div><span className="cron-eyebrow">VISÃO OPERACIONAL</span><h2>Saúde das automações</h2><p>Volume, estabilidade e duração das rotinas no período selecionado.</p></div><span className="execution-period-tag">{period === "24h" ? "Últimas 24 horas" : period === "7d" ? "Últimos 7 dias" : period === "30d" ? "Últimos 30 dias" : "Histórico carregado"}</span></div>
+      <div className="execution-health-grid">
+        <article className="execution-health-card"><span>Taxa de sucesso</span><strong>{loading ? "…" : successRate + "%"}</strong><div className="execution-health-track"><i style={{ width: successRate + "%" }} /></div><small>{succeeded} execuções concluídas sem falhas</small></article>
+        <article className="execution-health-card"><span>Duração média</span><strong>{loading ? "…" : duration(averageDuration)}</strong><small>Baseado em {durations.length} execuções com duração registrada</small></article>
+        <article className="execution-health-card"><span>Agendamentos ativos</span><strong>{loadingCrons ? "…" : activeCrons + " / " + crons.length}</strong><small>{crons.length - activeCrons} pausados ou inativos</small></article>
+        <article className="execution-health-card"><span>Rotinas com falha</span><strong>{loading ? "…" : failures}</strong><small>Execuções com status de falha no período</small></article>
+      </div>
+      <div className="execution-charts-grid">
+        <article className="execution-chart-card"><div className="execution-chart-title"><div><h3>Volume de execuções</h3><p>Distribuição por intervalo</p></div><span>{runs.length} registros</span></div>
+          <div className="execution-bar-chart" role="img" aria-label="Gráfico de volume de execuções por intervalo">{chartBuckets.map((bucket, index) => <div className="execution-bar-column" key={index}><div className="execution-bar-stack"><i className="success" style={{ height: (bucket.success / chartMax * 100) + "%" }} /><i className="failed" style={{ height: (bucket.errors / chartMax * 100) + "%" }} /><i className="other" style={{ height: (Math.max(0, bucket.total - bucket.success - bucket.errors) / chartMax * 100) + "%" }} /></div><small>{bucket.label}</small></div>)}</div>
+          <div className="execution-chart-legend"><span><i className="success"/>Concluídas</span><span><i className="failed"/>Falhas</span><span><i className="other"/>Em andamento/ressalvas</span></div>
+        </article>
+        <article className="execution-chart-card"><div className="execution-chart-title"><div><h3>Resultado das execuções</h3><p>Composição do período</p></div></div>
+          <div className="execution-outcome"><div className="execution-donut" style={{ background: "conic-gradient(#16a34a 0 " + (runs.length ? succeeded / runs.length * 100 : 0) + "%, #dc2626 " + (runs.length ? succeeded / runs.length * 100 : 0) + "% " + (runs.length ? (succeeded + failures) / runs.length * 100 : 0) + "%, #d97706 " + (runs.length ? (succeeded + failures) / runs.length * 100 : 0) + "% 100%)" }}><div><strong>{runs.length}</strong><small>execuções</small></div></div>
+            <div className="execution-outcome-legend"><span><i className="success"/><b>{succeeded}</b>Concluídas</span><span><i className="failed"/><b>{failures}</b>Falhas</span><span><i className="warning"/><b>{warnings}</b>Ressalvas/em andamento</span></div></div>
+        </article>
+      </div>
     </section>
     <section className="ops-surface">
       <div className="ops-toolbar executions-toolbar">
