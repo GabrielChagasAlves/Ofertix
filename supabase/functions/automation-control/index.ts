@@ -16,7 +16,7 @@ function isAllowedOrigin(origin: string) {
     const url = new URL(origin);
     // Permite previews e aliases do projeto Ofertix, sem liberar outros projetos Vercel.
     return url.protocol === "https:" &&
-      /^ofertix(?:-[a-z0-9-]+)?-ofertix\\.vercel\\.app$/.test(url.hostname);
+      /^ofertix(?:-[a-z0-9-]+)?-ofertix\\.vercel\.app$/.test(url.hostname);
   } catch {
     return false;
   }
