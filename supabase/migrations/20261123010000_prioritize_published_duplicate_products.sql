@@ -117,6 +117,12 @@ begin
             and al.status = 'ready'
             and nullif(trim(coalesce(al.affiliate_url, '')), '') is not null
         )
+        or exists (
+          select 1
+          from public.offers o
+          where o.product_id = p.id
+            and nullif(trim(coalesce(o.affiliate_url, '')), '') is not null
+        )
       ) as has_ready_link
     from public.products p
     join target_groups g
