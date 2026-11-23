@@ -41,7 +41,7 @@ export function Dashboard() {
       const counts = await Promise.all(activeMarketplaces.map(async (marketplace) => {
         const [totalResult, pendingResult] = await Promise.all([
           supabase.from("products").select("id", { count: "exact", head: true }).eq("active", true).eq("marketplace_id", marketplace.id),
-          supabase.from("products").select("id", { count: "exact", head: true }).eq("active", true).eq("marketplace_id", marketplace.id).is("affiliate_url", null),
+          supabase.from("products").select("id", { count: "exact", head: true }).eq("active", true).eq("marketplace_id", marketplace.id).or("affiliate_url.is.null,affiliate_url.eq."),
         ]);
         if (totalResult.error) throw totalResult.error;
         if (pendingResult.error) throw pendingResult.error;
