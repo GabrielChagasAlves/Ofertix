@@ -196,7 +196,7 @@ function App() {
                 <p>{systemAlert.message}</p>
                 <div className="system-alert-actions">
                   <a href="/marketplaces">Ver integrações</a>
-                  <button type="button" onClick={async () => { if (!systemAlert.id) { setSystemAlert(null); return; } const { error } = await supabase.from("user_notifications").update({ read_at: new Date().toISOString() }).eq("id", systemAlert.id).eq("user_id", session.user.id); if (error) { console.error("Não foi possível marcar o alerta como lido:", error); return; } setSystemAlert(null); setUnreadCount((count) => Math.max(0, count - 1)); }}>Entendi</button>
+                  <button type="button" onClick={async () => { if (!systemAlert.id) { setSystemAlert(null); return; } const { error } = await supabase.from("user_notifications").update({ read_at: new Date().toISOString() }).eq("user_id", session.user.id).eq("notification_type", "system").eq("title", systemAlert.title).is("read_at", null); if (error) { console.error("Não foi possível marcar o alerta como lido:", error); return; } setSystemAlert(null); const { count } = await supabase.from("user_notifications").select("id", { count: "exact", head: true }).is("read_at", null); setUnreadCount(count ?? 0); }}>Entendi</button>
                 </div>
               </section>
             </div>
