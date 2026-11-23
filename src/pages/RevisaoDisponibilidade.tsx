@@ -56,18 +56,19 @@ export function RevisaoDisponibilidade() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const selectedVisible = visible.length > 0 && visible.every(item => selected.includes(item.id));
+  const allFilteredSelected = filtered.length > 0 && filtered.every(item => selected.includes(item.id));
   const selectedProducts = items.filter(item => selected.includes(item.id));
   const bulkEligible = selectedProducts.length > 0 && selectedProducts.every(item => item.affiliate_generation_status === "manual_review");
 
-  useEffect(() => { setPage(1); }, [filter, search]);
+  useEffect(() => { setPage(1); setSelected([]); }, [filter, search]);
 
   const toggleOne = (id: string) => setSelected(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id]);
-  const toggleVisible = () => {
-    const ids = visible.map(item => item.id);
-    setSelected(current => selectedVisible ? current.filter(id => !ids.includes(id)) : [...new Set([...current, ...ids])]);
+  const selectAllFiltered = () => {
+    const ids = filtered.map(item => item.id);
+    setSelected(current => allFilteredSelected
+      ? current.filter(id => !ids.includes(id))
+      : [...new Set([...current, ...ids])]);
   };
-  const selectAllFiltered = () => setSelected(filtered.map(item => item.id));
 
   const resolve = async (product: Product, status: "available" | "unavailable") => {
     setBusy(product.id); setError(""); setMessage("");
@@ -151,12 +152,11 @@ export function RevisaoDisponibilidade() {
       <>
         <section className="availability-review-selection">
           <div className="availability-review-select-line">
-            <button type="button" className="availability-review-select-toggle" onClick={toggleVisible}><span>{selectedVisible ? <CheckSquare size={18}/> : <Square size={18}/>}</span>Selecionar página</button>
-            <button type="button" className="availability-review-select-all" onClick={selectAllFiltered}>Selecionar todos os {filtered.length} resultados filtrados</button>
+            <button type="button" className="availability-review-select-all" onClick={selectAllFiltered}><span>{allFilteredSelected ? <CheckSquare size={18}/> : <Square size={18}/>}</span>{allFilteredSelected ? "Desmarcar todos os resultados" : `Selecionar todos os ${filtered.length} resultados`}</button>
             <span className="availability-review-selected-count">{selected.length} selecionado(s)</span>
           </div>
           {selected.length > 0 && <div className="availability-review-bulk">
-            <div><Users size={17}/><strong>{selected.length} produto(s) selecionado(s)</strong><span>A seleção permanece ao trocar de página</span></div>
+            <div><Users size={17}/><strong>{selected.length} produto(s) selecionado(s)</strong><span>A seleção inclui todas as páginas e permanece ao navegar</span></div>
             <div className="availability-review-bulk-actions">
               <button type="button" className="ops-button ops-button-primary" disabled={bulkBusy || !bulkEligible} onClick={() => void resolveSelected("available")}><CheckCircle2 size={15}/>{bulkBusy ? "Processando..." : "Aprovar selecionados"}</button>
               <button type="button" className="ops-button ops-button-danger" disabled={bulkBusy || !bulkEligible} onClick={() => void resolveSelected("unavailable")}><XCircle size={15}/>Reprovar selecionados</button>
