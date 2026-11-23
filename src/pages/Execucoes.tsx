@@ -35,7 +35,7 @@ const cronMeta: Record<string, CronMeta> = {
   "ofertix-mercado-livre-availability": {
     title: "Verificar disponibilidade",
     description: "Reconsulta anúncios ativos do Mercado Livre, atualiza o status de disponibilidade e alimenta o histórico e a fila de revisão.",
-    group: "Mercado Livre", functionName: "mercado-livre-availability", frequency: "A cada hora · minuto 15",
+    group: "Mercado Livre", functionName: "mercado-livre-availability", frequency: "A cada hora · minuto 07",
   },
   "ofertix-mercado-livre-sync": {
     title: "Descobrir e integrar produtos",
