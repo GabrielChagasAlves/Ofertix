@@ -298,7 +298,7 @@ export function Execucoes() {
                   <div className="cron-accordion-head">
                     <button className="cron-accordion-toggle" type="button" onClick={() => setExpandedCrons((old) => ({ ...old, [String(cron.jobid)]: !old[String(cron.jobid)] }))} aria-expanded={isExpanded}>
                       <span className="cron-accordion-chevron">{isExpanded ? <ChevronUp size={18}/> : <ChevronDown size={18}/>}</span>
-                      <span className="cron-row-main"><span className="cron-row-title"><strong>{info.title}</strong><StatusPill tone={cron.active ? "success" : "neutral"}>{cron.active ? "Ativo" : "Pausado"}</StatusPill></span>
+                      <span className="cron-row-main"><span className="cron-row-title"><strong>{info.title}</strong><StatusPill tone={cron.active ? "success" : "neutral"}>{cron.active ? "Ativo" : "Pausado"}</StatusPill></span><span className="cron-row-description">{info.description}</span>
                         <span className="cron-row-meta"><span><Clock3 size={13}/>{cronSchedule(cron.jobname)}</span><code>{cron.schedule}</code>{latestRun && <span className="cron-last-run">Última: {formatDate(latestRun.started_at)} · <b className={latestStatus?.tone}>{latestStatus?.label}</b></span>}</span>
                       </span>
                     </button>
