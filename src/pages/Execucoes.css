@@ -313,3 +313,127 @@
 @media(prefers-reduced-motion:reduce){
   .executions-page .cron-row{transition:none}
 }
+
+
+/* Central de automações — identidade visual Ofertix (dark + verde) */
+.executions-page .cron-console{
+  position:relative;isolation:isolate;overflow:hidden;
+  padding:22px;
+  border:1px solid rgba(67,96,124,.62);
+  border-radius:18px;
+  background:
+    radial-gradient(ellipse at 4% 0%,rgba(32,212,134,.105),transparent 32%),
+    radial-gradient(ellipse at 100% 100%,rgba(44,125,190,.09),transparent 35%),
+    linear-gradient(145deg,#12263a 0%,#0d1c2b 58%,#0a1724 100%);
+  box-shadow:0 18px 42px rgba(0,0,0,.18),inset 0 1px rgba(255,255,255,.045);
+}
+.executions-page .cron-console:after{
+  content:"";position:absolute;z-index:-1;inset:0;pointer-events:none;
+  background:linear-gradient(115deg,transparent 0%,rgba(255,255,255,.018) 45%,transparent 70%);
+}
+.executions-page .cron-console-heading{margin-bottom:22px}
+.executions-page .cron-eyebrow{color:#6ce7ae;font-size:10px;font-weight:800;letter-spacing:.16em}
+.executions-page .cron-console-heading h2{color:#f2f8fc;font-size:22px;letter-spacing:-.045em}
+.executions-page .cron-console-heading p{color:#91a9bd;font-size:12px}
+.executions-page .cron-total{
+  padding:8px 12px;border:1px solid rgba(73,105,135,.55);
+  background:rgba(20,43,64,.88);color:#c5d7e5;
+}
+.executions-page .cron-group{padding-top:3px}
+.executions-page .cron-group-heading h3{color:#e5f0f7;font-size:13px;letter-spacing:.01em}
+.executions-page .cron-group-heading span{
+  border-color:rgba(73,105,135,.42);background:rgba(17,37,56,.8);color:#8fa9bf;
+}
+.executions-page .cron-list{gap:12px}
+.executions-page .cron-row,
+.executions-page .cron-row+.cron-row{
+  min-height:144px;padding:17px 16px;
+  border:1px solid rgba(66,96,124,.55);border-radius:14px;
+  background:linear-gradient(145deg,rgba(22,43,63,.97),rgba(13,30,46,.98));
+  box-shadow:0 8px 22px rgba(0,0,0,.14),inset 0 1px rgba(255,255,255,.025);
+  animation:cron-card-enter .42s cubic-bezier(.2,.7,.2,1) both;
+}
+.executions-page .cron-row:nth-child(2){animation-delay:45ms}
+.executions-page .cron-row:nth-child(3){animation-delay:90ms}
+.executions-page .cron-row:nth-child(4){animation-delay:135ms}
+.executions-page .cron-row:nth-child(5){animation-delay:180ms}
+.executions-page .cron-row:before{
+  top:15px;bottom:15px;width:3px;
+  background:linear-gradient(180deg,#5af0a8,#17b978);
+  box-shadow:0 0 12px rgba(32,212,134,.48);
+}
+.executions-page .cron-row:hover{
+  border-color:rgba(54,224,151,.68);
+  background:
+    radial-gradient(ellipse at 0% 50%,rgba(32,212,134,.105),transparent 52%),
+    linear-gradient(145deg,#19364a,#10283a);
+  box-shadow:0 12px 28px rgba(0,0,0,.23),0 0 0 1px rgba(49,217,144,.08),0 0 24px rgba(32,212,134,.09);
+  transform:translateY(-3px);
+}
+.executions-page .cron-row.is-paused{
+  border-color:rgba(91,111,132,.4);
+  background:linear-gradient(145deg,rgba(25,40,55,.92),rgba(15,27,40,.96));
+  filter:saturate(.7);
+}
+.executions-page .cron-row.is-paused:before{background:#647b90;box-shadow:none}
+.executions-page .cron-row-main:before{
+  width:32px;height:32px;border-radius:10px;
+  border:1px solid rgba(49,217,144,.26);
+  background:rgba(32,212,134,.11);color:#53e4a1;
+  box-shadow:inset 0 1px rgba(255,255,255,.035),0 0 16px rgba(32,212,134,.07);
+}
+.executions-page .cron-row.is-paused .cron-row-main:before{
+  border-color:rgba(122,145,166,.25);background:rgba(122,145,166,.1);color:#9aafc1;
+}
+.executions-page .cron-row-title strong{color:#f0f7fc;font-size:12px;font-weight:760}
+.executions-page .cron-row-main>p{color:#91a9bd;font-size:11px}
+.executions-page .cron-row-meta{color:#a5bacb}
+.executions-page .cron-row-meta>span:first-child{color:#b8cbd9}
+.executions-page .cron-row-meta>span:first-child svg{color:#55dfa0}
+.executions-page .cron-row-meta code{
+  border:1px solid rgba(75,105,133,.4);background:rgba(8,23,37,.55);color:#9db4c7;
+}
+.executions-page .cron-last-run{color:#7f99ae!important}
+.executions-page .cron-last-run b.success{color:#55e4a2}
+.executions-page .cron-last-run b.warning{color:#ffc46b}
+.executions-page .cron-last-run b.danger{color:#ff8993}
+.executions-page .cron-row-action{align-self:center}
+.executions-page .cron-run-compact{
+  min-width:108px;padding:10px 13px;
+  border:1px solid rgba(54,220,145,.34);border-radius:10px;
+  background:linear-gradient(135deg,rgba(18,125,83,.2),rgba(13,91,67,.17));
+  color:#8af0bd;font-size:11px;font-weight:760;
+  box-shadow:inset 0 1px rgba(255,255,255,.035);
+  transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease,background .2s ease;
+}
+.executions-page .cron-run-compact:hover:not(:disabled){
+  transform:translateY(-1px);border-color:#39df98;
+  background:linear-gradient(135deg,rgba(21,157,101,.32),rgba(13,112,77,.28));
+  color:#c2ffdf;box-shadow:0 0 0 3px rgba(32,212,134,.08),0 0 20px rgba(32,212,134,.12);
+}
+.executions-page .cron-run-compact:focus-visible{
+  outline:2px solid #42e49b;outline-offset:3px;
+}
+.executions-page .cron-feedback{
+  border-color:rgba(76,145,206,.35);background:rgba(22,75,117,.2);color:#a9d7ff;
+}
+.executions-page .cron-feedback.success{border-color:rgba(32,212,134,.32);background:rgba(18,125,83,.17);color:#7cebb4}
+.executions-page .cron-feedback.error{border-color:rgba(255,112,130,.32);background:rgba(126,38,55,.2);color:#ffabb4}
+.executions-page .cron-console .ops-alert{
+  border-color:rgba(255,112,130,.32);background:rgba(126,38,55,.2);color:#ffabb4;
+}
+@keyframes cron-card-enter{
+  from{opacity:0;transform:translateY(9px) scale(.992)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+@media(max-width:1000px){
+  .executions-page .cron-row,.executions-page .cron-row+.cron-row{min-height:0}
+}
+@media(max-width:720px){
+  .executions-page .cron-console{padding:15px}
+  .executions-page .cron-row,.executions-page .cron-row+.cron-row{padding:15px}
+}
+@media(prefers-reduced-motion:reduce){
+  .executions-page .cron-row,.executions-page .cron-run-compact{animation:none;transition:none}
+  .executions-page .cron-row:hover,.executions-page .cron-run-compact:hover:not(:disabled){transform:none}
+}
