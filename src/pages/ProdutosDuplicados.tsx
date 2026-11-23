@@ -40,19 +40,14 @@ export function ProdutosDuplicados({ canDelete, onBack, onRefresh }: Props) {
     setLoading(true);
     setError("");
     try {
-      const [marketplaceResult, groupResult] = await Promise.all([
-        supabase.from("marketplaces").select("id,name,slug").order("name"),
-        supabase.rpc("get_duplicate_product_groups", {
-          p_search: debouncedSearch || null,
-          p_marketplace_id: marketplaceFilter === "all" ? null : marketplaceFilter,
-          p_page: page,
-          p_page_size: pageSize,
-        }),
-      ]);
-      if (marketplaceResult.error) throw marketplaceResult.error;
-      if (groupResult.error) throw groupResult.error;
-      setMarketplaces((marketplaceResult.data ?? []) as Marketplace[]);
-      const payload = groupResult.data as GroupResponse | null;
+      const { data, error: groupError } = await supabase.rpc("get_duplicate_product_groups", {
+        p_search: debouncedSearch || null,
+        p_marketplace_id: marketplaceFilter === "all" ? null : marketplaceFilter,
+        p_page: page,
+        p_page_size: pageSize,
+      });
+      if (groupError) throw groupError;
+      const payload = data as GroupResponse | null;
       setGroups(payload?.groups ?? []);
       setTotalGroups(payload?.total_groups ?? 0);
       setSelectedIds([]);
@@ -63,6 +58,15 @@ export function ProdutosDuplicados({ canDelete, onBack, onRefresh }: Props) {
     }
   }, [debouncedSearch, marketplaceFilter, page]);
 
+  useEffect(() => {
+    let active = true;
+    void supabase.from("marketplaces").select("id,name,slug").order("name").then(({ data, error: marketplaceError }) => {
+      if (!active) return;
+      if (marketplaceError) setError(marketplaceError.message);
+      else setMarketplaces((data ?? []) as Marketplace[]);
+    });
+    return () => { active = false; };
+  }, []);
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
     return () => window.clearTimeout(timer);
@@ -108,7 +112,8 @@ export function ProdutosDuplicados({ canDelete, onBack, onRefresh }: Props) {
       setReviewOpen(false);
       setSelectedIds([]);
       setMessage(totals.deleted + " produto(s) excluído(s). " + totals.protected + " aprovado(s) preservado(s), " + totals.kept + " menor(es) preço(s) mantido(s) e " + totals.missing + " já ausente(s).");
-      await Promise.all([loadGroups(), onRefresh()]);
+      await loadGroups();
+      void onRefresh().catch((refreshError) => setError("Exclusão concluída, mas a lista de produtos não foi atualizada: " + describeError(refreshError)));
     } catch (deleteError) {
       setError(describeError(deleteError));
     } finally {
