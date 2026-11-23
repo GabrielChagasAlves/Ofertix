@@ -101,17 +101,6 @@ async function edgeFunctionError(error: unknown): Promise<string> {
   }
   return error instanceof Error ? error.message : "Falha ao comunicar com a Edge Function.";
 }
-function routineName(name: string) {
-  const labels: Record<string, string> = {
-    "mercado-livre-product-discovery": "Descoberta de produtos · Mercado Livre",
-    "mercado-livre-availability": "Verificação de disponibilidade · Mercado Livre",
-    "n8n-product-refresh": "Atualização de preços · Mercado Livre",
-    "product-price-refresh-scheduler": "Agendador de preços · Mercado Livre",
-    "shopee-sync": "Integração · Shopee",
-    "publication-worker": "Publicações",
-  };
-  return labels[name] ?? name.replaceAll("-", " ");
-}
 function marketplaceName(name: string) {
   const source = name.toLowerCase();
   if (source.includes("shopee")) return "Shopee";
@@ -174,11 +163,7 @@ export function Execucoes() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [expanded, setExpanded] = useState<string | null>(null);
   const [expandedCrons, setExpandedCrons] = useState<Record<string, boolean>>({});
-  const [itemsByRun, setItemsByRun] = useState<Record<string, RunItem[]>>({});
-  const [loadingItems, setLoadingItems] = useState<string | null>(null);
-  const [itemsError, setItemsError] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -306,7 +291,7 @@ export function Execucoes() {
                   </div>
                   {isExpanded && <div className="cron-accordion-content">
                     <div className="cron-history-heading"><div><h4>Histórico de execuções</h4><p>{isCleanup ? "Dados reais do pg_cron · ciclos a cada 5 minutos" : "Movimentações registradas para esta rotina"}</p></div><span>{isCleanup ? cleanupRuns.length : routineRuns.length} registros</span></div>
-                    {isCleanup ? (loadingDuplicateCleanup ? <div className="ops-empty"><p>Carregando histórico…</p></div> : cleanupRuns.length === 0 ? <EmptyState title="Nenhuma execução neste período" detail="Ajuste os filtros ou aguarde o próximo ciclo."/> :
+                    {isCleanup ? (duplicateCleanupError ? <div className="ops-alert">{duplicateCleanupError}</div> : loadingDuplicateCleanup ? <div className="ops-empty"><p>Carregando histórico…</p></div> : cleanupRuns.length === 0 ? <EmptyState title="Nenhuma execução neste período" detail="Ajuste os filtros ou aguarde o próximo ciclo."/> :
                       <div className="cron-history-table-wrap"><table><thead><tr><th>Data e hora</th><th>Status</th><th>Removidos</th><th>Preservados</th><th>Duração</th></tr></thead><tbody>{cleanupRuns.slice(0,100).map((run) => <tr key={run.id}><td>{formatDate(run.started_at)}</td><td><StatusPill tone={run.status === "succeeded" ? "success" : "danger"}>{run.status === "succeeded" ? "Concluída" : "Falhou"}</StatusPill></td><td className="cron-history-number">{run.deleted_count ?? 0}</td><td>{run.kept_count ?? 0}</td><td>{duration(run.finished_at ? new Date(run.finished_at).getTime() - new Date(run.started_at).getTime() : null)}</td></tr>)}</tbody></table></div>
                     ) : (loading ? <div className="ops-empty"><p>Carregando histórico…</p></div> : routineRuns.length === 0 ? <EmptyState title="Nenhuma execução neste período" detail="Ajuste os filtros ou aguarde o próximo ciclo automático."/> :
                       <div className="cron-history-table-wrap"><table><thead><tr><th>Data e hora</th><th>Status</th>{cronMetricValues(routineRuns[0], info.functionName).map(([label]) => <th key={label}>{label}</th>)}<th>Duração</th></tr></thead><tbody>{routineRuns.slice(0,100).map((run) => <tr key={run.id}><td>{formatDate(run.started_at)}</td><td><StatusPill tone={displayStatus(run).tone}>{displayStatus(run).label}</StatusPill></td>{cronMetricValues(run, info.functionName).map(([label,value]) => <td className={label === "Falhas" && value > 0 ? "cron-history-error" : label === "Falhas" ? "cron-history-number" : ""} key={label}>{value}</td>)}<td>{duration(run.duration_ms)}</td></tr>)}</tbody></table></div>
