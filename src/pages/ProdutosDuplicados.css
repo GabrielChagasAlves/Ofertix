@@ -51,3 +51,5 @@
  .duplicate-group-footer,.duplicate-pagination { align-items:stretch; flex-direction:column; }
  .duplicate-pagination>div { justify-content:space-between; }
 }
+.duplicate-manager .ops-button-danger { border:1px solid #b91c1c; color:#fff; background:#dc2626; }
+.duplicate-manager .ops-button-danger:hover:not(:disabled) { background:#b91c1c; }
