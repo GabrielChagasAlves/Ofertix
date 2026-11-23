@@ -36,6 +36,7 @@ as $function$
   grouped as (
     select n.marketplace_id, n.normalized_title, min(n.title) as title, count(*)::integer as item_count,
       count(*) filter (where n.approved)::integer as approved_count,
+      bool_or(n.price is not null) as has_price,
       (array_agg(n.id order by n.price asc nulls last, n.created_at asc, n.id asc))[1] as cheapest_id,
       min(n.price) as min_price
     from normalized n
@@ -64,7 +65,7 @@ as $function$
       select jsonb_agg(jsonb_build_object(
         'key', pg.marketplace_id::text || '::' || pg.normalized_title,
         'title', pg.title, 'marketplace_id', pg.marketplace_id, 'marketplace_name', m.name,
-        'item_count', pg.item_count, 'approved_count', pg.approved_count, 'cheapest_id', pg.cheapest_id,
+        'item_count', pg.item_count, 'approved_count', pg.approved_count, 'cheapest_id', pg.cheapest_id, 'has_price', pg.has_price,
         'items', (
           select jsonb_agg(jsonb_build_object(
             'id', n.id, 'title', n.title, 'price', n.price, 'image_url', n.image_url,
@@ -126,6 +127,7 @@ begin
   ranked as (
     select gp.*,
       bool_or(gp.product_approved) over (partition by gp.marketplace_id, gp.normalized_title) as group_has_approved,
+      bool_or(gp.price is not null) over (partition by gp.marketplace_id, gp.normalized_title) as group_has_price,
       row_number() over (partition by gp.marketplace_id, gp.normalized_title
         order by gp.price asc nulls last, gp.created_at asc, gp.id asc) as price_rank
     from group_products gp
@@ -138,14 +140,14 @@ begin
     delete from public.products p using candidate_status cs
     where p.id = cs.id and (
       (cs.group_has_approved and not cs.product_approved)
-      or (not cs.group_has_approved and cs.price_rank > 1)
+      or (not cs.group_has_approved and cs.group_has_price and cs.price_rank > 1)
     )
     returning p.id
   )
   select
     coalesce((select array_agg(id order by id) from deleted), array[]::uuid[]),
     coalesce((select array_agg(id order by id) from candidate_status where product_approved), array[]::uuid[]),
-    coalesce((select array_agg(id order by id) from candidate_status where not group_has_approved and price_rank = 1), array[]::uuid[]),
+    coalesce((select array_agg(id order by id) from candidate_status where not group_has_approved and (not group_has_price or price_rank = 1)), array[]::uuid[]),
     coalesce((
       select array_agg(input_id order by input_id) from unnest(p_candidate_ids) as input_ids(input_id)
       where not exists (select 1 from public.products p where p.id = input_id)
