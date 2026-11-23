@@ -178,6 +178,24 @@ function detailEntries(metrics: Record<string, unknown> | null) {
     .map(([key, value]) => [labels[key], value as string | number] as [string, string | number]);
 }
 
+
+function cronMetricValues(run: Run, functionName: string): Array<[string, number]> {
+  const m = run.metrics ?? {};
+  const n = (...keys: string[]) => { for (const key of keys) if (typeof m[key] === "number") return m[key] as number; return 0; };
+  const processed = run.products_processed ?? run.items_processed ?? n("items_seen", "rowsReceived", "scanned_offers", "products_processed", "selected");
+  const errors = run.errors_count ?? n("failed", "errors");
+  if (functionName === "product-price-refresh-scheduler") return [["Selecionados", n("selected") || processed], ["Preços atualizados", run.products_updated ?? n("updated", "pricesRefreshed")], ["Falhas", errors]];
+  if (functionName === "mercado-livre-availability") return [["Consultados", processed], ["Disponíveis", n("available")], ["Indisponíveis", n("unavailable")], ["Não verificados", n("unverified")], ["Falhas", errors]];
+  if (functionName === "mercado-livre-product-discovery") return [["Anúncios encontrados", n("items_seen", "unique_items")], ["Integrados", run.products_created ?? n("products_created", "productsCreated")], ["Atualizados", run.products_updated ?? n("products_updated", "productsUpdated")], ["Termos concluídos", n("terms_succeeded")], ["Falhas", errors]];
+  if (functionName === "shopee-sync") return [["Registros recebidos", n("rowsReceived") || processed], ["Válidos", n("rowsValid")], ["Integrados", run.products_created ?? n("productsCreated")], ["Atualizados", run.products_updated ?? n("productsUpdated")], ["Rejeitados", n("rowsRejectedByRules")], ["Falhas", errors]];
+  if (functionName === "publication-worker") return [["Ofertas avaliadas", n("eligible_offers", "approved_total")], ["Publicados", n("published")], ["Na fila", n("queued")], ["Ignorados", n("skipped", "skipped_inactive")], ["Falhas", errors]];
+  if (functionName === "offer-auto-classifier") {
+    const skipped = m.skipped && typeof m.skipped === "object" ? Object.values(m.skipped as Record<string, unknown>).reduce<number>((sum, value) => sum + (typeof value === "number" ? value : 0), 0) : 0;
+    return [["Ofertas analisadas", n("scanned_offers") || processed], ["Elegíveis", n("approvable")], ["Aprovadas", n("approved", "chosen")], ["Ignoradas pelas regras", skipped], ["Falhas", errors]];
+  }
+  return [["Processados", processed], ["Criados", run.products_created ?? n("products_created", "productsCreated")], ["Atualizados", run.products_updated ?? n("products_updated", "productsUpdated")], ["Falhas", errors]];
+}
+
 export function Execucoes() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [duplicateCleanupRuns, setDuplicateCleanupRuns] = useState<DuplicateCleanupRun[]>([]);
@@ -195,6 +213,7 @@ export function Execucoes() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [expandedCrons, setExpandedCrons] = useState<Record<string, boolean>>({});
   const [itemsByRun, setItemsByRun] = useState<Record<string, RunItem[]>>({});
   const [loadingItems, setLoadingItems] = useState<string | null>(null);
   const [itemsError, setItemsError] = useState<Record<string, string>>({});
@@ -305,6 +324,12 @@ export function Execucoes() {
         <div className="cron-console-tools"><span className="cron-total">{crons.length} rotinas</span><button className="ops-button ops-button-secondary" onClick={() => { void loadCrons(); void load(); void loadDuplicateCleanup(); }} disabled={loadingCrons || loadingDuplicateCleanup}><RefreshCw size={14} /> Atualizar</button></div>
       </div>
       {cronError && <div className="ops-alert">{cronError}</div>}
+      <div className="ops-surface cron-history-filters"><div className="ops-toolbar executions-toolbar">
+        <label className="ops-search"><Search size={17}/><input value={search} onChange={(event)=>setSearch(event.target.value)} placeholder="Filtrar histórico por rotina"/></label>
+        <label className="ops-select"><Filter size={15}/><select value={source} onChange={(event)=>setSource(event.target.value)}><option value="all">Todas as origens</option>{sources.map((item)=><option value={item} key={item}>{item}</option>)}</select></label>
+        <label className="ops-select"><select value={period} onChange={(event)=>setPeriod(event.target.value)}><option value="24h">Últimas 24 horas</option><option value="7d">Últimos 7 dias</option><option value="30d">Últimos 30 dias</option><option value="all">Todo o histórico</option></select></label>
+        <label className="ops-select"><select value={statusFilter} onChange={(event)=>setStatusFilter(event.target.value)}><option value="all">Todos os resultados</option><option value="success">Concluídas</option><option value="warning">Com ressalvas</option><option value="danger">Falhas</option></select></label>
+      </div></div>
       {cronFeedback && <div className={"cron-feedback " + cronFeedback.type}><span>{cronFeedback.message}</span><button type="button" onClick={() => setCronFeedback(null)} aria-label="Fechar">×</button></div>}
       {loadingCrons ? <div className="ops-empty"><p>Carregando rotinas…</p></div> : crons.length === 0 ? <EmptyState title="Nenhuma rotina encontrada" detail="Não foram encontrados agendamentos do Ofertix." /> :
         <div className="cron-groups">
@@ -315,19 +340,35 @@ export function Execucoes() {
               <div className="cron-group-heading"><div><h3>{group}</h3><span>{groupCrons.length} {groupCrons.length === 1 ? "rotina" : "rotinas"}</span></div></div>
               <div className="cron-list">{groupCrons.map((cron) => {
                 const info = cronInfo(cron.jobname);
-                const latest = cron.jobname === "ofertix-duplicate-cleanup-every-5-minutes" ? null : runs.find((run) => run.function_name === info.functionName);
-                const latestStatus = latest ? displayStatus(latest) : null;
-                return <article className={"cron-row " + (!cron.active ? "is-paused" : "")} key={cron.jobid}>
-                  <div className="cron-row-main"><div className="cron-row-title"><strong>{info.title}</strong><StatusPill tone={cron.active ? "success" : "neutral"}>{cron.active ? "Ativo" : "Pausado"}</StatusPill></div>
-                    <p>{info.description}</p>
-                    <div className="cron-row-meta"><span><Clock3 size={13}/>{cronSchedule(cron.jobname)}</span><code>{cron.schedule}</code>
-                      {cron.jobname === "ofertix-duplicate-cleanup-every-5-minutes" ? (duplicateCleanupRuns[0] && <span className="cron-last-run">Última: {formatDate(duplicateCleanupRuns[0].started_at)} · <b className={duplicateCleanupRuns[0].status === "succeeded" ? "success" : "danger"}>{duplicateCleanupRuns[0].status === "succeeded" ? "Concluída" : "Falhou"}</b></span>) : latest && <span className="cron-last-run">Última: {formatDate(latest.started_at)} · <b className={latestStatus?.tone}>{latestStatus?.label}</b></span>}
-                    </div>
+                const isCleanup = cron.jobname === "ofertix-duplicate-cleanup-every-5-minutes";
+                const isExpanded = !!expandedCrons[String(cron.jobid)];
+                const withinPeriod = (date: string) => period === "all" || new Date(date).getTime() >= Date.now() - (period === "24h" ? 24 : period === "7d" ? 168 : 720) * 3600000;
+                const routineRuns = runs.filter((run) => run.function_name === info.functionName && withinPeriod(run.started_at))
+                  .filter((run) => statusFilter === "all" || (statusFilter === "success" ? displayStatus(run).tone === "success" : statusFilter === "warning" ? displayStatus(run).tone === "warning" : displayStatus(run).tone === "danger"))
+                  .filter((run) => !search.trim() || (run.function_name + " " + info.title).toLowerCase().includes(search.trim().toLowerCase()));
+                const cleanupRuns = duplicateCleanupRuns.filter((run) => withinPeriod(run.started_at))
+                  .filter((run) => statusFilter === "all" || (statusFilter === "success" ? run.status === "succeeded" : statusFilter === "danger" ? run.status !== "succeeded" : false));
+                const latestRun = isCleanup ? cleanupRuns[0] : routineRuns[0];
+                const latestStatus = isCleanup ? (latestRun ? { label: (latestRun as DuplicateCleanupRun).status === "succeeded" ? "Concluída" : "Falhou", tone: (latestRun as DuplicateCleanupRun).status === "succeeded" ? "success" : "danger" } : null) : (latestRun ? displayStatus(latestRun as Run) : null);
+                return <article className={"cron-row cron-accordion " + (!cron.active ? "is-paused" : "") + (isExpanded ? " is-expanded" : "")} key={cron.jobid}>
+                  <div className="cron-accordion-head">
+                    <button className="cron-accordion-toggle" type="button" onClick={() => setExpandedCrons((old) => ({ ...old, [String(cron.jobid)]: !old[String(cron.jobid)] }))} aria-expanded={isExpanded}>
+                      <span className="cron-accordion-chevron">{isExpanded ? <ChevronUp size={18}/> : <ChevronDown size={18}/>}</span>
+                      <span className="cron-row-main"><span className="cron-row-title"><strong>{info.title}</strong><StatusPill tone={cron.active ? "success" : "neutral"}>{cron.active ? "Ativo" : "Pausado"}</StatusPill></span>
+                        <span className="cron-row-meta"><span><Clock3 size={13}/>{cronSchedule(cron.jobname)}</span><code>{cron.schedule}</code>{latestRun && <span className="cron-last-run">Última: {formatDate(latestRun.started_at)} · <b className={latestStatus?.tone}>{latestStatus?.label}</b></span>}</span>
+                      </span>
+                    </button>
+                    <div className="cron-row-action"><button className="cron-run-compact" type="button" onClick={() => void runCron(cron)} disabled={runningCron !== null}>{runningCron === cron.jobid ? <RefreshCw size={14} className="spin"/> : <Play size={14}/>} {runningCron === cron.jobid ? "Executando…" : "Executar"}</button></div>
                   </div>
-                  <div className="cron-row-action"><button className="cron-run-compact" type="button" onClick={() => void runCron(cron)} disabled={runningCron !== null} title={"Executar " + info.title}>
-                    {runningCron === cron.jobid ? <RefreshCw size={14} className="spin" /> : <Play size={14} />}
-                    {runningCron === cron.jobid ? "Executando…" : "Executar"}
-                  </button></div>
+                  {isExpanded && <div className="cron-accordion-content">
+                    <div className="cron-history-heading"><div><h4>Histórico de execuções</h4><p>{isCleanup ? "Dados reais do pg_cron · ciclos a cada 5 minutos" : "Movimentações registradas para esta rotina"}</p></div><span>{isCleanup ? cleanupRuns.length : routineRuns.length} registros</span></div>
+                    {isCleanup ? (loadingDuplicateCleanup ? <div className="ops-empty"><p>Carregando histórico…</p></div> : cleanupRuns.length === 0 ? <EmptyState title="Nenhuma execução neste período" detail="Ajuste os filtros ou aguarde o próximo ciclo."/> :
+                      <div className="cron-history-table-wrap"><table><thead><tr><th>Data e hora</th><th>Status</th><th>Removidos</th><th>Preservados</th><th>Duração</th></tr></thead><tbody>{cleanupRuns.slice(0,100).map((run) => <tr key={run.id}><td>{formatDate(run.started_at)}</td><td><StatusPill tone={run.status === "succeeded" ? "success" : "danger"}>{run.status === "succeeded" ? "Concluída" : "Falhou"}</StatusPill></td><td className="cron-history-number">{run.deleted_count ?? 0}</td><td>{run.kept_count ?? 0}</td><td>{duration(run.finished_at ? new Date(run.finished_at).getTime() - new Date(run.started_at).getTime() : null)}</td></tr>)}</tbody></table></div>
+                    ) : (loading ? <div className="ops-empty"><p>Carregando histórico…</p></div> : routineRuns.length === 0 ? <EmptyState title="Nenhuma execução neste período" detail="Ajuste os filtros ou aguarde o próximo ciclo automático."/> :
+                      <div className="cron-history-table-wrap"><table><thead><tr><th>Data e hora</th><th>Status</th>{cronMetricValues(routineRuns[0], info.functionName).map(([label]) => <th key={label}>{label}</th>)}<th>Duração</th></tr></thead><tbody>{routineRuns.slice(0,100).map((run) => <tr key={run.id}><td>{formatDate(run.started_at)}</td><td><StatusPill tone={displayStatus(run).tone}>{displayStatus(run).label}</StatusPill></td>{cronMetricValues(run, info.functionName).map(([label,value]) => <td className={label === "Falhas" && value > 0 ? "cron-history-error" : label === "Falhas" ? "cron-history-number" : ""} key={label}>{value}</td>)}<td>{duration(run.duration_ms)}</td></tr>)}</tbody></table></div>
+                    )}
+                    {!isCleanup && (cron.jobname.includes("offset") || cron.jobname.includes("every-30-minutes")) && <p className="cron-history-footnote">Histórico compartilhado com o ciclo principal da mesma rotina; o registro não identifica qual agendamento alternado iniciou cada execução.</p>}
+                  </div>}
                 </article>;
               })}</div>
             </section>;
@@ -359,98 +400,5 @@ export function Execucoes() {
         </article>
       </div>
     </section>
-    <section className="duplicate-cleanup-panel">
-      <div className="duplicate-cleanup-heading">
-        <div><span className="cron-eyebrow">HISTÓRICO DO PG_CRON</span><h2>Limpeza automática de duplicados</h2><p>Execuções reais registradas pelo banco de dados.</p></div>
-        <button className="ops-button ops-button-secondary" type="button" onClick={() => void loadDuplicateCleanup()} disabled={loadingDuplicateCleanup}><RefreshCw size={14} className={loadingDuplicateCleanup ? "spin" : ""}/> Atualizar histórico</button>
-      </div>
-      {duplicateCleanupError && <div className="ops-alert">Não foi possível carregar o histórico: {duplicateCleanupError}</div>}
-      {(() => {
-        const successful = duplicateCleanupRuns.filter((run) => run.status === "succeeded");
-        const deletedTotal = successful.reduce((sum, run) => sum + (run.deleted_count ?? 0), 0);
-        const failedTotal = duplicateCleanupRuns.filter((run) => run.status !== "succeeded").length;
-        const latest = duplicateCleanupRuns[0];
-        const durations = successful.map((run) => run.finished_at ? new Date(run.finished_at).getTime() - new Date(run.started_at).getTime() : 0).filter((value) => value >= 0);
-        const avgDuration = durations.length ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) : 0;
-        const daily = Array.from({ length: 7 }, (_, index) => {
-          const day = new Date(); day.setHours(0,0,0,0); day.setDate(day.getDate() - (6-index));
-          const next = new Date(day); next.setDate(next.getDate()+1);
-          const rows = duplicateCleanupRuns.filter((run) => { const time = new Date(run.started_at).getTime(); return time >= day.getTime() && time < next.getTime(); });
-          return { label: day.toLocaleDateString("pt-BR",{weekday:"short"}).replace(".",""), deleted: rows.reduce((sum,run)=>sum+(run.deleted_count ?? 0),0) };
-        });
-        const maxDeleted = Math.max(1,...daily.map((day)=>day.deleted));
-        return <>
-          <div className="duplicate-cleanup-kpis">
-            <article><span>Execuções carregadas</span><strong>{loadingDuplicateCleanup ? "…" : duplicateCleanupRuns.length}</strong><small>Até 2.500 ciclos recentes</small></article>
-            <article><span>Produtos removidos</span><strong>{loadingDuplicateCleanup ? "…" : deletedTotal}</strong><small>Soma dos ciclos carregados</small></article>
-            <article><span>Última execução</span><strong>{loadingDuplicateCleanup ? "…" : latest ? formatDate(latest.started_at) : "—"}</strong><small>{latest ? (latest.status === "succeeded" ? "Concluída" : "Com falha") : "Sem registros"}</small></article>
-            <article><span>Duração média</span><strong>{loadingDuplicateCleanup ? "…" : duration(avgDuration)}</strong><small>{failedTotal} falhas nos ciclos carregados</small></article>
-          </div>
-          <div className="duplicate-cleanup-chart-card">
-            <div className="duplicate-cleanup-chart-title"><div><h3>Produtos removidos por dia</h3><p>Últimos 7 dias · histórico real do cron</p></div><span>{deletedTotal} removidos</span></div>
-            <div className="duplicate-cleanup-bars" role="img" aria-label="Produtos duplicados removidos por dia nos últimos sete dias">
-              {daily.map((day,index)=><div className="duplicate-cleanup-bar-column" key={index}><div className="duplicate-cleanup-bar-track"><i style={{height:(day.deleted/maxDeleted*100)+"%"}}/></div><strong>{day.deleted}</strong><small>{day.label}</small></div>)}
-            </div>
-            <div className="duplicate-cleanup-chart-note"><span><i/>Produtos removidos</span><span>Ciclos sem duplicados aparecem com zero remoções.</span></div>
-          </div>
-          <div className="duplicate-cleanup-history">
-            <div className="duplicate-cleanup-history-title"><h3>Últimos ciclos</h3><span>{duplicateCleanupRuns.length} registros</span></div>
-            {loadingDuplicateCleanup ? <div className="ops-empty"><p>Carregando histórico…</p></div> : duplicateCleanupRuns.length === 0 ? <EmptyState title="Nenhuma execução registrada" detail="O histórico aparecerá após o próximo ciclo do cron."/> :
-              <div className="duplicate-cleanup-table-wrap"><table><thead><tr><th>Data e hora</th><th>Status</th><th>Removidos</th><th>Preservados</th><th>Duração</th></tr></thead><tbody>
-                {duplicateCleanupRuns.slice(0,12).map((run)=>{const ms=run.finished_at?new Date(run.finished_at).getTime()-new Date(run.started_at).getTime():null;return <tr key={run.id}><td>{formatDate(run.started_at)}</td><td><StatusPill tone={run.status==="succeeded"?"success":"danger"}>{run.status==="succeeded"?"Concluída":"Falhou"}</StatusPill></td><td className="duplicate-cleanup-number">{run.deleted_count ?? 0}</td><td>{run.kept_count ?? 0}</td><td>{duration(ms)}</td></tr>;})}
-              </tbody></table></div>}
-          </div>
-        </>;
-      })()}
-    </section>
-    <section className="ops-surface">
-      <div className="ops-toolbar executions-toolbar">
-        <label className="ops-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar rotina ou marketplace" /></label>
-        <label className="ops-select"><Filter size={15} /><select value={source} onChange={(event) => setSource(event.target.value)}><option value="all">Todas as origens</option>{sources.map((item) => <option value={item} key={item}>{item}</option>)}</select></label>
-        <label className="ops-select"><select value={period} onChange={(event) => setPeriod(event.target.value)}><option value="24h">Últimas 24 horas</option><option value="7d">Últimos 7 dias</option><option value="30d">Últimos 30 dias</option><option value="all">Todo o histórico</option></select></label>
-        <label className="ops-select"><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">Todos os resultados</option><option value="success">Concluídas</option><option value="warning">Com ressalvas</option><option value="danger">Falhas</option></select></label>
-      </div>
-      {loading ? <div className="ops-empty"><p>Carregando execuções…</p></div> : visible.length === 0 ? <EmptyState title="Nenhuma execução encontrada" detail="Ajuste os filtros ou aguarde o próximo ciclo automático." /> :
-        <div className="execution-card-list">{visible.map((run) => {
-          const state = displayStatus(run);
-          const metrics = run.metrics ?? {};
-          const entries = detailEntries(metrics);
-          const items = itemsByRun[run.id] ?? [];
-          const itemErrors = items.filter((item) => ["failed", "error", "rejected"].includes(item.status.toLowerCase())).length;
-          return <article className={"execution-card " + (expanded === run.id ? "is-expanded" : "")} key={run.id}>
-            <button className="execution-card-toggle" type="button" onClick={() => void openDetails(run)} aria-expanded={expanded === run.id}>
-              <span className={"execution-status-icon " + state.tone}>{state.tone === "success" ? <CheckCircle2 size={19} /> : state.tone === "danger" ? <XCircle size={19} /> : run.status === "running" ? <CircleDashed size={19} /> : <AlertTriangle size={19} />}</span>
-              <span className="execution-card-heading"><strong>{routineName(run.function_name)}</strong><small>{run.function_name} · {formatDate(run.started_at)}</small></span>
-              <span className="execution-card-state"><StatusPill tone={state.tone}>{state.label}</StatusPill></span>
-              <span className="execution-card-duration"><Timer size={15} />{duration(run.duration_ms)}</span>
-              <span className="execution-card-chevron">{expanded === run.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}</span>
-            </button>
-            <div className="execution-card-summary">
-              <span><Package size={14} /> {run.products_processed ?? run.items_processed ?? metric(metrics, "items_seen") ?? metric(metrics, "rowsReceived") ?? 0} processados</span>
-              <span><CheckCircle2 size={14} /> {run.products_created ?? metric(metrics, "products_created") ?? metric(metrics, "productsCreated") ?? metric(metrics, "published") ?? 0} integrados/publicados</span>
-              <span><RotateCw size={14} /> {run.products_updated ?? metric(metrics, "products_updated") ?? metric(metrics, "productsUpdated") ?? metric(metrics, "pricesRefreshed") ?? 0} atualizados</span>
-              <span className={((run.errors_count ?? 0) > 0 ? "has-errors" : "")}><AlertTriangle size={14} /> {run.errors_count ?? 0} erros</span>
-            </div>
-            {expanded === run.id && <div className="execution-detail-panel">
-              <div className="execution-detail-heading"><div><h3>Resumo desta execução</h3><p>Início: {formatDate(run.started_at)}{run.finished_at ? " · Término: " + formatDate(run.finished_at) : " · Ainda em andamento"}</p></div><span className="execution-detail-id">ID {run.id.slice(0, 8)}</span></div>
-              {entries.length > 0 && <div className="execution-metric-grid">{entries.map(([label, value]) => <div className="execution-metric" key={label}><small>{label}</small><strong>{value}</strong></div>)}</div>}
-              {run.error_message && <div className="execution-global-error"><XCircle size={16} /><div><strong>Erro da execução</strong><p>{run.error_message}</p></div></div>}
-              <div className="execution-items-heading"><div><ListChecks size={17} /><h3>Itens desta execução</h3></div><span>{items.length} detalhados{itemErrors ? " · " + itemErrors + " com erro" : ""}</span></div>
-              {loadingItems === run.id ? <div className="execution-items-empty">Carregando detalhes dos itens…</div> :
-                itemsError[run.id] ? <div className="execution-global-error"><XCircle size={16} /><p>{itemsError[run.id]}</p></div> :
-                items.length === 0 ? <div className="execution-items-empty"><Ban size={17} /><span>Esta execução ainda não possui registros individuais. Os detalhes serão exibidos nas rotinas instrumentadas a partir da implantação.</span></div> :
-                <div className="execution-items-list">{items.map((item) => <div className="execution-item" key={item.id}>
-                  <span className={"execution-item-dot " + itemStatus(item.status)} />
-                  <div className="execution-item-main"><div className="execution-item-title"><strong>{item.title || item.external_id || item.item_id || "Item sem identificação"}</strong><StatusPill tone={itemStatus(item.status) as "success" | "danger" | "warning" | "neutral"}>{statusLabel(item.status)}</StatusPill></div>
-                    <small>{[item.item_type, item.external_id, item.action].filter(Boolean).join(" · ")}</small>
-                    {item.message && <p className={itemStatus(item.status) === "danger" ? "execution-item-error" : ""}>{item.message}</p>}
-                    {item.details && Object.keys(item.details).length > 0 && <details className="execution-item-extra"><summary>Dados técnicos</summary><pre>{JSON.stringify(item.details, null, 2)}</pre></details>}
-                  </div>
-                  {item.external_id && <a className="execution-item-link" href={"https://www.google.com/search?q=" + encodeURIComponent(item.external_id)} target="_blank" rel="noreferrer" aria-label="Pesquisar identificador"><ExternalLink size={14} /></a>}
-                </div>)}</div>}
-            </div>}
-          </article>;
-        })}</div>}
-    </section>
-  </div>;
+      </div>;
 }
