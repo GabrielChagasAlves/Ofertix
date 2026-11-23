@@ -1,3 +1,17 @@
+create index if not exists idx_products_marketplace_normalized_title
+on public.products (
+  marketplace_id,
+  (trim(regexp_replace(
+    translate(lower(coalesce(title, '')),
+      'áàâãäéèêëíìîïóòôõöúùûüç',
+      'aaaaaeeeeiiiiooooouuuuc'),
+    '[^a-z0-9]+', ' ', 'g'
+  )))
+);
+
+create index if not exists idx_offers_product_approval_status
+on public.offers (product_id, approval_status);
+
 create or replace function public.get_duplicate_product_groups(
   p_search text default null,
   p_marketplace_id uuid default null,
