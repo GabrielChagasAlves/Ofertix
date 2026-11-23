@@ -120,7 +120,8 @@ function marketplaceName(name: string) {
   const source = name.toLowerCase();
   if (source.includes("shopee")) return "Shopee";
   if (source.includes("mercado") || source.includes("meli") || source.includes("product-refresh") || source.includes("product-price") || source.includes("n8n-product")) return "Mercado Livre";
-  if (source.includes("publication")) return "Canais";\n  if (source.includes("duplicate") || source.includes("classifier")) return "Ofertix";
+  if (source.includes("publication")) return "Canais";
+  if (source.includes("duplicate") || source.includes("classifier")) return "Ofertix";
   return "Ofertix";
 }
 function duration(ms: number | null) {
