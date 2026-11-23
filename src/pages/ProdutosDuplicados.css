@@ -53,3 +53,80 @@
 }
 .duplicate-manager .ops-button-danger { border:1px solid #b91c1c; color:#fff; background:#dc2626; }
 .duplicate-manager .ops-button-danger:hover:not(:disabled) { background:#b91c1c; }
+
+
+/* Correções responsivas isoladas da tela de duplicidade. */
+.duplicate-manager,
+.duplicate-manager * { box-sizing: border-box; }
+.duplicate-manager { width:100%; max-width:100%; min-width:0; overflow-x:clip; }
+.duplicate-manager .ops-metrics.duplicate-metrics {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  min-width:0;
+}
+.duplicate-manager .duplicate-list-surface { width:100%; min-width:0; }
+.duplicate-manager .duplicate-toolbar { min-width:0; }
+.duplicate-manager .duplicate-toolbar > * { min-width:0; max-width:100%; }
+.duplicate-manager .duplicate-toolbar .ops-search { width:100%; min-width:0; }
+.duplicate-manager .duplicate-toolbar .ops-search input { width:100%; min-width:0; }
+.duplicate-manager .duplicate-groups,
+.duplicate-manager .duplicate-group,
+.duplicate-manager .duplicate-product-list { width:100%; min-width:0; }
+.duplicate-manager .duplicate-group-header > div,
+.duplicate-manager .duplicate-product-info { min-width:0; overflow-wrap:anywhere; }
+.duplicate-manager .duplicate-product-row { min-width:0; }
+.duplicate-manager .duplicate-product-controls { min-width:0; }
+.duplicate-manager .duplicate-product-controls .ops-status,
+.duplicate-manager .duplicate-product-controls > * { max-width:100%; white-space:normal; }
+@media (max-width:760px) {
+  .duplicate-manager .ops-metrics.duplicate-metrics {
+    grid-template-columns:minmax(0,1fr);
+    gap:10px;
+  }
+  .duplicate-manager .ops-metrics.duplicate-metrics .ops-metric {
+    display:grid;
+    grid-template-columns:48px minmax(0,1fr);
+    align-items:center;
+    column-gap:12px;
+    row-gap:3px;
+    padding:14px;
+    min-width:0;
+  }
+  .duplicate-manager .ops-metrics.duplicate-metrics .ops-metric .ops-metric-icon {
+    grid-row:1 / span 3;
+  }
+  .duplicate-manager .ops-metrics.duplicate-metrics .ops-metric strong,
+  .duplicate-manager .ops-metrics.duplicate-metrics .ops-metric span,
+  .duplicate-manager .ops-metrics.duplicate-metrics .ops-metric small {
+    min-width:0;
+    overflow-wrap:anywhere;
+  }
+  .duplicate-manager .duplicate-list-surface { padding:12px; }
+  .duplicate-manager .duplicate-toolbar {
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    gap:10px;
+  }
+  .duplicate-manager .duplicate-toolbar .ops-search,
+  .duplicate-manager .duplicate-toolbar .ops-select,
+  .duplicate-manager .duplicate-toolbar > button {
+    width:100%;
+    min-width:0;
+  }
+  .duplicate-manager .duplicate-toolbar .ops-select select { width:100%; min-width:0; }
+  .duplicate-manager .duplicate-bulk-actions { display:grid; grid-template-columns:minmax(0,1fr); }
+  .duplicate-manager .duplicate-bulk-actions .ops-button { width:100%; justify-content:center; }
+  .duplicate-manager .duplicate-group-header { align-items:stretch; }
+  .duplicate-manager .duplicate-group-header > button { width:100%; justify-content:center; }
+  .duplicate-manager .duplicate-product-row {
+    grid-template-columns:44px minmax(0,1fr);
+    gap:9px;
+    padding:12px;
+  }
+  .duplicate-manager .duplicate-product-image { width:44px; height:44px; }
+  .duplicate-manager .duplicate-product-controls { grid-column:2; justify-content:flex-start; }
+  .duplicate-manager .duplicate-group-footer { overflow-wrap:anywhere; }
+  .duplicate-manager .duplicate-pagination > div { flex-wrap:wrap; }
+  .duplicate-manager .duplicate-pagination .ops-button { min-width:0; }
+}
