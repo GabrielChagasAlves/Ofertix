@@ -10,10 +10,22 @@ const allowedOrigins = new Set([
   "https://ofertix-ofertix.vercel.app",
   "https://ofertix-git-main-ofertix.vercel.app",
 ]);
+function isAllowedOrigin(origin: string) {
+  if (allowedOrigins.has(origin)) return true;
+  try {
+    const url = new URL(origin);
+    // Permite previews e aliases do projeto Ofertix, sem liberar outros projetos Vercel.
+    return url.protocol === "https:" &&
+      /^ofertix(?:-[a-z0-9-]+)?-ofertix\\.vercel\\.app$/.test(url.hostname);
+  } catch {
+    return false;
+  }
+}
 function corsHeaders(req: Request) {
   const origin = req.headers.get("Origin") ?? "";
+  const allowed = isAllowedOrigin(origin);
   return {
-    "Access-Control-Allow-Origin": allowedOrigins.has(origin) ? origin : "https://ofertix-theta.vercel.app",
+    ...(allowed ? { "Access-Control-Allow-Origin": origin } : {}),
     "Vary": "Origin",
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
