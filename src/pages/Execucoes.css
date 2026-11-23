@@ -519,3 +519,28 @@
  .executions-page .cron-accordion-content{padding:0 9px 10px}
  .executions-page .cron-history-table-wrap th,.executions-page .cron-history-table-wrap td{padding:8px}
 }
+
+
+/* Filtros compactos e linha única recolhida por automação */
+.executions-page .cron-history-filters{padding:10px;margin:0 0 12px;background:rgba(8,22,35,.72);border:1px solid rgba(83,117,145,.28)}
+.executions-page .cron-history-filters .ops-toolbar{display:grid;grid-template-columns:minmax(240px,2fr) repeat(3,minmax(130px,1fr));gap:8px;padding:0}
+.executions-page .cron-history-filters .ops-search,
+.executions-page .cron-history-filters .ops-select{min-width:0;width:100%;margin:0}
+.executions-page .cron-accordion-head{min-height:58px}
+.executions-page .cron-accordion-toggle{padding:10px 0}
+.executions-page .cron-accordion .cron-row-title{align-items:center}
+.executions-page .cron-accordion .cron-row-title strong{font-size:13px}
+.executions-page .cron-accordion-expanded-tools{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 2px 10px;border-bottom:1px solid rgba(91,125,151,.2)}
+.executions-page .cron-accordion-expanded-tools .cron-row-description{margin:0 0 6px}
+.executions-page .cron-accordion-expanded-tools .cron-row-meta{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.executions-page .cron-accordion-expanded-tools .cron-run-compact{flex-shrink:0;border-color:rgba(91,125,151,.4);background:#14283a;color:#dceaf3}
+.executions-page .cron-accordion-expanded-tools .cron-run-compact:hover:not(:disabled){border-color:#39d99b;background:rgba(32,212,134,.1);color:#65e8b1}
+@media(max-width:850px){
+ .executions-page .cron-history-filters .ops-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .executions-page .cron-history-filters .ops-search{grid-column:1/-1}
+}
+@media(max-width:560px){
+ .executions-page .cron-history-filters .ops-toolbar{grid-template-columns:1fr}
+ .executions-page .cron-history-filters .ops-search{grid-column:auto}
+ .executions-page .cron-accordion-expanded-tools{align-items:flex-start;flex-direction:column}
+}
