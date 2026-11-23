@@ -216,3 +216,100 @@
 .execution-outcome-legend b{color:#172033;font-size:11px}
 @media(max-width:900px){.execution-health-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.execution-charts-grid{grid-template-columns:1fr}}
 @media(max-width:560px){.execution-analytics-heading{align-items:flex-start;flex-direction:column}.execution-health-grid{grid-template-columns:1fr 1fr}.execution-health-card{padding:12px}.execution-health-card>strong{font-size:21px}.execution-chart-card{padding:13px}.execution-bar-chart{gap:4px}.execution-outcome{gap:14px}.execution-donut{width:112px;height:112px}.execution-outcome-legend span{font-size:9px}}
+
+
+/* Central de automações — cartões alinhados ao painel analítico */
+.executions-page .cron-console{
+  padding:22px;
+  border:1px solid #e7edf5;
+  border-radius:16px;
+  background:linear-gradient(180deg,#fff 0%,#fcfdff 100%);
+  box-shadow:0 3px 14px rgba(15,23,42,.045);
+}
+.executions-page .cron-console-heading{align-items:center;margin-bottom:22px}
+.executions-page .cron-eyebrow{color:#64748b;font-size:10px;letter-spacing:.13em}
+.executions-page .cron-console-heading h2{font-size:21px;font-weight:760;letter-spacing:-.045em}
+.executions-page .cron-console-heading p{font-size:12px;color:#718096}
+.executions-page .cron-total{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 11px;border:1px solid #e5eaf1;border-radius:999px;
+  background:#f8fafc;color:#475569;font-size:11px;font-weight:700;
+}
+.executions-page .cron-group{padding-top:2px}
+.executions-page .cron-group-heading{margin:0 0 10px}
+.executions-page .cron-group-heading>div{align-items:center;gap:9px}
+.executions-page .cron-group-heading h3{font-size:13px;font-weight:780;color:#1e293b}
+.executions-page .cron-group-heading span{
+  padding:3px 8px;border:1px solid #e8edf4;border-radius:999px;
+  background:#f8fafc;color:#64748b;font-size:10px;font-weight:650;
+}
+.executions-page .cron-list{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;
+  overflow:visible;border:0;border-radius:0;
+}
+.executions-page .cron-row,
+.executions-page .cron-row+.cron-row{
+  position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;gap:14px;min-height:132px;padding:16px;
+  border:1px solid #e7edf5;border-radius:13px;
+  background:#fff;box-shadow:0 2px 7px rgba(15,23,42,.025);
+  transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+.executions-page .cron-row:before{
+  content:"";position:absolute;left:0;top:13px;bottom:13px;width:3px;
+  border-radius:0 4px 4px 0;background:#10b981;
+}
+.executions-page .cron-row:hover{
+  z-index:1;border-color:#cbd5e1;background:#fff;
+  box-shadow:0 7px 18px rgba(15,23,42,.065);transform:translateY(-1px);
+}
+.executions-page .cron-row.is-paused{background:#fafbfc}
+.executions-page .cron-row.is-paused:before{background:#94a3b8}
+.executions-page .cron-row-main{padding-left:39px;position:relative}
+.executions-page .cron-row-main:before{
+  content:"↻";position:absolute;left:0;top:1px;
+  display:grid;place-items:center;width:29px;height:29px;
+  border:1px solid #dbeafe;border-radius:9px;
+  background:#eff6ff;color:#2563eb;font-size:18px;font-weight:650;
+}
+.executions-page .cron-row.is-paused .cron-row-main:before{
+  border-color:#e2e8f0;background:#f1f5f9;color:#64748b;
+}
+.executions-page .cron-row-title{gap:8px}
+.executions-page .cron-row-title strong{font-size:12px;line-height:1.45;color:#172033;font-weight:750}
+.executions-page .cron-row-main>p{margin:6px 0 10px;color:#64748b;font-size:11px;line-height:1.55}
+.executions-page .cron-row-meta{gap:7px 10px;font-size:10px}
+.executions-page .cron-row-meta>span:first-child{
+  color:#475569;font-weight:650;
+}
+.executions-page .cron-row-meta>span:first-child svg{color:#64748b}
+.executions-page .cron-row-meta code{
+  padding:4px 7px;border:1px solid #edf1f6;border-radius:6px;
+  background:#f8fafc;color:#64748b;font-size:9px;
+}
+.executions-page .cron-last-run{font-size:10px;color:#94a3b8!important}
+.executions-page .cron-row-action{align-self:center}
+.executions-page .cron-run-compact{
+  min-width:104px;padding:9px 12px;border-color:#dbe4f0;border-radius:9px;
+  background:#fff;color:#334155;font-size:11px;font-weight:720;
+}
+.executions-page .cron-run-compact:hover:not(:disabled){
+  border-color:#a5b4fc;background:#eef2ff;color:#4338ca;
+}
+.executions-page .cron-feedback{margin-top:2px;border-radius:10px}
+@media(max-width:1000px){
+  .executions-page .cron-list{grid-template-columns:1fr}
+  .executions-page .cron-row,.executions-page .cron-row+.cron-row{min-height:0}
+}
+@media(max-width:720px){
+  .executions-page .cron-console{padding:15px}
+  .executions-page .cron-console-heading{gap:13px}
+  .executions-page .cron-row,.executions-page .cron-row+.cron-row{
+    grid-template-columns:minmax(0,1fr);gap:12px;padding:14px;
+  }
+  .executions-page .cron-row-action{padding-left:39px;justify-content:flex-start}
+  .executions-page .cron-run-compact{min-width:128px}
+}
+@media(prefers-reduced-motion:reduce){
+  .executions-page .cron-row{transition:none}
+}
