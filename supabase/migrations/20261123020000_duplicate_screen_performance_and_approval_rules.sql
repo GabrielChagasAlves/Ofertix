@@ -133,7 +133,7 @@ begin
     from group_products gp
   ),
   candidate_status as (
-    select c.id, r.product_approved, r.group_has_approved, r.price_rank
+    select c.id, r.product_approved, r.group_has_approved, r.group_has_price, r.price_rank
     from candidates c join ranked r on r.id = c.id
   ),
   deleted as (
