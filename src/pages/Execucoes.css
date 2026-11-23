@@ -544,3 +544,15 @@
  .executions-page .cron-history-filters .ops-search{grid-column:auto}
  .executions-page .cron-accordion-expanded-tools{align-items:flex-start;flex-direction:column}
 }
+
+
+/* Correção: os accordions de cron devem ocupar uma coluna de largura total.
+   Evita herdar o grid de cards de outros painéis e elimina o espaço vazio lateral. */
+.executions-page .cron-groups,
+.executions-page .cron-group,
+.executions-page .cron-list{width:100%;min-width:0}
+.executions-page .cron-list{display:flex;flex-direction:column;align-items:stretch;gap:0}
+.executions-page .cron-list>.cron-accordion{display:block;position:relative;flex:0 0 auto;width:100%;max-width:none;min-width:0;grid-column:1/-1;box-sizing:border-box}
+.executions-page .cron-accordion-head,
+.executions-page .cron-accordion-content{width:100%;min-width:0;box-sizing:border-box}
+.executions-page .cron-accordion-content{display:block}
