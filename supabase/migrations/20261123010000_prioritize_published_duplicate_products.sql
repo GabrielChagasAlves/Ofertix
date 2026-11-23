@@ -89,20 +89,22 @@ begin
           )
       ) as published_offer_count,
       (
-        select min(coalesce(o.published_at, op.first_sent_at))
+        select min(least(o.published_at, op.first_sent_at, cp.first_published_at))
         from public.offers o
         left join lateral (
           select min(opub.sent_at) as first_sent_at
           from public.offer_publications opub
           where opub.offer_id = o.id
         ) op on true
+        left join lateral (
+          select min(cpub.published_at) as first_published_at
+          from public.channel_publications cpub
+          where cpub.offer_id = o.id and cpub.status = 'published'
+        ) cp on true
         where o.product_id = p.id
           and (
             o.published_at is not null
-            or exists (
-              select 1 from public.channel_publications cp
-              where cp.offer_id = o.id and cp.status = 'published'
-            )
+            or cp.first_published_at is not null
             or op.first_sent_at is not null
           )
       ) as first_published_at,
