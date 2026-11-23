@@ -126,7 +126,7 @@ export function Produtos({ access }: { access: AccessData }) {
     if (updateError) setError(updateError.message); else await load();
   };
 
-  if (showDuplicates) return <ProdutosDuplicados products={products} marketplaces={marketplaces} canDelete={canAction(access, "products.delete")} onBack={() => setShowDuplicates(false)} onRefresh={load} />;
+  if (showDuplicates) return <ProdutosDuplicados canDelete={canAction(access, "products.delete")} onBack={() => setShowDuplicates(false)} onRefresh={load} />;
 
   return <div className="page ops-page">
     <PageIntro eyebrow="CATÁLOGO INTELIGENTE" title="Produtos qualificados" description="Itens encontrados pelas integrações e aprovados pelas regras do Ofertix." actions={<><button className="ops-button ops-button-secondary" onClick={() => setShowDuplicates(true)} disabled={loading}>Gerenciar duplicados</button><button className="ops-button ops-button-secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> Atualizar</button></>} />
