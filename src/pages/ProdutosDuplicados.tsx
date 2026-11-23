@@ -1,513 +1,174 @@
-import { useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, ExternalLink, Package, RefreshCw, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Package, RefreshCw, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { EmptyState, formatCurrency, formatDate, PageIntro, StatusPill } from "../components/OperationsUI";
+import { EmptyState, formatCurrency, PageIntro, StatusPill } from "../components/OperationsUI";
 import "./ProdutosDuplicados.css";
 
-type Product = {
-  id: string;
-  marketplace_id: string;
-  external_id?: string | null;
-  title: string;
-  price: number | null;
-  image_url: string | null;
-  product_url: string | null;
-  affiliate_url: string | null;
-  active: boolean;
-  created_at: string;
-};
+type Product = { id: string; title: string; price: number | null; image_url: string | null; product_url: string | null; external_id: string | null; created_at: string; approved: boolean };
+type DuplicateGroup = { key: string; title: string; marketplace_id: string; marketplace_name: string; item_count: number; approved_count: number; cheapest_id: string | null; items: Product[] };
 type Marketplace = { id: string; name: string; slug: string };
-type Props = {
-  products: Product[];
-  marketplaces: Marketplace[];
-  canDelete: boolean;
-  onBack: () => void;
-  onRefresh: () => Promise<void>;
-};
-type DuplicateGroup = { key: string; title: string; marketplaceId: string; items: Product[] };
-type ReferenceCounts = {
-  productsWithAffiliateLink: number;
-  productsWithPublication: number;
-  blockedProductIds: string[];
-};
-type ReviewState = { groups: DuplicateGroup[]; keepIds: string[]; removeIds: string[]; references: ReferenceCounts; bulk: boolean };
+type Props = { canDelete: boolean; onBack: () => void; onRefresh: () => Promise<void> };
+type GroupResponse = { groups?: DuplicateGroup[]; total_groups?: number };
 
-function normalizeTitle(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR")
-    .replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+function eligibleProducts(group: DuplicateGroup) {
+  if (group.approved_count > 0) return group.items.filter((item) => !item.approved);
+  return group.items.filter((item) => item.id !== group.cheapest_id);
+}
+function describeError(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) return String((error as { message: unknown }).message);
+  return "Não foi possível concluir a operação.";
 }
 
-function describeError(error: unknown, fallback: string): string {
-  if (error instanceof Error) return error.message || fallback;
-  if (typeof error === "string" && error.trim()) return error;
-
-  if (error && typeof error === "object") {
-    const value = error as Record<string, unknown>;
-    const parts = [
-      typeof value.message === "string" ? value.message : null,
-      typeof value.details === "string" ? value.details : null,
-      typeof value.hint === "string" ? `Dica: ${value.hint}` : null,
-      typeof value.code === "string" ? `Código: ${value.code}` : null,
-      typeof value.status === "number" || typeof value.status === "string"
-        ? `HTTP: ${value.status}` : null,
-    ].filter((part): part is string => Boolean(part));
-    if (parts.length) return parts.join(" · ");
-
-    try {
-      const serialized = JSON.stringify(error);
-      if (serialized && serialized !== "{}") return serialized.slice(0, 1000);
-    } catch {
-      // Usa a mensagem alternativa para objetos não serializáveis.
-    }
-  }
-
-  return fallback;
-}
-
-async function inspectReferences(productIds: string[]): Promise<ReferenceCounts> {
-  // Evita URLs muito extensas no filtro .in() e limita a quantidade de
-  // requisições simultâneas durante a análise de grandes catálogos.
-  const chunkSize = 100;
-  const chunks: string[][] = [];
-  for (let index = 0; index < productIds.length; index += chunkSize) {
-    chunks.push(productIds.slice(index, index + chunkSize));
-  }
-
-  const productsRows: { id: string; affiliate_url: string | null }[] = [];
-  const affiliateLinksRows: { product_id: string; affiliate_url: string | null }[] = [];
-  const offersRows: { id: string; product_id: string; affiliate_url: string | null; published_at: string | null }[] = [];
-
-  for (const ids of chunks) {
-    const [productsResult, affiliateLinksResult, offersResult] = await Promise.all([
-      supabase.from("products").select("id, affiliate_url").in("id", ids),
-      supabase.from("affiliate_links").select("product_id, affiliate_url").in("product_id", ids),
-      supabase.from("offers").select("id, product_id, affiliate_url, published_at").in("product_id", ids),
-    ]);
-
-    if (productsResult.error) throw new Error(`Falha ao verificar links dos produtos: ${productsResult.error.message}`);
-    if (affiliateLinksResult.error) throw new Error(`Falha ao verificar links de afiliado: ${affiliateLinksResult.error.message}`);
-    if (offersResult.error) throw new Error(`Falha ao verificar ofertas: ${offersResult.error.message}`);
-
-    productsRows.push(...(productsResult.data ?? []));
-    affiliateLinksRows.push(...(affiliateLinksResult.data ?? []));
-    offersRows.push(...(offersResult.data ?? []));
-  }
-
-  const offerIds = offersRows.map((offer) => offer.id);
-  const offerChunks: string[][] = [];
-  for (let index = 0; index < offerIds.length; index += chunkSize) {
-    offerChunks.push(offerIds.slice(index, index + chunkSize));
-  }
-
-  const channelPublicationsRows: { offer_id: string; status: string | null }[] = [];
-  const offerPublicationsRows: { offer_id: string; sent_at: string | null }[] = [];
-
-  for (const ids of offerChunks) {
-    const [channelPublicationsResult, offerPublicationsResult] = await Promise.all([
-      supabase.from("channel_publications").select("offer_id, status").in("offer_id", ids),
-      supabase.from("offer_publications").select("offer_id, sent_at").in("offer_id", ids),
-    ]);
-
-    if (channelPublicationsResult.error) throw new Error(`Falha ao verificar publicações nos canais: ${channelPublicationsResult.error.message}`);
-    if (offerPublicationsResult.error) throw new Error(`Falha ao verificar publicações de ofertas: ${offerPublicationsResult.error.message}`);
-
-    channelPublicationsRows.push(...(channelPublicationsResult.data ?? []));
-    offerPublicationsRows.push(...(offerPublicationsResult.data ?? []));
-  }
-
-  const productsWithAffiliateLink = new Set<string>();
-  productsRows.forEach((product) => {
-    if (product.affiliate_url?.trim()) productsWithAffiliateLink.add(product.id);
-  });
-  affiliateLinksRows.forEach((link) => {
-    if (link.affiliate_url?.trim()) productsWithAffiliateLink.add(link.product_id);
-  });
-  offersRows.forEach((offer) => {
-    if (offer.affiliate_url?.trim()) productsWithAffiliateLink.add(offer.product_id);
-  });
-
-  const publishedOfferIds = new Set<string>();
-  offersRows.forEach((offer) => {
-    if (offer.published_at) publishedOfferIds.add(offer.id);
-  });
-  channelPublicationsRows.forEach((publication) => {
-    if (publication.status === "published") publishedOfferIds.add(publication.offer_id);
-  });
-  offerPublicationsRows.forEach((publication) => {
-    if (publication.sent_at) publishedOfferIds.add(publication.offer_id);
-  });
-
-  const productsWithPublication = new Set<string>();
-  offersRows.forEach((offer) => {
-    if (publishedOfferIds.has(offer.id)) productsWithPublication.add(offer.product_id);
-  });
-
-  // Basta um dos critérios para proteger o produto: link de afiliado OU publicação.
-  const blockedProductIds = productIds.filter((id) =>
-    productsWithAffiliateLink.has(id) || productsWithPublication.has(id)
-  );
-
-  return {
-    productsWithAffiliateLink: productsWithAffiliateLink.size,
-    productsWithPublication: productsWithPublication.size,
-    blockedProductIds,
-  };
-}
-
-export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, onRefresh }: Props) {
+export function ProdutosDuplicados({ canDelete, onBack, onRefresh }: Props) {
+  const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
+  const [groups, setGroups] = useState<DuplicateGroup[]>([]);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [marketplaceFilter, setMarketplaceFilter] = useState("all");
   const [page, setPage] = useState(1);
-  const [keepByGroup, setKeepByGroup] = useState<Record<string, string>>({});
-  const [removeByGroup, setRemoveByGroup] = useState<Record<string, string[]>>({});
-  const [review, setReview] = useState<ReviewState | null>(null);
-  const [loadingReview, setLoadingReview] = useState(false);
+  const [totalGroups, setTotalGroups] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const pageSize = 12;
+  const [message, setMessage] = useState("");
+  const pageSize = 20;
+
+  const loadGroups = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [marketplaceResult, groupResult] = await Promise.all([
+        supabase.from("marketplaces").select("id,name,slug").order("name"),
+        supabase.rpc("get_duplicate_product_groups", {
+          p_search: debouncedSearch || null,
+          p_marketplace_id: marketplaceFilter === "all" ? null : marketplaceFilter,
+          p_page: page,
+          p_page_size: pageSize,
+        }),
+      ]);
+      if (marketplaceResult.error) throw marketplaceResult.error;
+      if (groupResult.error) throw groupResult.error;
+      setMarketplaces((marketplaceResult.data ?? []) as Marketplace[]);
+      const payload = groupResult.data as GroupResponse | null;
+      setGroups(payload?.groups ?? []);
+      setTotalGroups(payload?.total_groups ?? 0);
+      setSelectedIds([]);
+    } catch (loadError) {
+      setError(describeError(loadError));
+    } finally {
+      setLoading(false);
+    }
+  }, [debouncedSearch, marketplaceFilter, page]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+  useEffect(() => { void loadGroups(); }, [loadGroups]);
+  useEffect(() => { setPage(1); }, [debouncedSearch, marketplaceFilter]);
 
   const marketplaceById = useMemo(() => new Map(marketplaces.map((item) => [item.id, item])), [marketplaces]);
-  const groups = useMemo(() => {
-    const grouped = new Map<string, DuplicateGroup>();
-    products.forEach((product) => {
-      const normalized = normalizeTitle(product.title || "");
-      if (!normalized) return;
-      const key = `${product.marketplace_id}::${normalized}`;
-      const current = grouped.get(key);
-      if (current) current.items.push(product);
-      else grouped.set(key, { key, title: product.title, marketplaceId: product.marketplace_id, items: [product] });
-    });
-    const duplicateGroups = [...grouped.values()].filter((group) => group.items.length > 1);
-    duplicateGroups.forEach((group) => {
-      // Mantém cada conjunto isolado por título + marketplace e ordena seus anúncios
-      // do menor preço para o maior; preços ausentes ficam no final.
-      group.items.sort((a, b) => (a.price ?? Number.POSITIVE_INFINITY) - (b.price ?? Number.POSITIVE_INFINITY)
-        || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
-    });
-    return duplicateGroups.sort((a, b) => {
-      const minA = a.items[0]?.price ?? Number.POSITIVE_INFINITY;
-      const minB = b.items[0]?.price ?? Number.POSITIVE_INFINITY;
-      return minA - minB || b.items.length - a.items.length || a.title.localeCompare(b.title, "pt-BR");
-    });
-  }, [products]);
+  const pageCount = Math.max(1, Math.ceil(totalGroups / pageSize));
+  const selectedCount = selectedIds.length;
 
-  const filteredGroups = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase("pt-BR");
-    return groups.filter((group) => {
-      const marketplaceName = marketplaceById.get(group.marketplaceId)?.name ?? "";
-      return (marketplaceFilter === "all" || group.marketplaceId === marketplaceFilter)
-        && (!term || group.title.toLocaleLowerCase("pt-BR").includes(term)
-          || marketplaceName.toLocaleLowerCase("pt-BR").includes(term)
-          || group.items.some((item) => (item.external_id || "").toLowerCase().includes(term)));
-    });
-  }, [groups, marketplaceById, marketplaceFilter, search]);
-
-  const pageCount = Math.max(1, Math.ceil(filteredGroups.length / pageSize));
-  const visibleGroups = filteredGroups.slice((page - 1) * pageSize, page * pageSize);
-  const selectedCount = Object.values(removeByGroup).reduce((sum, ids) => sum + ids.length, 0);
-
-  function toggleRemoval(groupKey: string, productId: string, checked: boolean) {
-    setRemoveByGroup((current) => {
-      const next = new Set(current[groupKey] ?? []);
-      if (checked) next.add(productId); else next.delete(productId);
-      return { ...current, [groupKey]: [...next] };
-    });
+  function toggleProduct(id: string, checked: boolean) {
+    setSelectedIds((current) => checked ? [...new Set([...current, id])] : current.filter((item) => item !== id));
   }
-
-  function chooseKeep(groupKey: string, productId: string) {
-    setKeepByGroup((current) => ({ ...current, [groupKey]: productId }));
-    setRemoveByGroup((current) => ({ ...current, [groupKey]: (current[groupKey] ?? []).filter((id) => id !== productId) }));
+  function toggleGroup(group: DuplicateGroup) {
+    const eligible = eligibleProducts(group).map((item) => item.id);
+    const allSelected = eligible.length > 0 && eligible.every((id) => selectedIds.includes(id));
+    setSelectedIds((current) => allSelected ? current.filter((id) => !eligible.includes(id)) : [...new Set([...current, ...eligible])]);
   }
-
-  function chooseCheapest(group: DuplicateGroup) {
-    const cheapest = group.items.find((item) => item.price != null);
-    if (cheapest) chooseKeep(group.key, cheapest.id);
-  }
-
-  function toggleAllInGroup(group: DuplicateGroup) {
-    const keepId = keepByGroup[group.key];
-    if (!keepId) return;
-    const removableIds = group.items.filter((item) => item.id !== keepId).map((item) => item.id);
-    const currentSelected = removeByGroup[group.key] ?? [];
-    const allSelected = removableIds.length > 0 && removableIds.every((id) => currentSelected.includes(id));
-    setRemoveByGroup((current) => ({
-      ...current,
-      [group.key]: allSelected ? [] : removableIds,
-    }));
-  }
-
-  async function prepareBulkReview() {
-    if (!canDelete || !groups.length) return;
-    setError("");
-    setMessage("");
-    setLoadingReview(true);
-    try {
-      const allIds = groups.flatMap((group) => group.items.map((item) => item.id));
-      const references = await inspectReferences(allIds);
-      const protectedIds = new Set(references.blockedProductIds);
-      const keepIds = new Set<string>();
-      // Opção B: manter sempre o menor preço de cada grupo e todos os produtos
-      // com link de afiliado ou publicação realizada. Os demais sem link são elegíveis.
-      groups.forEach((group) => {
-        const cheapest = group.items.find((item) => item.price != null) ?? group.items[0];
-        if (cheapest) keepIds.add(cheapest.id);
-      });
-      references.blockedProductIds.forEach((id) => keepIds.add(id));
-      const removeIds = allIds.filter((id) => !keepIds.has(id) && !protectedIds.has(id));
-      const nextRemoveByGroup: Record<string, string[]> = {};
-      groups.forEach((group) => {
-        nextRemoveByGroup[group.key] = group.items
-          .filter((item) => removeIds.includes(item.id))
-          .map((item) => item.id);
-      });
-      setRemoveByGroup(nextRemoveByGroup);
-      if (!removeIds.length) {
-        setMessage("Nenhum produto elegível para exclusão. Os menores preços e todos os produtos com link de afiliado ou publicação foram preservados.");
-        return;
-      }
-      setReview({ groups, keepIds: [...keepIds], removeIds, references, bulk: true });
-    } catch (inspectionError) {
-      setError(inspectionError instanceof Error ? inspectionError.message : "Não foi possível verificar os vínculos dos produtos.");
-    } finally {
-      setLoadingReview(false);
-    }
-  }
-
-  async function prepareReview(group: DuplicateGroup) {
-    const keepId = keepByGroup[group.key];
-    const removeIds = (removeByGroup[group.key] ?? []).filter((id) => id !== keepId);
-    if (!keepId || !removeIds.length) return;
-    setError("");
-    setMessage("");
-    setLoadingReview(true);
-    try {
-      const references = await inspectReferences(removeIds);
-      const protectedIds = new Set(references.blockedProductIds);
-      const eligibleIds = removeIds.filter((id) => !protectedIds.has(id));
-      // Itens protegidos saem da seleção, mas não impedem a exclusão dos demais.
-      setRemoveByGroup((current) => ({ ...current, [group.key]: eligibleIds }));
-      setReview({ groups: [group], keepIds: [keepId], removeIds: eligibleIds, references, bulk: false });
-    } catch (inspectionError) {
-      setError(inspectionError instanceof Error ? inspectionError.message : "Não foi possível verificar os vínculos.");
-    } finally {
-      setLoadingReview(false);
-    }
+  function selectVisibleEligible() {
+    const eligible = groups.flatMap((group) => eligibleProducts(group).map((item) => item.id));
+    const allSelected = eligible.length > 0 && eligible.every((id) => selectedIds.includes(id));
+    setSelectedIds((current) => allSelected ? current.filter((id) => !eligible.includes(id)) : [...new Set([...current, ...eligible])]);
   }
 
   async function confirmDeletion() {
-    if (!review) return;
+    if (!selectedIds.length || !canDelete) return;
     setDeleting(true);
     setError("");
     setMessage("");
+    const totals = { deleted: 0, protected: 0, kept: 0, missing: 0 };
     try {
-      // A RPC revalida permissões, links, publicações e menor preço dentro
-      // do banco para cada lote, sem enviar milhares de IDs em uma URL.
-      const candidateIds = [...new Set(review.removeIds)];
-      const rpcChunkSize = 100;
-      const deletedIds = new Set<string>();
-      const resolvedIds = new Set<string>();
-      const protectedIds = new Set<string>();
-      const keptIds = new Set<string>();
-      let interruption: string | null = null;
-
-      for (let index = 0; index < candidateIds.length; index += rpcChunkSize) {
-        const chunk = candidateIds.slice(index, index + rpcChunkSize);
-        const { data, error: rpcError } = await supabase.rpc("delete_duplicate_products_batch", {
-          p_candidate_ids: chunk,
-        });
-
-        if (rpcError) {
-          interruption = describeError(rpcError, "Falha ao executar o lote no banco.");
-
-          // A resposta pode ter sido perdida depois da execução. Reconcilia
-          // somente o lote atual (máximo de 100 IDs), nunca o catálogo inteiro.
-          const { data: remainingRows, error: verifyError } = await supabase
-            .from("products")
-            .select("id")
-            .in("id", chunk);
-
-          if (verifyError) {
-            interruption += ` Não foi possível conferir o lote atual: ${describeError(verifyError, "falha de rede")}.`;
-          } else {
-            const existingIds = new Set((remainingRows ?? []).map((row) => row.id));
-            chunk.forEach((id) => {
-              if (!existingIds.has(id)) {
-                deletedIds.add(id);
-                resolvedIds.add(id);
-              }
-            });
-          }
-          break;
-        }
-
-        const result = data as {
-          deleted_ids?: string[];
-          protected_ids?: string[];
-          kept_ids?: string[];
-          missing_ids?: string[];
-        } | null;
-
-        (result?.deleted_ids ?? []).forEach((id) => {
-          deletedIds.add(id);
-          resolvedIds.add(id);
-        });
-        (result?.protected_ids ?? []).forEach((id) => {
-          protectedIds.add(id);
-          resolvedIds.add(id);
-        });
-        (result?.kept_ids ?? []).forEach((id) => {
-          keptIds.add(id);
-          resolvedIds.add(id);
-        });
-        (result?.missing_ids ?? []).forEach((id) => resolvedIds.add(id));
-
-        const unresolvedInChunk = chunk.filter((id) => !resolvedIds.has(id));
-        if (unresolvedInChunk.length) {
-          interruption = `O banco não retornou um estado conclusivo para ${unresolvedInChunk.length} produto(s) do lote.`;
-          break;
-        }
+      for (let index = 0; index < selectedIds.length; index += 100) {
+        const chunk = selectedIds.slice(index, index + 100);
+        const { data, error: rpcError } = await supabase.rpc("delete_duplicate_products_batch", { p_candidate_ids: chunk });
+        if (rpcError) throw rpcError;
+        const result = data as { deleted_ids?: string[]; protected_ids?: string[]; kept_ids?: string[]; missing_ids?: string[] } | null;
+        totals.deleted += result?.deleted_ids?.length ?? 0;
+        totals.protected += result?.protected_ids?.length ?? 0;
+        totals.kept += result?.kept_ids?.length ?? 0;
+        totals.missing += result?.missing_ids?.length ?? 0;
       }
-
-      const pendingIds = candidateIds.filter((id) => !resolvedIds.has(id));
-      if (pendingIds.length) {
-        setReview({ ...review, removeIds: pendingIds });
-        const detail = interruption || "Existem produtos cujo estado ainda precisa ser conferido.";
-        throw new Error(`Processamento interrompido. ${deletedIds.size} produto(s) foram excluídos e confirmados; ${protectedIds.size} protegido(s) e ${keptIds.size} menor(es) preço(s) foram preservados. ${pendingIds.length} produto(s) permanecem pendentes. ${detail} Atualize o catálogo antes de qualquer nova tentativa.`);
-      }
-
-      setRemoveByGroup((current) => {
-        const next = { ...current };
-        review.groups.forEach((group) => { next[group.key] = []; });
-        return next;
-      });
-      setKeepByGroup((current) => {
-        const next = { ...current };
-        review.groups.forEach((group) => { delete next[group.key]; });
-        return next;
-      });
-      setReview(null);
-
-      const alreadyMissingCount = candidateIds.filter((id) =>
-        !deletedIds.has(id) && !protectedIds.has(id) && !keptIds.has(id)
-      ).length;
-      const protectedCount = new Set([
-        ...review.references.blockedProductIds,
-        ...protectedIds,
-      ]).size;
-      setMessage(`${deletedIds.size} produto(s) excluído(s) e confirmados. ${alreadyMissingCount ? `${alreadyMissingCount} já estavam ausentes. ` : ""}${protectedCount} produto(s) com link/publicação foram preservados; ${keptIds.size} menor(es) preço(s) também foram mantidos.`);
-
-      try {
-        await onRefresh();
-      } catch (refreshError) {
-        const detail = describeError(refreshError, "Erro desconhecido ao atualizar o catálogo.");
-        setError(`A exclusão foi concluída, mas não foi possível atualizar a lista: ${detail} Atualize a página para conferir o catálogo.`);
-      }
+      setReviewOpen(false);
+      setSelectedIds([]);
+      setMessage(totals.deleted + " produto(s) excluído(s). " + totals.protected + " aprovado(s) preservado(s), " + totals.kept + " menor(es) preço(s) mantido(s) e " + totals.missing + " já ausente(s).");
+      await Promise.all([loadGroups(), onRefresh()]);
     } catch (deleteError) {
-      const detail = describeError(deleteError, "O Supabase não retornou detalhes do erro.");
-      setError(`Não foi possível concluir a exclusão dos produtos selecionados: ${detail}`);
+      setError(describeError(deleteError));
     } finally {
       setDeleting(false);
     }
   }
 
   return <div className="page ops-page duplicate-manager">
-    <PageIntro
-      eyebrow="MANUTENÇÃO DO CATÁLOGO"
-      title="Gerenciamento de produtos duplicados"
-      description="Compare anúncios com o mesmo título dentro do mesmo marketplace, escolha qual será mantido e revise os vínculos antes de remover os demais."
-      actions={<button className="ops-button ops-button-secondary" onClick={onBack}><ArrowLeft size={16} /> Voltar aos produtos</button>}
-    />
-    <div className="duplicate-safety-note">
-      <ShieldCheck size={19} />
-      <div><strong>Regra de proteção</strong><p>Produtos que tenham link de afiliado OU publicação efetivamente realizada são preservados automaticamente e retirados da seleção. A exclusão em lote continua para os demais itens elegíveis.</p></div>
-    </div>
-    {!canDelete && <div className="ops-alert">Seu usuário pode consultar os duplicados, mas não possui a permissão <strong>Excluir produtos duplicados</strong>. Solicite essa ação ao administrador.</div>}
-    {error && <div className="ops-alert">{error}</div>}
-    {message && <div className="duplicate-success"><CheckCircle2 size={17} />{message}</div>}
+    <PageIntro eyebrow="MANUTENÇÃO DO CATÁLOGO" title="Produtos duplicados" description="Grupos carregados diretamente do banco, sem aguardar o catálogo completo. A aprovação de publicação define quais itens podem ser removidos." actions={<button className="ops-button ops-button-secondary" onClick={onBack}><ArrowLeft size={16} /> Voltar aos produtos</button>} />
     <section className="ops-metrics duplicate-metrics">
-      <div className="ops-metric"><span>Grupos encontrados</span><strong>{groups.length.toLocaleString("pt-BR")}</strong><small>Títulos repetidos por marketplace</small></div>
-      <div className="ops-metric"><span>Produtos nesses grupos</span><strong>{groups.reduce((sum, group) => sum + group.items.length, 0).toLocaleString("pt-BR")}</strong><small>Anúncios para comparar</small></div>
-      <div className="ops-metric"><span>Exclusões selecionadas</span><strong>{selectedCount.toLocaleString("pt-BR")}</strong><small>Seleções ainda não executadas</small></div>
+      <article className="ops-metric"><span className="ops-metric-icon"><Package size={19} /></span><strong>{loading ? "…" : totalGroups}</strong><span>Grupos duplicados</span><small>Resultado da busca atual</small></article>
+      <article className="ops-metric"><span className="ops-metric-icon"><ShieldCheck size={19} /></span><strong>{groups.reduce((sum, group) => sum + group.approved_count, 0)}</strong><span>Itens aprovados nesta página</span><small>Protegidos contra exclusão</small></article>
+      <article className="ops-metric"><span className="ops-metric-icon"><Trash2 size={19} /></span><strong>{selectedCount}</strong><span>Itens selecionados</span><small>Somente itens elegíveis</small></article>
     </section>
     <section className="ops-surface duplicate-list-surface">
       <div className="ops-toolbar duplicate-toolbar">
-        <label className="ops-search"><Search size={17} /><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Buscar título ou código MLB" /></label>
-        <label className="ops-select"><select value={marketplaceFilter} onChange={(event) => { setMarketplaceFilter(event.target.value); setPage(1); }}><option value="all">Todos os marketplaces</option>{marketplaces.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-        <button className="ops-button ops-button-secondary" onClick={() => void onRefresh()}><RefreshCw size={15} /> Atualizar catálogo</button>
-        <button className="ops-button ops-button-primary" disabled={!canDelete || !groups.length || loadingReview || deleting} onClick={() => void prepareBulkReview()}>
-          <Trash2 size={15} /> {loadingReview ? "Analisando todos os grupos…" : "Selecionar todos os duplicados"}
-        </button>
+        <label className="ops-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar pelo título do produto" /></label>
+        <label className="ops-select"><span>Marketplace</span><select value={marketplaceFilter} onChange={(event) => setMarketplaceFilter(event.target.value)}><option value="all">Todos os marketplaces</option>{marketplaces.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <button className="ops-button ops-button-secondary" onClick={() => void loadGroups()} disabled={loading}><RefreshCw size={16} /> Atualizar</button>
       </div>
-      {visibleGroups.length === 0 ? <EmptyState title="Nenhum grupo duplicado encontrado" detail="Tente outro termo ou marketplace. A comparação considera títulos normalizados e mantém os marketplaces separados." /> :
-        <div className="duplicate-groups">
-          {visibleGroups.map((group) => {
-            const keepId = keepByGroup[group.key] ?? "";
-            const selectedIds = removeByGroup[group.key] ?? [];
-            const marketplaceName = marketplaceById.get(group.marketplaceId)?.name ?? "Marketplace";
-            return <article className="duplicate-group" key={group.key}>
-              <header className="duplicate-group-header">
-                <div><span className="duplicate-marketplace">{marketplaceName}</span><h2>{group.title}</h2><small>{group.items.length} anúncios com título igual</small></div>
-                <StatusPill tone="warning">{group.items.length - 1} possíveis duplicados</StatusPill>
-              </header>
-              <div className="duplicate-product-list">
-                {group.items.map((product, productIndex) => {
-                  const isKeep = keepId === product.id;
-                  const isSelected = selectedIds.includes(product.id);
-                  return <div className={`duplicate-product-row ${isKeep ? "is-keep" : ""} ${isSelected ? "is-selected" : ""}`} key={product.id}>
-                    <div className="duplicate-product-image">{product.image_url ? <img src={product.image_url} alt="" /> : <Package size={22} />}</div>
-                    <div className="duplicate-product-info">
-                      <strong>{product.title}</strong>
-                      <span>{product.external_id || "Código externo não informado"} · {product.active ? "Ativo" : "Inativo"} · Incluído em {formatDate(product.created_at)}</span>
-                      <div className="duplicate-product-meta">
-                        <b>{formatCurrency(product.price)}</b>
-                        {productIndex === 0 && product.price != null && <StatusPill tone="success">Menor preço do grupo</StatusPill>}{product.affiliate_url ? <StatusPill tone="success">Com link de afiliado</StatusPill> : <StatusPill>Sem link de afiliado</StatusPill>}
-                        {product.product_url && <a href={product.product_url} target="_blank" rel="noreferrer">Abrir anúncio <ExternalLink size={12} /></a>}
-                      </div>
-                    </div>
-                    <div className="duplicate-product-controls">
-                      <label className="duplicate-keep-control"><input type="radio" name={`keep-${group.key}`} checked={isKeep} onChange={() => chooseKeep(group.key, product.id)} /><span>Manter este</span></label>
-                      <label className="duplicate-remove-control"><input type="checkbox" checked={isSelected} disabled={isKeep} onChange={(event) => toggleRemoval(group.key, product.id, event.target.checked)} /><span>Remover</span></label>
-                    </div>
-                  </div>;
-                })}
-              </div>
-              <footer className="duplicate-group-footer">
-                <span>{keepId ? "Anúncio principal escolhido" : "Escolha qual anúncio será preservado"}{selectedIds.length ? ` · ${selectedIds.length} selecionado(s) para remoção` : ""}</span>
-                <div className="duplicate-group-actions">
-                  <button
-                    className="ops-button ops-button-secondary"
-                    disabled={!canDelete || !keepId}
-                    onClick={() => toggleAllInGroup(group)}
-                  >
-                    {keepId && group.items.filter((item) => item.id !== keepId).every((item) => selectedIds.includes(item.id))
-                      ? "Desmarcar todos"
-                      : "Selecionar todos"}
-                  </button>
-                  <button className="ops-button ops-button-secondary" disabled={!canDelete || !group.items.some((item) => item.price != null)} onClick={() => chooseCheapest(group)}>Manter menor preço</button>
-                  <button className="ops-button ops-button-primary" disabled={!canDelete || !keepId || !selectedIds.length || loadingReview} onClick={() => void prepareReview(group)}>
-                    <Trash2 size={15} /> {loadingReview ? "Verificando vínculos…" : "Revisar remoção"}
-                  </button>
-                </div>
-              </footer>
-            </article>;
-          })}
-        </div>}
-      {filteredGroups.length > 0 && <div className="duplicate-pagination"><span>Exibindo {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredGroups.length)} de {filteredGroups.length} grupos</span><div><button className="ops-button ops-button-secondary" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Anterior</button><strong>Página {page} de {pageCount}</strong><button className="ops-button ops-button-secondary" disabled={page === pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))}>Próxima</button></div></div>}
+      <div className="duplicate-rules"><ShieldCheck size={18} /><div><strong>Regras automáticas de exclusão</strong><p>Itens com aprovação de publicação nunca são excluídos. Se o grupo não tiver nenhum item aprovado, o sistema mantém somente o produto de menor preço. Links de afiliado não bloqueiam a exclusão.</p></div></div>
+      {error && <div className="ops-alert">{error}</div>}
+      {message && <div className="duplicate-feedback"><CheckCircle2 size={17} />{message}</div>}
+      <div className="duplicate-bulk-actions">
+        <button className="ops-button ops-button-secondary" onClick={selectVisibleEligible} disabled={loading || !groups.length}>Selecionar elegíveis desta página</button>
+        <button className="ops-button ops-button-danger" onClick={() => setReviewOpen(true)} disabled={!canDelete || !selectedCount || deleting}><Trash2 size={16} /> Excluir selecionados ({selectedCount})</button>
+      </div>
+      {loading ? <div className="ops-empty"><p>Carregando grupos de duplicidade…</p></div> : groups.length === 0 ? <EmptyState title="Nenhum grupo duplicado encontrado" detail="Tente outro termo de busca ou selecione todos os marketplaces." /> :
+        <div className="duplicate-groups">{groups.map((group) => {
+          const eligible = eligibleProducts(group);
+          const eligibleIds = eligible.map((item) => item.id);
+          const allSelected = eligibleIds.length > 0 && eligibleIds.every((id) => selectedIds.includes(id));
+          const source = marketplaceById.get(group.marketplace_id);
+          return <article className="duplicate-group" key={group.key}>
+            <header className="duplicate-group-header">
+              <div><div className="duplicate-group-tags"><StatusPill>{source?.name ?? group.marketplace_name ?? "Marketplace"}</StatusPill><StatusPill tone="warning">{group.item_count} itens</StatusPill>{group.approved_count > 0 && <StatusPill tone="success">{group.approved_count} aprovado(s)</StatusPill>}</div><h2>{group.title}</h2></div>
+              <button className="ops-button ops-button-secondary" onClick={() => toggleGroup(group)} disabled={!canDelete || !eligible.length}>{allSelected ? "Desmarcar elegíveis" : "Selecionar elegíveis"}</button>
+            </header>
+            <div className="duplicate-product-list">{group.items.map((item) => {
+              const protectedItem = item.approved || (group.approved_count === 0 && item.id === group.cheapest_id);
+              const isSelected = selectedIds.includes(item.id);
+              return <div className={"duplicate-product-row" + (protectedItem ? " is-protected" : "") + (isSelected ? " is-selected" : "")} key={item.id}>
+                <div className="duplicate-product-image">{item.image_url ? <img src={item.image_url} alt="" loading="lazy" /> : <Package size={21} />}</div>
+                <div className="duplicate-product-info"><strong>{item.title}</strong><div className="duplicate-product-meta"><b>{formatCurrency(item.price)}</b>{item.external_id && <span>ID: {item.external_id}</span>}{item.product_url && <a href={item.product_url} target="_blank" rel="noreferrer">Abrir anúncio</a>}</div></div>
+                <div className="duplicate-product-controls">{protectedItem
+                  ? <StatusPill tone="success">{item.approved ? "Aprovado — protegido" : "Menor preço — manter"}</StatusPill>
+                  : <label><input type="checkbox" checked={isSelected} onChange={(event) => toggleProduct(item.id, event.target.checked)} disabled={!canDelete} /> Excluir item</label>}</div>
+              </div>;
+            })}</div>
+            <footer className="duplicate-group-footer"><span>{eligible.length} item(ns) elegível(is) para exclusão neste grupo</span><span>{group.approved_count > 0 ? "Aprovados preservados" : "Menor preço preservado"}</span></footer>
+          </article>;
+        })}</div>
+      }
+      <div className="duplicate-pagination"><span>Mostrando {groups.length} de {totalGroups} grupos</span><div><button className="ops-button ops-button-secondary" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={loading || page <= 1}><ChevronLeft size={16} /> Anterior</button><strong>Página {page} de {pageCount}</strong><button className="ops-button ops-button-secondary" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={loading || page >= pageCount}>Próxima <ChevronRight size={16} /></button></div></div>
     </section>
-    {review && <div className="duplicate-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !deleting) setReview(null); }}>
+    {reviewOpen && <div className="duplicate-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !deleting) setReviewOpen(false); }}>
       <section className="duplicate-review-modal" role="dialog" aria-modal="true" aria-labelledby="duplicate-review-title">
-        <div className="duplicate-review-heading"><div><span>CONFIRMAÇÃO DE SEGURANÇA</span><h2 id="duplicate-review-title">{review.bulk ? "Revisar limpeza em massa" : "Revisar remoção"}</h2></div><button className="ops-icon-action" onClick={() => setReview(null)} disabled={deleting} aria-label="Fechar">×</button></div>
-        <p>{review.bulk
-          ? <>A limpeza geral analisou <strong>{review.groups.length} grupos</strong>. Serão removidos <strong>{review.removeIds.length} produtos</strong> sem link de afiliado e sem publicação, mantendo o menor preço de cada grupo e todos os produtos protegidos.</>
-          : <>Você escolheu manter <strong>{review.groups[0].items.find((item) => item.id === review.keepIds[0])?.title}</strong> e remover {review.removeIds.length} anúncio(s).</>}</p>
-        <div className="duplicate-reference-list">
-          <div><span>Produtos com link de afiliado</span><strong>{review.references.productsWithAffiliateLink}</strong></div>
-          <div><span>Produtos com publicação realizada</span><strong>{review.references.productsWithPublication}</strong></div>
-          <div><span>Produtos protegidos (link OU publicação)</span><strong>{review.references.blockedProductIds.length}</strong></div>
-        </div>
-        <div className="duplicate-safe"><ShieldCheck size={18} /><span>{review.references.blockedProductIds.length > 0 ? `${review.references.blockedProductIds.length} item(ns) com link de afiliado ou publicação foram retirados do lote e serão preservados. ` : "Nenhum item protegido foi encontrado. "}Os demais produtos elegíveis poderão ser excluídos em lote. Registros dependentes dos produtos removidos também podem ser excluídos conforme as regras de integridade.</span></div>
-        <div className="duplicate-modal-actions"><button className="ops-button ops-button-secondary" onClick={() => setReview(null)} disabled={deleting}>Voltar</button><button className="ops-button ops-button-primary" onClick={() => void confirmDeletion()} disabled={deleting || review.removeIds.length === 0}><Trash2 size={15} />{deleting ? "Excluindo…" : review.bulk ? "Confirmar exclusão em massa" : "Confirmar exclusão"}</button></div>
+        <div className="duplicate-review-heading"><div><span>CONFIRMAÇÃO DE EXCLUSÃO</span><h2 id="duplicate-review-title">Excluir {selectedCount} produto(s)?</h2></div><StatusPill tone="warning">Ação irreversível</StatusPill></div>
+        <p>O banco vai revalidar a aprovação de publicação e a regra do menor preço no momento da exclusão. Itens aprovados e o menor preço de grupos sem aprovação serão preservados mesmo que tenham sido selecionados por engano.</p>
+        <div className="duplicate-modal-actions"><button className="ops-button ops-button-secondary" onClick={() => setReviewOpen(false)} disabled={deleting}>Cancelar</button><button className="ops-button ops-button-danger" onClick={() => void confirmDeletion()} disabled={deleting}>{deleting ? "Excluindo…" : "Confirmar exclusão"}</button></div>
       </section>
     </div>}
   </div>;
