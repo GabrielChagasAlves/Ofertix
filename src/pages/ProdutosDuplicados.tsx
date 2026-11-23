@@ -125,7 +125,7 @@ export function ProdutosDuplicados({ canDelete, onBack, onRefresh }: Props) {
     <PageIntro eyebrow="MANUTENÇÃO DO CATÁLOGO" title="Produtos duplicados" description="Grupos carregados diretamente do banco, sem aguardar o catálogo completo. A aprovação de publicação define quais itens podem ser removidos." actions={<button className="ops-button ops-button-secondary" onClick={onBack}><ArrowLeft size={16} /> Voltar aos produtos</button>} />
     <section className="ops-metrics duplicate-metrics">
       <article className="ops-metric"><span className="ops-metric-icon"><Package size={19} /></span><strong>{loading ? "…" : totalGroups}</strong><span>Grupos duplicados</span><small>Resultado da busca atual</small></article>
-      <article className="ops-metric"><span className="ops-metric-icon"><ShieldCheck size={19} /></span><strong>{groups.reduce((sum, group) => sum + group.approved_count, 0)}</strong><span>Itens aprovados nesta página</span><small>Status não impede a remoção de duplicados</small></article>
+      <article className="ops-metric"><span className="ops-metric-icon"><ShieldCheck size={19} /></span><strong>{groups.reduce((sum, group) => sum + group.approved_count, 0)}</strong><span>Itens aprovados nesta página</span><small>Podem ser removidos se forem mais caros</small></article>
       <article className="ops-metric"><span className="ops-metric-icon"><Trash2 size={19} /></span><strong>{selectedCount}</strong><span>Itens selecionados</span><small>Somente itens elegíveis</small></article>
     </section>
     <section className="ops-surface duplicate-list-surface">
