@@ -17,6 +17,7 @@ type Run = {
   errors_count: number | null; error_message: string | null;
   metrics: Record<string, unknown> | null;
 };
+type DuplicateCleanupRun = { id: number; started_at: string; finished_at: string | null; deleted_count: number; kept_count: number; status: string; details: Record<string, unknown> | null; };
 type RunItem = {
   id: string; run_id: string; function_name: string; item_type: string;
   item_id: string | null; external_id: string | null; title: string | null;
@@ -179,6 +180,9 @@ function detailEntries(metrics: Record<string, unknown> | null) {
 
 export function Execucoes() {
   const [runs, setRuns] = useState<Run[]>([]);
+  const [duplicateCleanupRuns, setDuplicateCleanupRuns] = useState<DuplicateCleanupRun[]>([]);
+  const [loadingDuplicateCleanup, setLoadingDuplicateCleanup] = useState(true);
+  const [duplicateCleanupError, setDuplicateCleanupError] = useState("");
   const [crons, setCrons] = useState<Cron[]>([]);
   const [loadingCrons, setLoadingCrons] = useState(true);
   const [cronError, setCronError] = useState("");
@@ -219,6 +223,16 @@ export function Execucoes() {
     setLoadingCrons(false);
   }, []);
   useEffect(() => { void loadCrons(); }, [loadCrons]);
+
+  const loadDuplicateCleanup = useCallback(async () => {
+    setLoadingDuplicateCleanup(true);
+    setDuplicateCleanupError("");
+    const { data, error: requestError } = await supabase.rpc("get_duplicate_cleanup_history", { p_limit: 100 });
+    if (requestError) setDuplicateCleanupError(requestError.message);
+    setDuplicateCleanupRuns((data ?? []) as DuplicateCleanupRun[]);
+    setLoadingDuplicateCleanup(false);
+  }, []);
+  useEffect(() => { void loadDuplicateCleanup(); }, [loadDuplicateCleanup]);
 
   const runCron = async (cron: Cron) => {
     if (runningCron !== null) return;
@@ -288,7 +302,7 @@ export function Execucoes() {
     <section className="cron-console">
       <div className="cron-console-heading">
         <div><span className="cron-eyebrow">CENTRAL DE AUTOMAÇÕES</span><h2>Rotinas agendadas</h2><p>Entenda o que cada processo faz e execute apenas o que precisa.</p></div>
-        <div className="cron-console-tools"><span className="cron-total">{crons.length} rotinas</span><button className="ops-button ops-button-secondary" onClick={() => { void loadCrons(); void load(); }} disabled={loadingCrons}><RefreshCw size={14} /> Atualizar</button></div>
+        <div className="cron-console-tools"><span className="cron-total">{crons.length} rotinas</span><button className="ops-button ops-button-secondary" onClick={() => { void loadCrons(); void load(); void loadDuplicateCleanup(); }} disabled={loadingCrons || loadingDuplicateCleanup}><RefreshCw size={14} /> Atualizar</button></div>
       </div>
       {cronError && <div className="ops-alert">{cronError}</div>}
       {cronFeedback && <div className={"cron-feedback " + cronFeedback.type}><span>{cronFeedback.message}</span><button type="button" onClick={() => setCronFeedback(null)} aria-label="Fechar">×</button></div>}
@@ -301,13 +315,13 @@ export function Execucoes() {
               <div className="cron-group-heading"><div><h3>{group}</h3><span>{groupCrons.length} {groupCrons.length === 1 ? "rotina" : "rotinas"}</span></div></div>
               <div className="cron-list">{groupCrons.map((cron) => {
                 const info = cronInfo(cron.jobname);
-                const latest = runs.find((run) => run.function_name === info.functionName);
+                const latest = cron.jobname === "ofertix-duplicate-cleanup-every-5-minutes" ? null : runs.find((run) => run.function_name === info.functionName);
                 const latestStatus = latest ? displayStatus(latest) : null;
                 return <article className={"cron-row " + (!cron.active ? "is-paused" : "")} key={cron.jobid}>
                   <div className="cron-row-main"><div className="cron-row-title"><strong>{info.title}</strong><StatusPill tone={cron.active ? "success" : "neutral"}>{cron.active ? "Ativo" : "Pausado"}</StatusPill></div>
                     <p>{info.description}</p>
                     <div className="cron-row-meta"><span><Clock3 size={13}/>{cronSchedule(cron.jobname)}</span><code>{cron.schedule}</code>
-                      {latest && <span className="cron-last-run">Última: {formatDate(latest.started_at)} · <b className={latestStatus?.tone}>{latestStatus?.label}</b></span>}
+                      {cron.jobname === "ofertix-duplicate-cleanup-every-5-minutes" ? (duplicateCleanupRuns[0] && <span className="cron-last-run">Última: {formatDate(duplicateCleanupRuns[0].started_at)} · <b className={duplicateCleanupRuns[0].status === "succeeded" ? "success" : "danger"}>{duplicateCleanupRuns[0].status === "succeeded" ? "Concluída" : "Falhou"}</b></span>) : latest && <span className="cron-last-run">Última: {formatDate(latest.started_at)} · <b className={latestStatus?.tone}>{latestStatus?.label}</b></span>}
                     </div>
                   </div>
                   <div className="cron-row-action"><button className="cron-run-compact" type="button" onClick={() => void runCron(cron)} disabled={runningCron !== null} title={"Executar " + info.title}>
@@ -344,6 +358,50 @@ export function Execucoes() {
             <div className="execution-outcome-legend"><span><i className="success"/><b>{succeeded}</b>Concluídas</span><span><i className="failed"/><b>{failures}</b>Falhas</span><span><i className="warning"/><b>{warnings}</b>Ressalvas/em andamento</span></div></div>
         </article>
       </div>
+    </section>
+    <section className="duplicate-cleanup-panel">
+      <div className="duplicate-cleanup-heading">
+        <div><span className="cron-eyebrow">HISTÓRICO DO PG_CRON</span><h2>Limpeza automática de duplicados</h2><p>Execuções reais registradas pelo banco de dados.</p></div>
+        <button className="ops-button ops-button-secondary" type="button" onClick={() => void loadDuplicateCleanup()} disabled={loadingDuplicateCleanup}><RefreshCw size={14} className={loadingDuplicateCleanup ? "spin" : ""}/> Atualizar histórico</button>
+      </div>
+      {duplicateCleanupError && <div className="ops-alert">Não foi possível carregar o histórico: {duplicateCleanupError}</div>}
+      {(() => {
+        const successful = duplicateCleanupRuns.filter((run) => run.status === "succeeded");
+        const deletedTotal = successful.reduce((sum, run) => sum + (run.deleted_count ?? 0), 0);
+        const failedTotal = duplicateCleanupRuns.filter((run) => run.status !== "succeeded").length;
+        const latest = duplicateCleanupRuns[0];
+        const durations = successful.map((run) => run.finished_at ? new Date(run.finished_at).getTime() - new Date(run.started_at).getTime() : 0).filter((value) => value >= 0);
+        const avgDuration = durations.length ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) : 0;
+        const daily = Array.from({ length: 7 }, (_, index) => {
+          const day = new Date(); day.setHours(0,0,0,0); day.setDate(day.getDate() - (6-index));
+          const next = new Date(day); next.setDate(next.getDate()+1);
+          const rows = duplicateCleanupRuns.filter((run) => { const time = new Date(run.started_at).getTime(); return time >= day.getTime() && time < next.getTime(); });
+          return { label: day.toLocaleDateString("pt-BR",{weekday:"short"}).replace(".",""), deleted: rows.reduce((sum,run)=>sum+(run.deleted_count ?? 0),0) };
+        });
+        const maxDeleted = Math.max(1,...daily.map((day)=>day.deleted));
+        return <>
+          <div className="duplicate-cleanup-kpis">
+            <article><span>Execuções carregadas</span><strong>{loadingDuplicateCleanup ? "…" : duplicateCleanupRuns.length}</strong><small>Até 100 ciclos recentes</small></article>
+            <article><span>Produtos removidos</span><strong>{loadingDuplicateCleanup ? "…" : deletedTotal}</strong><small>Soma dos ciclos carregados</small></article>
+            <article><span>Última execução</span><strong>{loadingDuplicateCleanup ? "…" : latest ? formatDate(latest.started_at) : "—"}</strong><small>{latest ? (latest.status === "succeeded" ? "Concluída" : "Com falha") : "Sem registros"}</small></article>
+            <article><span>Duração média</span><strong>{loadingDuplicateCleanup ? "…" : duration(avgDuration)}</strong><small>{failedTotal} falhas nos ciclos carregados</small></article>
+          </div>
+          <div className="duplicate-cleanup-chart-card">
+            <div className="duplicate-cleanup-chart-title"><div><h3>Produtos removidos por dia</h3><p>Últimos 7 dias · histórico real do cron</p></div><span>{deletedTotal} removidos</span></div>
+            <div className="duplicate-cleanup-bars" role="img" aria-label="Produtos duplicados removidos por dia nos últimos sete dias">
+              {daily.map((day,index)=><div className="duplicate-cleanup-bar-column" key={index}><div className="duplicate-cleanup-bar-track"><i style={{height:(day.deleted/maxDeleted*100)+"%"}}/></div><strong>{day.deleted}</strong><small>{day.label}</small></div>)}
+            </div>
+            <div className="duplicate-cleanup-chart-note"><span><i/>Produtos removidos</span><span>Ciclos sem duplicados aparecem com zero remoções.</span></div>
+          </div>
+          <div className="duplicate-cleanup-history">
+            <div className="duplicate-cleanup-history-title"><h3>Últimos ciclos</h3><span>{duplicateCleanupRuns.length} registros</span></div>
+            {loadingDuplicateCleanup ? <div className="ops-empty"><p>Carregando histórico…</p></div> : duplicateCleanupRuns.length === 0 ? <EmptyState title="Nenhuma execução registrada" detail="O histórico aparecerá após o próximo ciclo do cron."/> :
+              <div className="duplicate-cleanup-table-wrap"><table><thead><tr><th>Data e hora</th><th>Status</th><th>Removidos</th><th>Preservados</th><th>Duração</th></tr></thead><tbody>
+                {duplicateCleanupRuns.slice(0,12).map((run)=>{const ms=run.finished_at?new Date(run.finished_at).getTime()-new Date(run.started_at).getTime():null;return <tr key={run.id}><td>{formatDate(run.started_at)}</td><td><StatusPill tone={run.status==="succeeded"?"success":"danger"}>{run.status==="succeeded"?"Concluída":"Falhou"}</StatusPill></td><td className="duplicate-cleanup-number">{run.deleted_count ?? 0}</td><td>{run.kept_count ?? 0}</td><td>{duration(ms)}</td></tr>;})}
+              </tbody></table></div>}
+          </div>
+        </>;
+      })()}
     </section>
     <section className="ops-surface">
       <div className="ops-toolbar executions-toolbar">
