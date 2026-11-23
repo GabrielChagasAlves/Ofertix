@@ -67,7 +67,7 @@ export function RevisaoDisponibilidade() {
     const ids = visible.map(item => item.id);
     setSelected(current => selectedVisible ? current.filter(id => !ids.includes(id)) : [...new Set([...current, ...ids])]);
   };
-  const selectAllFiltered = () => setSelected(filtered.map(item => item.id));
+  const selectAllFiltered = () => setSelected(current => [...new Set([...current, ...filtered.map(item => item.id)])]);
 
   const resolve = async (product: Product, status: "available" | "unavailable") => {
     setBusy(product.id); setError(""); setMessage("");
@@ -151,12 +151,12 @@ export function RevisaoDisponibilidade() {
       <>
         <section className="availability-review-selection">
           <div className="availability-review-select-line">
-            <button type="button" className="availability-review-select-toggle" onClick={toggleVisible}><span>{selectedVisible ? <CheckSquare size={18}/> : <Square size={18}/>}</span>Selecionar página</button>
-            <button type="button" className="availability-review-select-all" onClick={selectAllFiltered}>Selecionar todos os {filtered.length} resultados filtrados</button>
+            <button type="button" className="availability-review-select-toggle" onClick={toggleVisible}><span>{selectedVisible ? <CheckSquare size={18}/> : <Square size={18}/>}</span>Selecionar página atual</button>
+            <button type="button" className="availability-review-select-all" onClick={selectAllFiltered}>Selecionar todos os {filtered.length} resultados (todas as páginas)</button>
             <span className="availability-review-selected-count">{selected.length} selecionado(s)</span>
           </div>
           {selected.length > 0 && <div className="availability-review-bulk">
-            <div><Users size={17}/><strong>{selected.length} produto(s) selecionado(s)</strong><span>A seleção permanece ao trocar de página</span></div>
+            <div><Users size={17}/><strong>{selected.length} produto(s) selecionado(s)</strong><span>A seleção inclui todas as páginas e permanece ao navegar</span></div>
             <div className="availability-review-bulk-actions">
               <button type="button" className="ops-button ops-button-primary" disabled={bulkBusy || !bulkEligible} onClick={() => void resolveSelected("available")}><CheckCircle2 size={15}/>{bulkBusy ? "Processando..." : "Aprovar selecionados"}</button>
               <button type="button" className="ops-button ops-button-danger" disabled={bulkBusy || !bulkEligible} onClick={() => void resolveSelected("unavailable")}><XCircle size={15}/>Reprovar selecionados</button>
