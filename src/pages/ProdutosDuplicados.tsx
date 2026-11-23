@@ -291,7 +291,7 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
   async function prepareReview(group: DuplicateGroup) {
     const keepId = keepByGroup[group.key];
     const removeIds = (removeByGroup[group.key] ?? []).filter((id) => id !== keepId);
-    if (!keepId || !removeIds.length) return;
+    if (!removeIds.length) return;
     setError("");
     setMessage("");
     setLoadingReview(true);
@@ -299,6 +299,10 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
       const references = await inspectReferences(group.items.map((item) => item.id));
       const publishedIds = new Set(references.publishedProductIds);
       const publishedInGroup = group.items.filter((item) => publishedIds.has(item.id));
+      if (!publishedInGroup.length && !keepId) {
+        setError("Escolha qual anúncio será mantido ou selecione um item publicado para priorizar.");
+        return;
+      }
       const effectiveKeepIds = publishedInGroup.length ? publishedInGroup.map((item) => item.id) : [keepId];
       const effectiveKeepId = effectiveKeepIds[0];
       const eligibleIds = removeIds.filter((id) =>
