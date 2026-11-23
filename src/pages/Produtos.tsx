@@ -38,36 +38,47 @@ export function Produtos({ access }: { access: AccessData }) {
       if (rulesResult.error) throw rulesResult.error;
       if (categoriesResult.error) throw categoriesResult.error;
 
-      const allProducts: Product[] = [];
-      for (let from = 0; ; from += pageSize) {
-        const { data, error: pageError } = await supabase.from("products")
-          .select("id,marketplace_id,external_id,title,brand,category,commercial_category_id,commercial_category_source,origin_type,price,original_price,discount_percent,image_url,product_url,affiliate_url,active,availability_status,affiliate_generation_status,last_seen_at,created_at")
-          .order("created_at", { ascending: false }).range(from, from + pageSize - 1);
-        if (pageError) throw pageError;
-        allProducts.push(...((data ?? []) as Product[]));
-        if (!data || data.length < pageSize) break;
-      }
-
-      const allMatches: Match[] = [];
-      for (let from = 0; ; from += pageSize) {
-        const { data, error: pageError } = await supabase.from("product_rule_matches")
-          .select("product_id,rule_id,status,matched_at")
-          .order("matched_at", { ascending: false }).range(from, from + pageSize - 1);
-        if (pageError) throw pageError;
-        allMatches.push(...((data ?? []) as Match[]));
-        if (!data || data.length < pageSize) break;
-      }
-
-      const linkedIds = new Set<string>();
-      for (let from = 0; ; from += pageSize) {
-        const { data, error: pageError } = await supabase.from("affiliate_links")
-          .select("product_id,affiliate_url").range(from, from + pageSize - 1);
-        if (pageError) throw pageError;
-        (data ?? []).forEach((link: { product_id: string; affiliate_url: string | null }) => {
-          if (link.affiliate_url?.trim()) linkedIds.add(link.product_id);
-        });
-        if (!data || data.length < pageSize) break;
-      }
+      // As três fontes são independentes: buscar seus lotes em paralelo evita
+      // que a tela espere terminar uma tabela para só então consultar a próxima.
+      const [allProducts, allMatches, linkedIds] = await Promise.all([
+        (async () => {
+          const rows: Product[] = [];
+          for (let from = 0; ; from += pageSize) {
+            const { data, error: pageError } = await supabase.from("products")
+              .select("id,marketplace_id,external_id,title,brand,category,commercial_category_id,commercial_category_source,origin_type,price,original_price,discount_percent,image_url,product_url,affiliate_url,active,availability_status,affiliate_generation_status,last_seen_at,created_at")
+              .order("created_at", { ascending: false }).range(from, from + pageSize - 1);
+            if (pageError) throw pageError;
+            rows.push(...((data ?? []) as Product[]));
+            if (!data || data.length < pageSize) break;
+          }
+          return rows;
+        })(),
+        (async () => {
+          const rows: Match[] = [];
+          for (let from = 0; ; from += pageSize) {
+            const { data, error: pageError } = await supabase.from("product_rule_matches")
+              .select("product_id,rule_id,status,matched_at")
+              .order("matched_at", { ascending: false }).range(from, from + pageSize - 1);
+            if (pageError) throw pageError;
+            rows.push(...((data ?? []) as Match[]));
+            if (!data || data.length < pageSize) break;
+          }
+          return rows;
+        })(),
+        (async () => {
+          const ids = new Set<string>();
+          for (let from = 0; ; from += pageSize) {
+            const { data, error: pageError } = await supabase.from("affiliate_links")
+              .select("product_id,affiliate_url").range(from, from + pageSize - 1);
+            if (pageError) throw pageError;
+            (data ?? []).forEach((link: { product_id: string; affiliate_url: string | null }) => {
+              if (link.affiliate_url?.trim()) ids.add(link.product_id);
+            });
+            if (!data || data.length < pageSize) break;
+          }
+          return ids;
+        })(),
+      ]);
 
       setProducts(allProducts);
       setMarketplaces(marketplaceResult.data ?? []);

@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Activity, ArrowRight, CheckCircle2, Link2, Package, RefreshCw, Send } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDate, MarketplaceTag, Metric, PageIntro, StatusPill } from "../components/OperationsUI";
 
 type Marketplace = { id: string; name: string; slug: string };
-type Product = { marketplace_id: string; affiliate_url: string | null };
 type Run = { id: string; function_name: string; status: string; started_at: string; finished_at: string | null; products_created: number | null; products_updated: number | null };
 
 function sourceForRun(name: string) {
@@ -18,7 +17,9 @@ function sourceForRun(name: string) {
 
 export function Dashboard() {
   const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [productTotal, setProductTotal] = useState(0);
+  const [pendingLinks, setPendingLinks] = useState(0);
+  const [productsByMarketplace, setProductsByMarketplace] = useState<Map<string, number>>(() => new Map());
   const [runs, setRuns] = useState<Run[]>([]);
   const [publicationQueue, setPublicationQueue] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -26,28 +27,48 @@ export function Dashboard() {
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
-    const [marketplaceResult, productResult, runResult, publicationResult] = await Promise.all([
-      supabase.from("marketplaces").select("id,name,slug").eq("active", true).order("name"),
-      supabase.from("products").select("marketplace_id,affiliate_url").eq("active", true),
-      supabase.from("automation_runs").select("id,function_name,status,started_at,finished_at,products_created,products_updated").order("started_at", { ascending: false }).limit(12),
-      supabase.from("channel_publications").select("id", { count: "exact", head: true }).in("status", ["pending", "publishing"]),
-    ]);
-    const requestError = marketplaceResult.error || productResult.error || runResult.error || publicationResult.error;
-    if (requestError) setError(requestError.message);
-    setMarketplaces(marketplaceResult.data ?? []); setProducts(productResult.data ?? []); setRuns(runResult.data ?? []); setPublicationQueue(publicationResult.count ?? 0);
-    setLoading(false);
+    try {
+      const [marketplaceResult, runResult, publicationResult] = await Promise.all([
+        supabase.from("marketplaces").select("id,name,slug").eq("active", true).order("name"),
+        supabase.from("automation_runs").select("id,function_name,status,started_at,finished_at,products_created,products_updated").order("started_at", { ascending: false }).limit(12),
+        supabase.from("channel_publications").select("id", { count: "exact", head: true }).in("status", ["pending", "publishing"]),
+      ]);
+      if (marketplaceResult.error) throw marketplaceResult.error;
+      if (runResult.error) throw runResult.error;
+      if (publicationResult.error) throw publicationResult.error;
+
+      const activeMarketplaces = marketplaceResult.data ?? [];
+      const counts = await Promise.all(activeMarketplaces.map(async (marketplace) => {
+        const [totalResult, pendingResult] = await Promise.all([
+          supabase.from("products").select("id", { count: "exact", head: true }).eq("active", true).eq("marketplace_id", marketplace.id),
+          supabase.from("products").select("id", { count: "exact", head: true }).eq("active", true).eq("marketplace_id", marketplace.id).or("affiliate_url.is.null,affiliate_url.eq."),
+        ]);
+        if (totalResult.error) throw totalResult.error;
+        if (pendingResult.error) throw pendingResult.error;
+        return { id: marketplace.id, total: totalResult.count ?? 0, pending: pendingResult.count ?? 0 };
+      }));
+
+      setMarketplaces(activeMarketplaces);
+      setProductTotal(counts.reduce((sum, item) => sum + item.total, 0));
+      setPendingLinks(counts.reduce((sum, item) => sum + item.pending, 0));
+      setProductsByMarketplace(new Map(counts.map((item) => [item.id, item.total])));
+      setRuns(runResult.data ?? []);
+      setPublicationQueue(publicationResult.count ?? 0);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar o painel.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { void load(); }, [load]);
-  const totals = useMemo(() => ({ products: products.length, pendingLinks: products.filter((product) => !product.affiliate_url).length }), [products]);
-  const productsByMarketplace = useMemo(() => products.reduce<Map<string, number>>((map, product) => map.set(product.marketplace_id, (map.get(product.marketplace_id) ?? 0) + 1), new Map()), [products]);
 
   return <div className="page ops-page">
     <PageIntro eyebrow="CENTRAL DE OPERAÇÃO" title="Visão geral da operação" description="Acompanhe a origem dos produtos, o tratamento das regras e a próxima etapa da distribuição." actions={<button className="ops-button ops-button-secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16} /> Atualizar dados</button>} />
     {error && <div className="ops-alert">{error}</div>}
     <section className="ops-metrics">
-      <Metric icon={<Package size={19} />} value={loading ? "…" : totals.products} label="Produtos ativos" detail="Catálogo em operação" />
-      <Metric icon={<Link2 size={19} />} value={loading ? "…" : totals.pendingLinks} label="Links pendentes" detail="Aguardam associação de afiliado" />
+      <Metric icon={<Package size={19} />} value={loading ? "…" : productTotal} label="Produtos ativos" detail="Catálogo em operação" />
+      <Metric icon={<Link2 size={19} />} value={loading ? "…" : pendingLinks} label="Links pendentes" detail="Aguardam associação de afiliado" />
       <Metric icon={<Send size={19} />} value={loading ? "…" : publicationQueue} label="Fila de publicação" detail="Ofertas prontas para distribuição" />
       <Metric icon={<CheckCircle2 size={19} />} value={loading ? "…" : marketplaces.length} label="Marketplaces ativos" detail="Dados separados por origem" />
     </section>
