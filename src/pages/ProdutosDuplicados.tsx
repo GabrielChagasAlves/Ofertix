@@ -28,6 +28,8 @@ type DuplicateGroup = { key: string; title: string; marketplaceId: string; items
 type ReferenceCounts = {
   productsWithAffiliateLink: number;
   productsWithPublication: number;
+  linkedProductIds: string[];
+  publishedProductIds: string[];
   blockedProductIds: string[];
 };
 type ReviewState = { groups: DuplicateGroup[]; keepIds: string[]; removeIds: string[]; references: ReferenceCounts; bulk: boolean };
@@ -142,15 +144,16 @@ async function inspectReferences(productIds: string[]): Promise<ReferenceCounts>
     if (publishedOfferIds.has(offer.id)) productsWithPublication.add(offer.product_id);
   });
 
-  // Basta um dos critérios para proteger o produto: link de afiliado OU publicação.
-  const blockedProductIds = productIds.filter((id) =>
-    productsWithAffiliateLink.has(id) || productsWithPublication.has(id)
-  );
+  // Somente uma publicação efetivamente realizada protege o produto contra exclusão.
+  // Links de afiliado são apenas critério de desempate quando nenhum duplicado foi publicado.
+  const publishedProductIds = productIds.filter((id) => productsWithPublication.has(id));
 
   return {
     productsWithAffiliateLink: productsWithAffiliateLink.size,
     productsWithPublication: productsWithPublication.size,
-    blockedProductIds,
+    linkedProductIds: productIds.filter((id) => productsWithAffiliateLink.has(id)),
+    publishedProductIds,
+    blockedProductIds: publishedProductIds,
   };
 }
 
@@ -245,16 +248,27 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
     try {
       const allIds = groups.flatMap((group) => group.items.map((item) => item.id));
       const references = await inspectReferences(allIds);
-      const protectedIds = new Set(references.blockedProductIds);
+      const publishedIds = new Set(references.publishedProductIds);
+      const linkedIds = new Set(references.linkedProductIds);
       const keepIds = new Set<string>();
-      // Opção B: manter sempre o menor preço de cada grupo e todos os produtos
-      // com link de afiliado ou publicação realizada. Os demais sem link são elegíveis.
+      const removeIds: string[] = [];
+
       groups.forEach((group) => {
-        const cheapest = group.items.find((item) => item.price != null) ?? group.items[0];
-        if (cheapest) keepIds.add(cheapest.id);
+        const publishedInGroup = group.items.filter((item) => publishedIds.has(item.id));
+        if (publishedInGroup.length) {
+          // Publicações existentes têm prioridade absoluta: preserva todos os publicados.
+          publishedInGroup.forEach((item) => keepIds.add(item.id));
+          group.items.filter((item) => !publishedIds.has(item.id)).forEach((item) => removeIds.push(item.id));
+          return;
+        }
+
+        // Sem publicação, preserva um único item: primeiro o que tem link; depois o menor preço.
+        const preferred = group.items.find((item) => linkedIds.has(item.id))
+          ?? group.items.find((item) => item.price != null)
+          ?? group.items[0];
+        if (preferred) keepIds.add(preferred.id);
+        group.items.filter((item) => item.id !== preferred?.id).forEach((item) => removeIds.push(item.id));
       });
-      references.blockedProductIds.forEach((id) => keepIds.add(id));
-      const removeIds = allIds.filter((id) => !keepIds.has(id) && !protectedIds.has(id));
       const nextRemoveByGroup: Record<string, string[]> = {};
       groups.forEach((group) => {
         nextRemoveByGroup[group.key] = group.items
@@ -263,7 +277,7 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
       });
       setRemoveByGroup(nextRemoveByGroup);
       if (!removeIds.length) {
-        setMessage("Nenhum produto elegível para exclusão. Os menores preços e todos os produtos com link de afiliado ou publicação foram preservados.");
+        setMessage("Nenhum produto elegível para exclusão. Os itens publicados foram preservados; nos grupos sem publicação, foi mantido um único item prioritário.");
         return;
       }
       setReview({ groups, keepIds: [...keepIds], removeIds, references, bulk: true });
@@ -282,12 +296,18 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
     setMessage("");
     setLoadingReview(true);
     try {
-      const references = await inspectReferences(removeIds);
-      const protectedIds = new Set(references.blockedProductIds);
-      const eligibleIds = removeIds.filter((id) => !protectedIds.has(id));
-      // Itens protegidos saem da seleção, mas não impedem a exclusão dos demais.
+      const references = await inspectReferences(group.items.map((item) => item.id));
+      const publishedIds = new Set(references.publishedProductIds);
+      const publishedInGroup = group.items.filter((item) => publishedIds.has(item.id));
+      const effectiveKeepIds = publishedInGroup.length ? publishedInGroup.map((item) => item.id) : [keepId];
+      const effectiveKeepId = effectiveKeepIds[0];
+      const eligibleIds = publishedInGroup.length
+        ? group.items.filter((item) => !publishedIds.has(item.id)).map((item) => item.id)
+        : removeIds.filter((id) => id !== effectiveKeepId);
+      // Publicados nunca entram na exclusão. Links, por si só, não bloqueiam a remoção.
+      setKeepByGroup((current) => ({ ...current, [group.key]: effectiveKeepId }));
       setRemoveByGroup((current) => ({ ...current, [group.key]: eligibleIds }));
-      setReview({ groups: [group], keepIds: [keepId], removeIds: eligibleIds, references, bulk: false });
+      setReview({ groups: [group], keepIds: effectiveKeepIds, removeIds: eligibleIds, references, bulk: false });
     } catch (inspectionError) {
       setError(inspectionError instanceof Error ? inspectionError.message : "Não foi possível verificar os vínculos.");
     } finally {
@@ -301,8 +321,8 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
     setError("");
     setMessage("");
     try {
-      // A RPC revalida permissões, links, publicações e menor preço dentro
-      // do banco para cada lote, sem enviar milhares de IDs em uma URL.
+      // A RPC revalida permissões e prioridade de publicações dentro do banco
+      // para cada lote, sem enviar milhares de IDs em uma URL.
       const candidateIds = [...new Set(review.removeIds)];
       const rpcChunkSize = 100;
       const deletedIds = new Set<string>();
@@ -395,7 +415,7 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
         ...review.references.blockedProductIds,
         ...protectedIds,
       ]).size;
-      setMessage(`${deletedIds.size} produto(s) excluído(s) e confirmados. ${alreadyMissingCount ? `${alreadyMissingCount} já estavam ausentes. ` : ""}${protectedCount} produto(s) com link/publicação foram preservados; ${keptIds.size} menor(es) preço(s) também foram mantidos.`);
+      setMessage(`${deletedIds.size} produto(s) excluído(s) e confirmados. ${alreadyMissingCount ? `${alreadyMissingCount} já estavam ausentes. ` : ""}${protectedCount} produto(s) com publicação foram preservados; ${keptIds.size} item(ns) prioritário(s) sem publicação foram mantidos.`);
 
       try {
         await onRefresh();
@@ -420,7 +440,7 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
     />
     <div className="duplicate-safety-note">
       <ShieldCheck size={19} />
-      <div><strong>Regra de proteção</strong><p>Produtos que tenham link de afiliado OU publicação efetivamente realizada são preservados automaticamente e retirados da seleção. A exclusão em lote continua para os demais itens elegíveis.</p></div>
+      <div><strong>Prioridade de publicação</strong><p>Itens que já foram publicados são preservados. Links de afiliado não impedem a exclusão dos duplicados; quando nenhum item do grupo foi publicado, o sistema mantém apenas um item prioritário, preferindo o que já possui link.</p></div>
     </div>
     {!canDelete && <div className="ops-alert">Seu usuário pode consultar os duplicados, mas não possui a permissão <strong>Excluir produtos duplicados</strong>. Solicite essa ação ao administrador.</div>}
     {error && <div className="ops-alert">{error}</div>}
@@ -499,14 +519,14 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
       <section className="duplicate-review-modal" role="dialog" aria-modal="true" aria-labelledby="duplicate-review-title">
         <div className="duplicate-review-heading"><div><span>CONFIRMAÇÃO DE SEGURANÇA</span><h2 id="duplicate-review-title">{review.bulk ? "Revisar limpeza em massa" : "Revisar remoção"}</h2></div><button className="ops-icon-action" onClick={() => setReview(null)} disabled={deleting} aria-label="Fechar">×</button></div>
         <p>{review.bulk
-          ? <>A limpeza geral analisou <strong>{review.groups.length} grupos</strong>. Serão removidos <strong>{review.removeIds.length} produtos</strong> sem link de afiliado e sem publicação, mantendo o menor preço de cada grupo e todos os produtos protegidos.</>
+          ? <>A limpeza geral analisou <strong>{review.groups.length} grupos</strong>. Serão removidos <strong>{review.removeIds.length} produtos</strong> sem publicação. Itens publicados serão preservados; nos grupos sem publicação, será mantido apenas um item prioritário.</>
           : <>Você escolheu manter <strong>{review.groups[0].items.find((item) => item.id === review.keepIds[0])?.title}</strong> e remover {review.removeIds.length} anúncio(s).</>}</p>
         <div className="duplicate-reference-list">
           <div><span>Produtos com link de afiliado</span><strong>{review.references.productsWithAffiliateLink}</strong></div>
           <div><span>Produtos com publicação realizada</span><strong>{review.references.productsWithPublication}</strong></div>
-          <div><span>Produtos protegidos (link OU publicação)</span><strong>{review.references.blockedProductIds.length}</strong></div>
+          <div><span>Produtos protegidos por publicação</span><strong>{review.references.blockedProductIds.length}</strong></div>
         </div>
-        <div className="duplicate-safe"><ShieldCheck size={18} /><span>{review.references.blockedProductIds.length > 0 ? `${review.references.blockedProductIds.length} item(ns) com link de afiliado ou publicação foram retirados do lote e serão preservados. ` : "Nenhum item protegido foi encontrado. "}Os demais produtos elegíveis poderão ser excluídos em lote. Registros dependentes dos produtos removidos também podem ser excluídos conforme as regras de integridade.</span></div>
+        <div className="duplicate-safe"><ShieldCheck size={18} /><span>{review.references.blockedProductIds.length > 0 ? `${review.references.blockedProductIds.length} item(ns) com publicação foram retirados do lote e serão preservados. ` : "Nenhum item publicado foi encontrado. "}Links de afiliado não bloqueiam a exclusão dos duplicados. Registros dependentes dos produtos removidos também podem ser excluídos conforme as regras de integridade.</span></div>
         <div className="duplicate-modal-actions"><button className="ops-button ops-button-secondary" onClick={() => setReview(null)} disabled={deleting}>Voltar</button><button className="ops-button ops-button-primary" onClick={() => void confirmDeletion()} disabled={deleting || review.removeIds.length === 0}><Trash2 size={15} />{deleting ? "Excluindo…" : review.bulk ? "Confirmar exclusão em massa" : "Confirmar exclusão"}</button></div>
       </section>
     </div>}
