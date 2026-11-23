@@ -227,7 +227,7 @@ export function Execucoes() {
   const loadDuplicateCleanup = useCallback(async () => {
     setLoadingDuplicateCleanup(true);
     setDuplicateCleanupError("");
-    const { data, error: requestError } = await supabase.rpc("get_duplicate_cleanup_history", { p_limit: 100 });
+    const { data, error: requestError } = await supabase.rpc("get_duplicate_cleanup_history", { p_limit: 2500 });
     if (requestError) setDuplicateCleanupError(requestError.message);
     setDuplicateCleanupRuns((data ?? []) as DuplicateCleanupRun[]);
     setLoadingDuplicateCleanup(false);
@@ -381,7 +381,7 @@ export function Execucoes() {
         const maxDeleted = Math.max(1,...daily.map((day)=>day.deleted));
         return <>
           <div className="duplicate-cleanup-kpis">
-            <article><span>Execuções carregadas</span><strong>{loadingDuplicateCleanup ? "…" : duplicateCleanupRuns.length}</strong><small>Até 100 ciclos recentes</small></article>
+            <article><span>Execuções carregadas</span><strong>{loadingDuplicateCleanup ? "…" : duplicateCleanupRuns.length}</strong><small>Até 2.500 ciclos recentes</small></article>
             <article><span>Produtos removidos</span><strong>{loadingDuplicateCleanup ? "…" : deletedTotal}</strong><small>Soma dos ciclos carregados</small></article>
             <article><span>Última execução</span><strong>{loadingDuplicateCleanup ? "…" : latest ? formatDate(latest.started_at) : "—"}</strong><small>{latest ? (latest.status === "succeeded" ? "Concluída" : "Com falha") : "Sem registros"}</small></article>
             <article><span>Duração média</span><strong>{loadingDuplicateCleanup ? "…" : duration(avgDuration)}</strong><small>{failedTotal} falhas nos ciclos carregados</small></article>
