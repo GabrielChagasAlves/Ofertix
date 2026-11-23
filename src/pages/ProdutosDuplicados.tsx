@@ -12,8 +12,6 @@ type Props = { canDelete: boolean; onBack: () => void; onRefresh: () => Promise<
 type GroupResponse = { groups?: DuplicateGroup[]; total_groups?: number };
 
 function eligibleProducts(group: DuplicateGroup) {
-  if (group.approved_count > 0) return group.items.filter((item) => !item.approved);
-  if (!group.has_price) return [];
   return group.items.filter((item) => item.id !== group.cheapest_id);
 }
 function describeError(error: unknown) {
@@ -113,7 +111,7 @@ export function ProdutosDuplicados({ canDelete, onBack, onRefresh }: Props) {
       }
       setReviewOpen(false);
       setSelectedIds([]);
-      setMessage(totals.deleted + " produto(s) excluído(s). " + totals.protected + " aprovado(s) preservado(s), " + totals.kept + " menor(es) preço(s) mantido(s) e " + totals.missing + " já ausente(s).");
+      setMessage(totals.deleted + " produto(s) excluído(s). " + totals.kept + " menor(es) preço(s) mantido(s) e " + totals.missing + " já ausente(s).");
       await loadGroups();
       void onRefresh().catch((refreshError) => setError("Exclusão concluída, mas a lista de produtos não foi atualizada: " + describeError(refreshError)));
     } catch (deleteError) {
@@ -127,7 +125,7 @@ export function ProdutosDuplicados({ canDelete, onBack, onRefresh }: Props) {
     <PageIntro eyebrow="MANUTENÇÃO DO CATÁLOGO" title="Produtos duplicados" description="Grupos carregados diretamente do banco, sem aguardar o catálogo completo. A aprovação de publicação define quais itens podem ser removidos." actions={<button className="ops-button ops-button-secondary" onClick={onBack}><ArrowLeft size={16} /> Voltar aos produtos</button>} />
     <section className="ops-metrics duplicate-metrics">
       <article className="ops-metric"><span className="ops-metric-icon"><Package size={19} /></span><strong>{loading ? "…" : totalGroups}</strong><span>Grupos duplicados</span><small>Resultado da busca atual</small></article>
-      <article className="ops-metric"><span className="ops-metric-icon"><ShieldCheck size={19} /></span><strong>{groups.reduce((sum, group) => sum + group.approved_count, 0)}</strong><span>Itens aprovados nesta página</span><small>Protegidos contra exclusão</small></article>
+      <article className="ops-metric"><span className="ops-metric-icon"><ShieldCheck size={19} /></span><strong>{groups.reduce((sum, group) => sum + group.approved_count, 0)}</strong><span>Itens aprovados nesta página</span><small>Status não impede a remoção de duplicados</small></article>
       <article className="ops-metric"><span className="ops-metric-icon"><Trash2 size={19} /></span><strong>{selectedCount}</strong><span>Itens selecionados</span><small>Somente itens elegíveis</small></article>
     </section>
     <section className="ops-surface duplicate-list-surface">
@@ -136,7 +134,7 @@ export function ProdutosDuplicados({ canDelete, onBack, onRefresh }: Props) {
         <label className="ops-select"><span>Marketplace</span><select value={marketplaceFilter} onChange={(event) => setMarketplaceFilter(event.target.value)}><option value="all">Todos os marketplaces</option>{marketplaces.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <button className="ops-button ops-button-secondary" onClick={() => void loadGroups()} disabled={loading}><RefreshCw size={16} /> Atualizar</button>
       </div>
-      <div className="duplicate-rules"><ShieldCheck size={18} /><div><strong>Regras automáticas de exclusão</strong><p>Itens com aprovação de publicação nunca são excluídos. Se o grupo não tiver nenhum item aprovado, o sistema mantém somente o produto de menor preço. Links de afiliado não bloqueiam a exclusão.</p></div></div>
+      <div className="duplicate-rules"><ShieldCheck size={18} /><div><strong>Regra automática de duplicidade</strong><p>Cada grupo manterá somente o produto de menor preço. A aprovação de publicação não impede a exclusão dos demais anúncios. Se os preços estiverem ausentes, será mantido um único produto como critério de segurança.</p></div></div>
       {error && <div className="ops-alert">{error}</div>}
       {message && <div className="duplicate-feedback"><CheckCircle2 size={17} />{message}</div>}
       <div className="duplicate-bulk-actions">
@@ -155,17 +153,17 @@ export function ProdutosDuplicados({ canDelete, onBack, onRefresh }: Props) {
               <button className="ops-button ops-button-secondary" onClick={() => toggleGroup(group)} disabled={!canDelete || !eligible.length}>{allSelected ? "Desmarcar elegíveis" : "Selecionar elegíveis"}</button>
             </header>
             <div className="duplicate-product-list">{group.items.map((item) => {
-              const protectedItem = item.approved || (group.approved_count === 0 && (!group.has_price || item.id === group.cheapest_id));
+              const protectedItem = item.id === group.cheapest_id;
               const isSelected = selectedIds.includes(item.id);
               return <div className={"duplicate-product-row" + (protectedItem ? " is-protected" : "") + (isSelected ? " is-selected" : "")} key={item.id}>
                 <div className="duplicate-product-image">{item.image_url ? <img src={item.image_url} alt="" loading="lazy" /> : <Package size={21} />}</div>
                 <div className="duplicate-product-info"><strong>{item.title}</strong><div className="duplicate-product-meta"><b>{formatCurrency(item.price)}</b>{item.external_id && <span>ID: {item.external_id}</span>}{item.product_url && <a href={item.product_url} target="_blank" rel="noreferrer">Abrir anúncio</a>}</div></div>
                 <div className="duplicate-product-controls">{protectedItem
-                  ? <StatusPill tone="success">{item.approved ? "Aprovado — protegido" : group.has_price ? "Menor preço — manter" : "Sem preço — manter"}</StatusPill>
-                  : <label><input type="checkbox" checked={isSelected} onChange={(event) => toggleProduct(item.id, event.target.checked)} disabled={!canDelete} /> Excluir item</label>}</div>
+                  ? <StatusPill tone="success">Menor preço — manter</StatusPill>
+                  : <label><input type="checkbox" checked={isSelected} onChange={(event) => toggleProduct(item.id, event.target.checked)} disabled={!canDelete} /> {item.approved ? "Excluir aprovado" : "Excluir item"}</label>}</div>
               </div>;
             })}</div>
-            <footer className="duplicate-group-footer"><span>{eligible.length} item(ns) elegível(is) para exclusão neste grupo</span><span>{group.approved_count > 0 ? "Aprovados preservados" : group.has_price ? "Menor preço preservado" : "Sem preços comparáveis — todos preservados"}</span></footer>
+            <footer className="duplicate-group-footer"><span>{eligible.length} item(ns) elegível(is) para exclusão neste grupo</span><span>Somente o menor preço será mantido</span></footer>
           </article>;
         })}</div>
       }
@@ -174,7 +172,7 @@ export function ProdutosDuplicados({ canDelete, onBack, onRefresh }: Props) {
     {reviewOpen && createPortal(<div className="duplicate-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !deleting) setReviewOpen(false); }}>
       <section className="duplicate-review-modal" role="dialog" aria-modal="true" aria-labelledby="duplicate-review-title">
         <div className="duplicate-review-heading"><div><span>CONFIRMAÇÃO DE EXCLUSÃO</span><h2 id="duplicate-review-title">Excluir {selectedCount} produto(s)?</h2></div><StatusPill tone="warning">Ação irreversível</StatusPill></div>
-        <p>O banco vai revalidar a aprovação de publicação e a regra do menor preço no momento da exclusão. Itens aprovados e o menor preço de grupos sem aprovação serão preservados mesmo que tenham sido selecionados por engano.</p>
+        <p>O banco vai revalidar o menor preço no momento da exclusão. Em cada grupo, somente o produto mais barato será mantido, mesmo que os outros anúncios estejam aprovados.</p>
         <div className="duplicate-modal-actions"><button className="ops-button ops-button-secondary" onClick={() => setReviewOpen(false)} disabled={deleting}>Cancelar</button><button className="ops-button ops-button-danger" onClick={() => void confirmDeletion()} disabled={deleting}>{deleting ? "Excluindo…" : "Confirmar exclusão"}</button></div>
       </section>
     </div>, document.body)}
