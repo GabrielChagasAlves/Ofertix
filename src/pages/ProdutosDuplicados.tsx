@@ -5,13 +5,14 @@ import { EmptyState, formatCurrency, PageIntro, StatusPill } from "../components
 import "./ProdutosDuplicados.css";
 
 type Product = { id: string; title: string; price: number | null; image_url: string | null; product_url: string | null; external_id: string | null; created_at: string; approved: boolean };
-type DuplicateGroup = { key: string; title: string; marketplace_id: string; marketplace_name: string; item_count: number; approved_count: number; cheapest_id: string | null; items: Product[] };
+type DuplicateGroup = { key: string; title: string; marketplace_id: string; marketplace_name: string; item_count: number; approved_count: number; cheapest_id: string | null; has_price: boolean; items: Product[] };
 type Marketplace = { id: string; name: string; slug: string };
 type Props = { canDelete: boolean; onBack: () => void; onRefresh: () => Promise<void> };
 type GroupResponse = { groups?: DuplicateGroup[]; total_groups?: number };
 
 function eligibleProducts(group: DuplicateGroup) {
   if (group.approved_count > 0) return group.items.filter((item) => !item.approved);
+  if (!group.has_price) return [];
   return group.items.filter((item) => item.id !== group.cheapest_id);
 }
 function describeError(error: unknown) {
@@ -153,17 +154,17 @@ export function ProdutosDuplicados({ canDelete, onBack, onRefresh }: Props) {
               <button className="ops-button ops-button-secondary" onClick={() => toggleGroup(group)} disabled={!canDelete || !eligible.length}>{allSelected ? "Desmarcar elegíveis" : "Selecionar elegíveis"}</button>
             </header>
             <div className="duplicate-product-list">{group.items.map((item) => {
-              const protectedItem = item.approved || (group.approved_count === 0 && item.id === group.cheapest_id);
+              const protectedItem = item.approved || (group.approved_count === 0 && (!group.has_price || item.id === group.cheapest_id));
               const isSelected = selectedIds.includes(item.id);
               return <div className={"duplicate-product-row" + (protectedItem ? " is-protected" : "") + (isSelected ? " is-selected" : "")} key={item.id}>
                 <div className="duplicate-product-image">{item.image_url ? <img src={item.image_url} alt="" loading="lazy" /> : <Package size={21} />}</div>
                 <div className="duplicate-product-info"><strong>{item.title}</strong><div className="duplicate-product-meta"><b>{formatCurrency(item.price)}</b>{item.external_id && <span>ID: {item.external_id}</span>}{item.product_url && <a href={item.product_url} target="_blank" rel="noreferrer">Abrir anúncio</a>}</div></div>
                 <div className="duplicate-product-controls">{protectedItem
-                  ? <StatusPill tone="success">{item.approved ? "Aprovado — protegido" : "Menor preço — manter"}</StatusPill>
+                  ? <StatusPill tone="success">{item.approved ? "Aprovado — protegido" : group.has_price ? "Menor preço — manter" : "Sem preço — manter"}</StatusPill>
                   : <label><input type="checkbox" checked={isSelected} onChange={(event) => toggleProduct(item.id, event.target.checked)} disabled={!canDelete} /> Excluir item</label>}</div>
               </div>;
             })}</div>
-            <footer className="duplicate-group-footer"><span>{eligible.length} item(ns) elegível(is) para exclusão neste grupo</span><span>{group.approved_count > 0 ? "Aprovados preservados" : "Menor preço preservado"}</span></footer>
+            <footer className="duplicate-group-footer"><span>{eligible.length} item(ns) elegível(is) para exclusão neste grupo</span><span>{group.approved_count > 0 ? "Aprovados preservados" : group.has_price ? "Menor preço preservado" : "Sem preços comparáveis — todos preservados"}</span></footer>
           </article>;
         })}</div>
       }
