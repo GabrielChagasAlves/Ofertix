@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity, AlertTriangle, CheckCircle2, Package, RefreshCw,
-  Search, XCircle, ChevronDown, ChevronUp, ExternalLink, Filter,
-  CircleDashed, Timer, ListChecks, Ban, RotateCw, Play, Clock3,
+  Search, ChevronDown, ChevronUp, Filter,
+  Play, Clock3,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import "./Execucoes.css";
@@ -18,12 +18,7 @@ type Run = {
   metrics: Record<string, unknown> | null;
 };
 type DuplicateCleanupRun = { id: number; started_at: string; finished_at: string | null; deleted_count: number; kept_count: number; status: string; details: Record<string, unknown> | null; };
-type RunItem = {
-  id: string; run_id: string; function_name: string; item_type: string;
-  item_id: string | null; external_id: string | null; title: string | null;
-  status: string; action: string | null; message: string | null;
-  details: Record<string, unknown> | null; created_at: string;
-};
+
 
 type CronMeta = { title: string; description: string; group: "Mercado Livre" | "Publicação" | "Shopee" | "Ofertix"; functionName: string; frequency: string; };
 const cronMeta: Record<string, CronMeta> = {
@@ -141,42 +136,9 @@ function displayStatus(run: Run) {
   if ((run.errors_count ?? 0) > 0) return { label: "Concluída com ressalvas", tone: "warning" as const };
   return { label: "Concluída", tone: "success" as const };
 }
-function itemStatus(status: string) {
-  const value = status.toLowerCase();
-  if (["failed", "error", "rejected"].includes(value)) return "danger";
-  if (["skipped", "ignored", "pending", "warning"].includes(value)) return "warning";
-  if (["published", "created", "updated", "succeeded", "success", "available", "integrated"].includes(value)) return "success";
-  return "neutral";
-}
-function statusLabel(status: string) {
-  const labels: Record<string, string> = {
-    failed: "Falhou", error: "Erro", rejected: "Rejeitado", skipped: "Ignorado",
-    ignored: "Ignorado", pending: "Pendente", warning: "Atenção",
-    published: "Publicado", created: "Integrado", updated: "Atualizado",
-    succeeded: "Sucesso", success: "Sucesso", available: "Disponível",
-    unavailable: "Indisponível", integrated: "Integrado",
-  };
-  return labels[status.toLowerCase()] ?? status;
-}
-function detailEntries(metrics: Record<string, unknown> | null) {
-  if (!metrics) return [] as Array<[string, string | number]>;
-  const labels: Record<string, string> = {
-    items_seen: "Anúncios encontrados", unique_items: "Itens únicos",
-    products_created: "Produtos integrados", products_updated: "Produtos atualizados",
-    listings_upserted: "Anúncios vinculados", terms_selected: "Termos pesquisados",
-    terms_succeeded: "Termos concluídos", terms_failed: "Termos com falha",
-    available: "Disponíveis", unavailable: "Indisponíveis", errors: "Erros",
-    rowsReceived: "Registros recebidos", rowsValid: "Registros válidos",
-    rowsRejectedByRules: "Rejeitados pelas regras", listingsUpserted: "Anúncios integrados",
-    pricesRefreshed: "Preços atualizados", published: "Publicados", failed: "Falhas",
-    queued: "Na fila", skipped: "Ignorados", eligible_offers: "Ofertas elegíveis",
-    telegram_processed: "Itens avaliados", affiliateLinksCreated: "Links de afiliado criados",
-    affiliateLinkErrors: "Erros de links de afiliado", ruleMatchesCreated: "Regras associadas",
-  };
-  return Object.entries(metrics)
-    .filter(([key, value]) => labels[key] && (typeof value === "number" || typeof value === "string"))
-    .map(([key, value]) => [labels[key], value as string | number] as [string, string | number]);
-}
+
+
+
 
 
 function cronMetricValues(run: Run, functionName: string): Array<[string, number]> {
@@ -267,28 +229,10 @@ export function Execucoes() {
     setRunningCron(null);
   };
 
-  const openDetails = async (run: Run) => {
-    if (expanded === run.id) { setExpanded(null); return; }
-    setExpanded(run.id);
-    if (itemsByRun[run.id]) return;
-    setLoadingItems(run.id);
-    setItemsError((old) => ({ ...old, [run.id]: "" }));
-    const { data, error: requestError } = await supabase.from("automation_run_items")
-      .select("id,run_id,function_name,item_type,item_id,external_id,title,status,action,message,details,created_at")
-      .eq("run_id", run.id).order("created_at", { ascending: true }).limit(500);
-    if (requestError) setItemsError((old) => ({ ...old, [run.id]: requestError.message }));
-    setItemsByRun((old) => ({ ...old, [run.id]: (data ?? []) as RunItem[] }));
-    setLoadingItems(null);
-  };
+
 
   const sources = useMemo(() => Array.from(new Set(runs.map((run) => marketplaceName(run.function_name)))), [runs]);
-  const visible = useMemo(() => runs.filter((run) => {
-    const sourceOk = source === "all" || marketplaceName(run.function_name) === source;
-    const status = displayStatus(run);
-    const statusOk = statusFilter === "all" || (statusFilter === "success" ? status.tone === "success" : statusFilter === "warning" ? status.tone === "warning" : status.tone === "danger");
-    const searchOk = !search.trim() || (run.function_name + " " + routineName(run.function_name)).toLowerCase().includes(search.trim().toLowerCase());
-    return sourceOk && statusOk && searchOk;
-  }), [runs, search, source, statusFilter]);
+
   const succeeded = runs.filter((run) => displayStatus(run).tone === "success").length;
   const failures = runs.filter((run) => displayStatus(run).tone === "danger").length;
   const warnings = runs.filter((run) => displayStatus(run).tone === "warning").length;
@@ -334,7 +278,7 @@ export function Execucoes() {
       {loadingCrons ? <div className="ops-empty"><p>Carregando rotinas…</p></div> : crons.length === 0 ? <EmptyState title="Nenhuma rotina encontrada" detail="Não foram encontrados agendamentos do Ofertix." /> :
         <div className="cron-groups">
           {(["Ofertix", "Mercado Livre", "Publicação", "Shopee"] as const).map((group) => {
-            const groupCrons = crons.filter((cron) => cronInfo(cron.jobname).group === group);
+            const groupCrons = crons.filter((cron) => cronInfo(cron.jobname).group === group && (source === "all" || (source === "Canais" ? group === "Publicação" : group === source)));
             if (!groupCrons.length) return null;
             return <section className="cron-group" key={group}>
               <div className="cron-group-heading"><div><h3>{group}</h3><span>{groupCrons.length} {groupCrons.length === 1 ? "rotina" : "rotinas"}</span></div></div>
