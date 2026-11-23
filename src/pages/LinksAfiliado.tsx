@@ -100,33 +100,30 @@ export function LinksAfiliado() {
   async function loadData() {
     setLoading(true);
     try {
-      // O Supabase limita cada resposta; paginar evita ocultar marketplaces
-      // que estejam fora dos primeiros 1.000 produtos mais recentes.
+      // O Supabase limita cada resposta; a paginação preserva o catálogo completo.
+      // A leitura paginada roda em paralelo às consultas auxiliares.
       const productPageSize = 1000;
-      const allProducts: Product[] = [];
-      for (let from = 0; ; from += productPageSize) {
-        const { data: productPage, error: productError } = await supabase
-          .from("products")
-          .select(`
-            id, marketplace_id, external_id, title, price, original_price,
-            discount_percent, image_url, product_url, affiliate_url, active,
-            availability_status, last_availability_check, availability_error,
-            marketplaces (id, name, slug)
-          `)
-          .order("created_at", { ascending: false })
-          .range(from, from + productPageSize - 1);
-
-        if (productError) throw productError;
-        allProducts.push(...((productPage ?? []) as unknown as Product[]));
-        if (!productPage || productPage.length < productPageSize) break;
-      }
-
-      const [
-        { data: linkData, error: linkError },
-        { data: marketplaceData, error: marketplaceError },
-        { data: pendingMatches, error: pendingMatchesError },
-      ] = await Promise.all([
-        supabase.from("affiliate_links").select("*").order("created_at", { ascending: false }),
+      const [allProducts, linkResult, marketplaceResult, pendingResult] = await Promise.all([
+        (async () => {
+          const rows: Product[] = [];
+          for (let from = 0; ; from += productPageSize) {
+            const { data: productPage, error: productError } = await supabase
+              .from("products")
+              .select(`
+                id, marketplace_id, external_id, title, price, original_price,
+                discount_percent, image_url, product_url, affiliate_url, active,
+                availability_status, last_availability_check, availability_error,
+                marketplaces (id, name, slug)
+              `)
+              .order("created_at", { ascending: false })
+              .range(from, from + productPageSize - 1);
+            if (productError) throw productError;
+            rows.push(...((productPage ?? []) as unknown as Product[]));
+            if (!productPage || productPage.length < productPageSize) break;
+          }
+          return rows;
+        })(),
+        supabase.from("affiliate_links").select("id,product_id,marketplace_id,affiliate_url,affiliate_tag,source,status,validation_message,created_at,updated_at").order("updated_at", { ascending: false }),
         supabase.from("marketplaces").select("id, name, slug").eq("active", true).order("name"),
         // Produtos pendentes associados a regras de oferta ativas.
         supabase.from("product_rule_matches")
@@ -134,6 +131,9 @@ export function LinksAfiliado() {
           .eq("status", "pending_affiliate")
           .eq("offer_rules.active", true),
       ]);
+      const { data: linkData, error: linkError } = linkResult;
+      const { data: marketplaceData, error: marketplaceError } = marketplaceResult;
+      const { data: pendingMatches, error: pendingMatchesError } = pendingResult;
       if (linkError) throw linkError;
       if (marketplaceError) throw marketplaceError;
       if (pendingMatchesError) throw pendingMatchesError;
