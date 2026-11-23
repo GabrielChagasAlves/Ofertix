@@ -301,12 +301,19 @@ export function ProdutosDuplicados({ products, marketplaces, canDelete, onBack, 
       const publishedInGroup = group.items.filter((item) => publishedIds.has(item.id));
       const effectiveKeepIds = publishedInGroup.length ? publishedInGroup.map((item) => item.id) : [keepId];
       const effectiveKeepId = effectiveKeepIds[0];
-      const eligibleIds = publishedInGroup.length
-        ? group.items.filter((item) => !publishedIds.has(item.id)).map((item) => item.id)
-        : removeIds.filter((id) => id !== effectiveKeepId);
-      // Publicados nunca entram na exclusão. Links, por si só, não bloqueiam a remoção.
+      const eligibleIds = removeIds.filter((id) =>
+        !publishedIds.has(id) && (publishedInGroup.length > 0 || id !== effectiveKeepId)
+      );
+      // Mantém a seleção manual: apenas os itens marcados serão removidos.
+      // Se houver publicação, ela passa a ser a referência prioritária do grupo.
       setKeepByGroup((current) => ({ ...current, [group.key]: effectiveKeepId }));
       setRemoveByGroup((current) => ({ ...current, [group.key]: eligibleIds }));
+      if (!eligibleIds.length) {
+        setMessage(publishedInGroup.length
+          ? "Os itens publicados foram preservados. Nenhum dos itens selecionados está elegível para exclusão."
+          : "Nenhum item elegível selecionado para exclusão.");
+        return;
+      }
       setReview({ groups: [group], keepIds: effectiveKeepIds, removeIds: eligibleIds, references, bulk: false });
     } catch (inspectionError) {
       setError(inspectionError instanceof Error ? inspectionError.message : "Não foi possível verificar os vínculos.");
