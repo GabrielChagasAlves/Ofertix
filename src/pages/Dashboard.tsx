@@ -3,6 +3,7 @@ import { Activity, ArrowRight, CheckCircle2, Link2, Package, RefreshCw, Send } f
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatDate, MarketplaceTag, Metric, PageIntro, StatusPill } from "../components/OperationsUI";
+import { CommissionsPanel } from "../components/CommissionsPanel";
 
 type Marketplace = { id: string; name: string; slug: string };
 type Product = { marketplace_id: string; affiliate_url: string | null };
@@ -51,6 +52,7 @@ export function Dashboard() {
       <Metric icon={<Send size={19} />} value={loading ? "…" : publicationQueue} label="Fila de publicação" detail="Ofertas prontas para distribuição" />
       <Metric icon={<CheckCircle2 size={19} />} value={loading ? "…" : marketplaces.length} label="Marketplaces ativos" detail="Dados separados por origem" />
     </section>
+    <CommissionsPanel marketplaces={marketplaces} />
     <section className="ops-dashboard-grid">
       <article className="ops-surface"><div className="ops-section-head"><div><p className="ops-eyebrow">POR MARKETPLACE</p><h2>Catálogo separado</h2></div><Link to="/marketplaces">Integrações <ArrowRight size={15} /></Link></div><div className="ops-marketplace-list">{marketplaces.map((marketplace) => <div className="ops-marketplace-row" key={marketplace.id}><MarketplaceTag name={marketplace.name} slug={marketplace.slug} /><strong>{productsByMarketplace.get(marketplace.id) ?? 0}</strong><span>produtos ativos</span><Link to={"/produtos"}>Ver catálogo</Link></div>)}</div></article>
       <article className="ops-surface"><div className="ops-section-head"><div><p className="ops-eyebrow">AUTOMAÇÕES</p><h2>Atividade recente</h2></div><Link to="/execucoes">Ver todas <ArrowRight size={15} /></Link></div><div className="ops-activity-list">{runs.slice(0, 6).map((run) => <div className="ops-activity-row" key={run.id}><span className={"ops-run-dot " + run.status} /><div><strong>{sourceForRun(run.function_name)}</strong><small>{formatDate(run.finished_at || run.started_at)}</small></div><StatusPill tone={run.status === "succeeded" ? "success" : run.status === "failed" ? "danger" : "warning"}>{run.status === "succeeded" ? "Concluída" : run.status === "failed" ? "Falhou" : "Em andamento"}</StatusPill></div>)}</div></article>

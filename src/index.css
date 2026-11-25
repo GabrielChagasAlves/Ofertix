@@ -6099,3 +6099,12 @@ a {
   .system-alert-actions { justify-content: stretch !important; }
   .system-alert-actions a, .system-alert-actions button { text-align: center; }
 }
+/* Painel de comissões (dashboard) */
+.ops-commissions { margin-bottom:16px; }
+.ops-commission-periods { display:inline-flex; gap:4px; padding:3px; border:1px solid #e4e7f1; border-radius:10px; background:#f7f8fc; }
+.ops-commission-periods button { border:0; border-radius:8px; padding:6px 10px; background:transparent; color:#78809b; font-size:11px; font-weight:750; cursor:pointer; }
+.ops-commission-periods button.active { background:#fff; color:#6843e5; box-shadow:0 1px 3px rgba(40,48,78,.12); }
+.ops-commission-metrics { margin:14px 0 8px; }
+.ops-commission-row { grid-template-columns:minmax(120px,1fr) auto 90px minmax(120px,auto); }
+.ops-commission-note { margin:12px 0 0; color:#939ab0; font-size:10px; line-height:1.5; }
+@media (max-width:680px) { .ops-commission-row { grid-template-columns:1fr auto; }.ops-commission-row > span { display:none; } }
