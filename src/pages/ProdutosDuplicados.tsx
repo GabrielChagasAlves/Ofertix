@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Package, RefreshCw, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { EmptyState, formatCurrency, PageIntro, StatusPill } from "../components/OperationsUI";
@@ -170,12 +171,12 @@ export function ProdutosDuplicados({ canDelete, onBack, onRefresh }: Props) {
       }
       <div className="duplicate-pagination"><span>Mostrando {groups.length} de {totalGroups} grupos</span><div><button className="ops-button ops-button-secondary" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={loading || page <= 1}><ChevronLeft size={16} /> Anterior</button><strong>Página {page} de {pageCount}</strong><button className="ops-button ops-button-secondary" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={loading || page >= pageCount}>Próxima <ChevronRight size={16} /></button></div></div>
     </section>
-    {reviewOpen && <div className="duplicate-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !deleting) setReviewOpen(false); }}>
+    {reviewOpen && createPortal(<div className="duplicate-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !deleting) setReviewOpen(false); }}>
       <section className="duplicate-review-modal" role="dialog" aria-modal="true" aria-labelledby="duplicate-review-title">
         <div className="duplicate-review-heading"><div><span>CONFIRMAÇÃO DE EXCLUSÃO</span><h2 id="duplicate-review-title">Excluir {selectedCount} produto(s)?</h2></div><StatusPill tone="warning">Ação irreversível</StatusPill></div>
         <p>O banco vai revalidar a aprovação de publicação e a regra do menor preço no momento da exclusão. Itens aprovados e o menor preço de grupos sem aprovação serão preservados mesmo que tenham sido selecionados por engano.</p>
         <div className="duplicate-modal-actions"><button className="ops-button ops-button-secondary" onClick={() => setReviewOpen(false)} disabled={deleting}>Cancelar</button><button className="ops-button ops-button-danger" onClick={() => void confirmDeletion()} disabled={deleting}>{deleting ? "Excluindo…" : "Confirmar exclusão"}</button></div>
       </section>
-    </div>}
+    </div>, document.body)}
   </div>;
 }

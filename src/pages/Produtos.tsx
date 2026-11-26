@@ -38,36 +38,47 @@ export function Produtos({ access }: { access: AccessData }) {
       if (rulesResult.error) throw rulesResult.error;
       if (categoriesResult.error) throw categoriesResult.error;
 
-      const allProducts: Product[] = [];
-      for (let from = 0; ; from += pageSize) {
-        const { data, error: pageError } = await supabase.from("products")
-          .select("id,marketplace_id,external_id,title,brand,category,commercial_category_id,commercial_category_source,origin_type,price,original_price,discount_percent,image_url,product_url,affiliate_url,active,availability_status,affiliate_generation_status,last_seen_at,created_at")
-          .order("created_at", { ascending: false }).range(from, from + pageSize - 1);
-        if (pageError) throw pageError;
-        allProducts.push(...((data ?? []) as Product[]));
-        if (!data || data.length < pageSize) break;
-      }
-
-      const allMatches: Match[] = [];
-      for (let from = 0; ; from += pageSize) {
-        const { data, error: pageError } = await supabase.from("product_rule_matches")
-          .select("product_id,rule_id,status,matched_at")
-          .order("matched_at", { ascending: false }).range(from, from + pageSize - 1);
-        if (pageError) throw pageError;
-        allMatches.push(...((data ?? []) as Match[]));
-        if (!data || data.length < pageSize) break;
-      }
-
-      const linkedIds = new Set<string>();
-      for (let from = 0; ; from += pageSize) {
-        const { data, error: pageError } = await supabase.from("affiliate_links")
-          .select("product_id,affiliate_url").range(from, from + pageSize - 1);
-        if (pageError) throw pageError;
-        (data ?? []).forEach((link: { product_id: string; affiliate_url: string | null }) => {
-          if (link.affiliate_url?.trim()) linkedIds.add(link.product_id);
-        });
-        if (!data || data.length < pageSize) break;
-      }
+      // As três fontes são independentes: buscar seus lotes em paralelo evita
+      // que a tela espere terminar uma tabela para só então consultar a próxima.
+      const [allProducts, allMatches, linkedIds] = await Promise.all([
+        (async () => {
+          const rows: Product[] = [];
+          for (let from = 0; ; from += pageSize) {
+            const { data, error: pageError } = await supabase.from("products")
+              .select("id,marketplace_id,external_id,title,brand,category,commercial_category_id,commercial_category_source,origin_type,price,original_price,discount_percent,image_url,product_url,affiliate_url,active,availability_status,affiliate_generation_status,last_seen_at,created_at")
+              .order("created_at", { ascending: false }).range(from, from + pageSize - 1);
+            if (pageError) throw pageError;
+            rows.push(...((data ?? []) as Product[]));
+            if (!data || data.length < pageSize) break;
+          }
+          return rows;
+        })(),
+        (async () => {
+          const rows: Match[] = [];
+          for (let from = 0; ; from += pageSize) {
+            const { data, error: pageError } = await supabase.from("product_rule_matches")
+              .select("product_id,rule_id,status,matched_at")
+              .order("matched_at", { ascending: false }).range(from, from + pageSize - 1);
+            if (pageError) throw pageError;
+            rows.push(...((data ?? []) as Match[]));
+            if (!data || data.length < pageSize) break;
+          }
+          return rows;
+        })(),
+        (async () => {
+          const ids = new Set<string>();
+          for (let from = 0; ; from += pageSize) {
+            const { data, error: pageError } = await supabase.from("affiliate_links")
+              .select("product_id,affiliate_url").range(from, from + pageSize - 1);
+            if (pageError) throw pageError;
+            (data ?? []).forEach((link: { product_id: string; affiliate_url: string | null }) => {
+              if (link.affiliate_url?.trim()) ids.add(link.product_id);
+            });
+            if (!data || data.length < pageSize) break;
+          }
+          return ids;
+        })(),
+      ]);
 
       setProducts(allProducts);
       setMarketplaces(marketplaceResult.data ?? []);
@@ -148,10 +159,20 @@ export function Produtos({ access }: { access: AccessData }) {
           const source = marketplaceById.get(product.marketplace_id);
           const productRules = (matchesByProduct.get(product.id) ?? []).map((match) => rulesById.get(match.rule_id)?.name).filter(Boolean);
           return <article className="ops-product-card" key={product.id}>
-            <div className="ops-product-image">{product.image_url ? <img src={product.image_url} alt="" /> : <Package size={22} />}</div>
-            <div className="ops-product-copy"><div className="ops-product-meta"><MarketplaceTag name={source?.name ?? "Marketplace"} slug={source?.slug} />{product.origin_type==="national"?<StatusPill tone="success">Nacional</StatusPill>:product.origin_type==="imported"?<StatusPill tone="warning">Importado</StatusPill>:<StatusPill>Origem não identificada</StatusPill>}{product.discount_percent != null && <StatusPill tone="success">{product.discount_percent}% OFF</StatusPill>}</div><h2>{product.title}</h2><p>{[product.brand || product.category || "Sem marca informada",categoriesById.get(product.commercial_category_id||"")?.name||"Sem categoria comercial",product.commercial_category_source==="manual"?"Categoria manual":null].filter(Boolean).join(" · ")}</p><div className="ops-rules">{productRules.length ? productRules.map((rule) => <span key={rule}>{rule}</span>) : <span>Importação anterior sem regra</span>}</div></div>
-            <div className="ops-product-price"><strong>{formatCurrency(product.price)}</strong>{product.original_price && product.original_price > (product.price ?? 0) && <del>{formatCurrency(product.original_price)}</del>}<small>Visto {formatDate(product.last_seen_at || product.created_at)}</small></div>
-            <div className="ops-product-actions">{product.product_url && <a className="ops-icon-action" href={product.product_url} target="_blank" rel="noreferrer" aria-label="Abrir produto"><ExternalLink size={16} /></a>}<button className="ops-icon-action" onClick={() => void toggleProduct(product)} aria-label={product.active ? "Desativar produto" : "Ativar produto"}><Power size={16} /></button></div>
+            <div className="ops-product-image">
+              <Package size={25} className="ops-product-image-fallback" />
+              {product.image_url && <img src={product.image_url} alt={product.title} loading="lazy" onError={(event) => event.currentTarget.remove()} />}
+            </div>
+            <div className="ops-product-copy">
+              <div className="ops-product-meta"><MarketplaceTag name={source?.name ?? "Marketplace"} slug={source?.slug} />{product.origin_type==="national"?<StatusPill tone="success">Nacional</StatusPill>:product.origin_type==="imported"?<StatusPill tone="warning">Importado</StatusPill>:<StatusPill>Origem não identificada</StatusPill>}{product.discount_percent != null && <StatusPill tone="success">{product.discount_percent}% OFF</StatusPill>}</div>
+              <h2>{product.title}</h2>
+              <p>{[product.brand || product.category || "Sem marca informada",categoriesById.get(product.commercial_category_id||"")?.name||"Sem categoria comercial",product.commercial_category_source==="manual"?"Categoria manual":null].filter(Boolean).join(" · ")}</p>
+              <div className="ops-rules">{productRules.length ? productRules.map((rule) => <span key={rule}>{rule}</span>) : <span>Importação anterior sem regra</span>}</div>
+            </div>
+            <div className="ops-product-footer">
+              <div className="ops-product-price"><strong>{formatCurrency(product.price)}</strong>{product.original_price && product.original_price > (product.price ?? 0) && <del>{formatCurrency(product.original_price)}</del>}<small>Visto {formatDate(product.last_seen_at || product.created_at)}</small></div>
+              <div className="ops-product-actions">{product.product_url && <a className="ops-icon-action" href={product.product_url} target="_blank" rel="noreferrer" aria-label="Abrir produto"><ExternalLink size={16} /></a>}<button className="ops-icon-action" onClick={() => void toggleProduct(product)} aria-label={product.active ? "Desativar produto" : "Ativar produto"}><Power size={16} /></button></div>
+            </div>
           </article>;
         })}</div>}
     </section>

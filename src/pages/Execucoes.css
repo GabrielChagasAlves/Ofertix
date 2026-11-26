@@ -175,3 +175,384 @@
  .executions-page .execution-card-toggle{grid-template-columns:auto minmax(0,1fr) auto}
  .executions-page .execution-card-state,.executions-page .execution-card-duration{display:none}
 }
+
+
+/* Painel analítico profissional de execuções */
+.execution-analytics{display:grid;gap:14px}
+.execution-analytics-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+.execution-analytics-heading h2{margin:0;color:#111827;font-size:20px;letter-spacing:-.035em}
+.execution-analytics-heading p{margin:5px 0 0;color:#64748b;font-size:12px}
+.execution-period-tag{padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#475569;font-size:11px;font-weight:650;white-space:nowrap}
+.execution-health-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.execution-health-card{min-width:0;padding:15px 16px;border:1px solid #e8edf3;border-radius:13px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.025)}
+.execution-health-card>span,.execution-health-card>small{display:block;color:#64748b;font-size:11px}
+.execution-health-card>strong{display:block;margin:7px 0;color:#111827;font-size:25px;letter-spacing:-.04em;font-weight:760}
+.execution-health-card>small{font-size:10px;line-height:1.5}
+.execution-health-track{height:5px;margin:9px 0;background:#eef2f7;border-radius:99px;overflow:hidden}
+.execution-health-track i{display:block;height:100%;background:#16a34a;border-radius:inherit;transition:width .25s ease}
+.execution-charts-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(280px,1fr);gap:12px}
+.execution-chart-card{min-width:0;padding:17px;border:1px solid #e8edf3;border-radius:14px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.025)}
+.execution-chart-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.execution-chart-title h3{margin:0;color:#172033;font-size:14px;font-weight:750}
+.execution-chart-title p{margin:4px 0 0;color:#94a3b8;font-size:10px}
+.execution-chart-title>span{color:#64748b;font-size:10px;white-space:nowrap}
+.execution-bar-chart{height:155px;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));align-items:end;gap:8px;padding:15px 2px 0}
+.execution-bar-column{height:100%;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:7px}
+.execution-bar-stack{height:120px;width:min(100%,22px);display:flex;flex-direction:column-reverse;justify-content:flex-start;overflow:hidden;border-radius:5px 5px 2px 2px;background:#f1f5f9}
+.execution-bar-stack i{display:block;width:100%;min-height:0;flex-shrink:0}
+.execution-bar-stack .success{background:#16a34a}.execution-bar-stack .failed{background:#dc2626}.execution-bar-stack .other{background:#d97706}
+.execution-bar-column small{color:#94a3b8;font-size:9px;white-space:nowrap}
+.execution-chart-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;padding-top:11px;border-top:1px solid #f1f5f9}
+.execution-chart-legend span,.execution-outcome-legend span{display:inline-flex;align-items:center;gap:6px;color:#64748b;font-size:10px}
+.execution-chart-legend i,.execution-outcome-legend i{width:8px;height:8px;border-radius:50%;background:#94a3b8}
+.execution-chart-legend i.success,.execution-outcome-legend i.success{background:#16a34a}.execution-chart-legend i.failed,.execution-outcome-legend i.failed{background:#dc2626}.execution-chart-legend i.other,.execution-outcome-legend i.warning{background:#d97706}
+.execution-outcome{min-height:165px;display:flex;align-items:center;justify-content:center;gap:24px;padding:12px 0 0}
+.execution-donut{width:138px;height:138px;flex-shrink:0;display:grid;place-items:center;border-radius:50%;position:relative}
+.execution-donut:before{content:"";position:absolute;inset:12px;border-radius:50%;background:#fff}
+.execution-donut>div{position:relative;display:grid;justify-items:center;gap:2px}
+.execution-donut strong{color:#111827;font-size:24px;letter-spacing:-.04em}.execution-donut small{color:#94a3b8;font-size:10px}
+.execution-outcome-legend{display:grid;gap:12px}
+.execution-outcome-legend span{display:grid;grid-template-columns:9px 24px auto;gap:7px;white-space:nowrap}
+.execution-outcome-legend b{color:#172033;font-size:11px}
+@media(max-width:900px){.execution-health-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.execution-charts-grid{grid-template-columns:1fr}}
+@media(max-width:560px){.execution-analytics-heading{align-items:flex-start;flex-direction:column}.execution-health-grid{grid-template-columns:1fr 1fr}.execution-health-card{padding:12px}.execution-health-card>strong{font-size:21px}.execution-chart-card{padding:13px}.execution-bar-chart{gap:4px}.execution-outcome{gap:14px}.execution-donut{width:112px;height:112px}.execution-outcome-legend span{font-size:9px}}
+
+
+/* Central de automações — cartões alinhados ao painel analítico */
+.executions-page .cron-console{
+  padding:22px;
+  border:1px solid #e7edf5;
+  border-radius:16px;
+  background:linear-gradient(180deg,#fff 0%,#fcfdff 100%);
+  box-shadow:0 3px 14px rgba(15,23,42,.045);
+}
+.executions-page .cron-console-heading{align-items:center;margin-bottom:22px}
+.executions-page .cron-eyebrow{color:#64748b;font-size:10px;letter-spacing:.13em}
+.executions-page .cron-console-heading h2{font-size:21px;font-weight:760;letter-spacing:-.045em}
+.executions-page .cron-console-heading p{font-size:12px;color:#718096}
+.executions-page .cron-total{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 11px;border:1px solid #e5eaf1;border-radius:999px;
+  background:#f8fafc;color:#475569;font-size:11px;font-weight:700;
+}
+.executions-page .cron-group{padding-top:2px}
+.executions-page .cron-group-heading{margin:0 0 10px}
+.executions-page .cron-group-heading>div{align-items:center;gap:9px}
+.executions-page .cron-group-heading h3{font-size:13px;font-weight:780;color:#1e293b}
+.executions-page .cron-group-heading span{
+  padding:3px 8px;border:1px solid #e8edf4;border-radius:999px;
+  background:#f8fafc;color:#64748b;font-size:10px;font-weight:650;
+}
+.executions-page .cron-list{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;
+  overflow:visible;border:0;border-radius:0;
+}
+.executions-page .cron-row,
+.executions-page .cron-row+.cron-row{
+  position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;gap:14px;min-height:132px;padding:16px;
+  border:1px solid #e7edf5;border-radius:13px;
+  background:#fff;box-shadow:0 2px 7px rgba(15,23,42,.025);
+  transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+.executions-page .cron-row:before{
+  content:"";position:absolute;left:0;top:13px;bottom:13px;width:3px;
+  border-radius:0 4px 4px 0;background:#10b981;
+}
+.executions-page .cron-row:hover{
+  z-index:1;border-color:#cbd5e1;background:#fff;
+  box-shadow:0 7px 18px rgba(15,23,42,.065);transform:translateY(-1px);
+}
+.executions-page .cron-row.is-paused{background:#fafbfc}
+.executions-page .cron-row.is-paused:before{background:#94a3b8}
+.executions-page .cron-row-main{padding-left:39px;position:relative}
+.executions-page .cron-row-main:before{
+  content:"↻";position:absolute;left:0;top:1px;
+  display:grid;place-items:center;width:29px;height:29px;
+  border:1px solid #dbeafe;border-radius:9px;
+  background:#eff6ff;color:#2563eb;font-size:18px;font-weight:650;
+}
+.executions-page .cron-row.is-paused .cron-row-main:before{
+  border-color:#e2e8f0;background:#f1f5f9;color:#64748b;
+}
+.executions-page .cron-row-title{gap:8px}
+.executions-page .cron-row-title strong{font-size:12px;line-height:1.45;color:#172033;font-weight:750}
+.executions-page .cron-row-main>p{margin:6px 0 10px;color:#64748b;font-size:11px;line-height:1.55}
+.executions-page .cron-row-meta{gap:7px 10px;font-size:10px}
+.executions-page .cron-row-meta>span:first-child{
+  color:#475569;font-weight:650;
+}
+.executions-page .cron-row-meta>span:first-child svg{color:#64748b}
+.executions-page .cron-row-meta code{
+  padding:4px 7px;border:1px solid #edf1f6;border-radius:6px;
+  background:#f8fafc;color:#64748b;font-size:9px;
+}
+.executions-page .cron-last-run{font-size:10px;color:#94a3b8!important}
+.executions-page .cron-row-action{align-self:center}
+.executions-page .cron-run-compact{
+  min-width:104px;padding:9px 12px;border-color:#dbe4f0;border-radius:9px;
+  background:#fff;color:#334155;font-size:11px;font-weight:720;
+}
+.executions-page .cron-run-compact:hover:not(:disabled){
+  border-color:#a5b4fc;background:#eef2ff;color:#4338ca;
+}
+.executions-page .cron-feedback{margin-top:2px;border-radius:10px}
+@media(max-width:1000px){
+  .executions-page .cron-list{grid-template-columns:1fr}
+  .executions-page .cron-row,.executions-page .cron-row+.cron-row{min-height:0}
+}
+@media(max-width:720px){
+  .executions-page .cron-console{padding:15px}
+  .executions-page .cron-console-heading{gap:13px}
+  .executions-page .cron-row,.executions-page .cron-row+.cron-row{
+    grid-template-columns:minmax(0,1fr);gap:12px;padding:14px;
+  }
+  .executions-page .cron-row-action{padding-left:39px;justify-content:flex-start}
+  .executions-page .cron-run-compact{min-width:128px}
+}
+@media(prefers-reduced-motion:reduce){
+  .executions-page .cron-row{transition:none}
+}
+
+
+/* Central de automações — identidade visual Ofertix (dark + verde) */
+.executions-page .cron-console{
+  position:relative;isolation:isolate;overflow:hidden;
+  padding:22px;
+  border:1px solid rgba(67,96,124,.62);
+  border-radius:18px;
+  background:
+    radial-gradient(ellipse at 4% 0%,rgba(32,212,134,.105),transparent 32%),
+    radial-gradient(ellipse at 100% 100%,rgba(44,125,190,.09),transparent 35%),
+    linear-gradient(145deg,#12263a 0%,#0d1c2b 58%,#0a1724 100%);
+  box-shadow:0 18px 42px rgba(0,0,0,.18),inset 0 1px rgba(255,255,255,.045);
+}
+.executions-page .cron-console:after{
+  content:"";position:absolute;z-index:-1;inset:0;pointer-events:none;
+  background:linear-gradient(115deg,transparent 0%,rgba(255,255,255,.018) 45%,transparent 70%);
+}
+.executions-page .cron-console-heading{margin-bottom:22px}
+.executions-page .cron-eyebrow{color:#6ce7ae;font-size:10px;font-weight:800;letter-spacing:.16em}
+.executions-page .cron-console-heading h2{color:#f2f8fc;font-size:22px;letter-spacing:-.045em}
+.executions-page .cron-console-heading p{color:#91a9bd;font-size:12px}
+.executions-page .cron-total{
+  padding:8px 12px;border:1px solid rgba(73,105,135,.55);
+  background:rgba(20,43,64,.88);color:#c5d7e5;
+}
+.executions-page .cron-group{padding-top:3px}
+.executions-page .cron-group-heading h3{color:#e5f0f7;font-size:13px;letter-spacing:.01em}
+.executions-page .cron-group-heading span{
+  border-color:rgba(73,105,135,.42);background:rgba(17,37,56,.8);color:#8fa9bf;
+}
+.executions-page .cron-list{gap:12px}
+.executions-page .cron-row,
+.executions-page .cron-row+.cron-row{
+  min-height:144px;padding:17px 16px;
+  border:1px solid rgba(66,96,124,.55);border-radius:14px;
+  background:linear-gradient(145deg,rgba(22,43,63,.97),rgba(13,30,46,.98));
+  box-shadow:0 8px 22px rgba(0,0,0,.14),inset 0 1px rgba(255,255,255,.025);
+  animation:cron-card-enter .42s cubic-bezier(.2,.7,.2,1) both;
+}
+.executions-page .cron-row:nth-child(2){animation-delay:45ms}
+.executions-page .cron-row:nth-child(3){animation-delay:90ms}
+.executions-page .cron-row:nth-child(4){animation-delay:135ms}
+.executions-page .cron-row:nth-child(5){animation-delay:180ms}
+.executions-page .cron-row:before{
+  top:15px;bottom:15px;width:3px;
+  background:linear-gradient(180deg,#5af0a8,#17b978);
+  box-shadow:0 0 12px rgba(32,212,134,.48);
+}
+.executions-page .cron-row:hover{
+  border-color:rgba(54,224,151,.68);
+  background:
+    radial-gradient(ellipse at 0% 50%,rgba(32,212,134,.105),transparent 52%),
+    linear-gradient(145deg,#19364a,#10283a);
+  box-shadow:0 12px 28px rgba(0,0,0,.23),0 0 0 1px rgba(49,217,144,.08),0 0 24px rgba(32,212,134,.09);
+  transform:translateY(-3px);
+}
+.executions-page .cron-row.is-paused{
+  border-color:rgba(91,111,132,.4);
+  background:linear-gradient(145deg,rgba(25,40,55,.92),rgba(15,27,40,.96));
+  filter:saturate(.7);
+}
+.executions-page .cron-row.is-paused:before{background:#647b90;box-shadow:none}
+.executions-page .cron-row-main:before{
+  width:32px;height:32px;border-radius:10px;
+  border:1px solid rgba(49,217,144,.26);
+  background:rgba(32,212,134,.11);color:#53e4a1;
+  box-shadow:inset 0 1px rgba(255,255,255,.035),0 0 16px rgba(32,212,134,.07);
+}
+.executions-page .cron-row.is-paused .cron-row-main:before{
+  border-color:rgba(122,145,166,.25);background:rgba(122,145,166,.1);color:#9aafc1;
+}
+.executions-page .cron-row-title strong{color:#f0f7fc;font-size:12px;font-weight:760}
+.executions-page .cron-row-main>p{color:#91a9bd;font-size:11px}
+.executions-page .cron-row-meta{color:#a5bacb}
+.executions-page .cron-row-meta>span:first-child{color:#b8cbd9}
+.executions-page .cron-row-meta>span:first-child svg{color:#55dfa0}
+.executions-page .cron-row-meta code{
+  border:1px solid rgba(75,105,133,.4);background:rgba(8,23,37,.55);color:#9db4c7;
+}
+.executions-page .cron-last-run{color:#7f99ae!important}
+.executions-page .cron-last-run b.success{color:#55e4a2}
+.executions-page .cron-last-run b.warning{color:#ffc46b}
+.executions-page .cron-last-run b.danger{color:#ff8993}
+.executions-page .cron-row-action{align-self:center}
+.executions-page .cron-run-compact{
+  min-width:108px;padding:10px 13px;
+  border:1px solid rgba(54,220,145,.34);border-radius:10px;
+  background:linear-gradient(135deg,rgba(18,125,83,.2),rgba(13,91,67,.17));
+  color:#8af0bd;font-size:11px;font-weight:760;
+  box-shadow:inset 0 1px rgba(255,255,255,.035);
+  transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease,background .2s ease;
+}
+.executions-page .cron-run-compact:hover:not(:disabled){
+  transform:translateY(-1px);border-color:#39df98;
+  background:linear-gradient(135deg,rgba(21,157,101,.32),rgba(13,112,77,.28));
+  color:#c2ffdf;box-shadow:0 0 0 3px rgba(32,212,134,.08),0 0 20px rgba(32,212,134,.12);
+}
+.executions-page .cron-run-compact:focus-visible{
+  outline:2px solid #42e49b;outline-offset:3px;
+}
+.executions-page .cron-feedback{
+  border-color:rgba(76,145,206,.35);background:rgba(22,75,117,.2);color:#a9d7ff;
+}
+.executions-page .cron-feedback.success{border-color:rgba(32,212,134,.32);background:rgba(18,125,83,.17);color:#7cebb4}
+.executions-page .cron-feedback.error{border-color:rgba(255,112,130,.32);background:rgba(126,38,55,.2);color:#ffabb4}
+.executions-page .cron-console .ops-alert{
+  border-color:rgba(255,112,130,.32);background:rgba(126,38,55,.2);color:#ffabb4;
+}
+@keyframes cron-card-enter{
+  from{opacity:0;transform:translateY(9px) scale(.992)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+@media(max-width:1000px){
+  .executions-page .cron-row,.executions-page .cron-row+.cron-row{min-height:0}
+}
+@media(max-width:720px){
+  .executions-page .cron-console{padding:15px}
+  .executions-page .cron-row,.executions-page .cron-row+.cron-row{padding:15px}
+}
+@media(prefers-reduced-motion:reduce){
+  .executions-page .cron-row,.executions-page .cron-run-compact{animation:none;transition:none}
+  .executions-page .cron-row:hover,.executions-page .cron-run-compact:hover:not(:disabled){transform:none}
+}
+
+
+/* Histórico real do cron de limpeza de duplicados */
+.executions-page .duplicate-cleanup-panel{
+  position:relative;overflow:hidden;padding:22px;border:1px solid rgba(66,96,124,.58);
+  border-radius:18px;background:
+    radial-gradient(ellipse at 0% 0%,rgba(32,212,134,.08),transparent 34%),
+    linear-gradient(145deg,#12263a,#0b1b2a 70%,#0a1724);
+  box-shadow:0 16px 36px rgba(0,0,0,.16),inset 0 1px rgba(255,255,255,.035);
+}
+.executions-page .duplicate-cleanup-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}
+.executions-page .duplicate-cleanup-heading h2{margin:0;color:#eff7fc;font-size:19px;letter-spacing:-.035em}
+.executions-page .duplicate-cleanup-heading p{margin:5px 0 0;color:#8ea8bd;font-size:11px}
+.executions-page .duplicate-cleanup-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.executions-page .duplicate-cleanup-kpis article{min-width:0;padding:13px 14px;border:1px solid rgba(67,100,129,.45);border-radius:12px;background:rgba(14,33,50,.82);box-shadow:inset 0 1px rgba(255,255,255,.025)}
+.executions-page .duplicate-cleanup-kpis span,.executions-page .duplicate-cleanup-kpis small{display:block;color:#8ea8bd;font-size:10px}
+.executions-page .duplicate-cleanup-kpis strong{display:block;margin:5px 0;color:#f0f8fc;font-size:21px;line-height:1.2;letter-spacing:-.04em;overflow-wrap:anywhere}
+.executions-page .duplicate-cleanup-kpis small{color:#718da4}
+.executions-page .duplicate-cleanup-chart-card,.executions-page .duplicate-cleanup-history{padding:16px;border:1px solid rgba(67,100,129,.4);border-radius:13px;background:rgba(11,27,42,.78)}
+.executions-page .duplicate-cleanup-chart-title,.executions-page .duplicate-cleanup-history-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.executions-page .duplicate-cleanup-chart-title h3,.executions-page .duplicate-cleanup-history-title h3{margin:0;color:#eaf4fa;font-size:13px}
+.executions-page .duplicate-cleanup-chart-title p{margin:4px 0 0;color:#7895ac;font-size:10px}
+.executions-page .duplicate-cleanup-chart-title>span,.executions-page .duplicate-cleanup-history-title>span{color:#6fe6ae;font-size:10px;font-weight:700}
+.executions-page .duplicate-cleanup-bars{height:145px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));align-items:end;gap:clamp(8px,2vw,18px);padding:9px 8px 0;border-bottom:1px solid rgba(81,111,139,.3)}
+.executions-page .duplicate-cleanup-bar-column{height:100%;display:grid;grid-template-rows:minmax(0,1fr) 15px 15px;justify-items:center;gap:3px}
+.executions-page .duplicate-cleanup-bar-track{width:min(100%,36px);height:100%;display:flex;align-items:flex-end;overflow:hidden;border-radius:7px 7px 2px 2px;background:rgba(63,88,112,.18)}
+.executions-page .duplicate-cleanup-bar-track i{display:block;width:100%;min-height:0;border-radius:6px 6px 1px 1px;background:linear-gradient(180deg,#55efaa,#0fa96e);box-shadow:0 0 13px rgba(32,212,134,.22);transition:height .4s ease}
+.executions-page .duplicate-cleanup-bar-column strong{color:#d9e8f2;font-size:10px;font-variant-numeric:tabular-nums}
+.executions-page .duplicate-cleanup-bar-column small{color:#7895ac;font-size:9px;text-transform:capitalize}
+.executions-page .duplicate-cleanup-chart-note{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;color:#718da4;font-size:9px}
+.executions-page .duplicate-cleanup-chart-note>span:first-child{display:flex;align-items:center;gap:6px;color:#9db5c7}
+.executions-page .duplicate-cleanup-chart-note i{width:7px;height:7px;border-radius:2px;background:#2ddc91;box-shadow:0 0 8px rgba(45,220,145,.35)}
+.executions-page .duplicate-cleanup-history{margin-top:12px}
+.executions-page .duplicate-cleanup-table-wrap{overflow:auto}
+.executions-page .duplicate-cleanup-table-wrap table{width:100%;border-collapse:collapse;white-space:nowrap}
+.executions-page .duplicate-cleanup-table-wrap th{text-align:left;padding:9px 10px;border-bottom:1px solid rgba(75,105,132,.35);color:#7895ac;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.executions-page .duplicate-cleanup-table-wrap td{padding:10px;border-bottom:1px solid rgba(75,105,132,.2);color:#b4c7d6;font-size:10px}
+.executions-page .duplicate-cleanup-table-wrap tbody tr:hover{background:rgba(32,212,134,.035)}
+.executions-page .duplicate-cleanup-table-wrap .duplicate-cleanup-number{color:#6fe6ae;font-weight:750;font-variant-numeric:tabular-nums}
+@media(max-width:850px){.executions-page .duplicate-cleanup-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.executions-page .duplicate-cleanup-panel{padding:14px}.executions-page .duplicate-cleanup-heading{flex-direction:column}.executions-page .duplicate-cleanup-kpis{grid-template-columns:1fr 1fr}.executions-page .duplicate-cleanup-chart-note{align-items:flex-start;flex-direction:column}}
+@media(prefers-reduced-motion:reduce){.executions-page .duplicate-cleanup-bar-track i{transition:none}}
+
+
+/* Histórico organizado em accordions individuais por cron */
+.executions-page .cron-history-filters{margin:0 0 12px;border-radius:12px}
+.executions-page .cron-accordion{display:block;padding:0;overflow:hidden;border:1px solid rgba(91,125,151,.3);border-radius:12px;background:#0d1d2b}
+.executions-page .cron-accordion+.cron-accordion{margin-top:8px;border-top:1px solid rgba(91,125,151,.3)}
+.executions-page .cron-accordion:hover{background:#102235}
+.executions-page .cron-accordion.is-paused{background:#0d1b28}
+.executions-page .cron-accordion-head{display:flex;align-items:stretch;gap:12px;padding:0 14px}
+.executions-page .cron-accordion-toggle{display:flex;align-items:center;gap:12px;flex:1;min-width:0;padding:13px 0;border:0;background:transparent;text-align:left;cursor:pointer;color:inherit}
+.executions-page .cron-accordion-toggle:focus-visible{outline:2px solid #42d99b;outline-offset:-2px;border-radius:7px}
+.executions-page .cron-accordion-chevron{display:grid;place-items:center;flex:0 0 28px;width:28px;height:28px;border:1px solid rgba(112,145,171,.3);border-radius:8px;color:#a8c0d2;background:rgba(42,70,92,.28)}
+.executions-page .cron-accordion .cron-row-main{display:block;flex:1;min-width:0}
+.executions-page .cron-accordion .cron-row-title strong{color:#e9f2f8;font-size:13px}
+.executions-page .cron-row-description{display:block;margin:4px 0 6px;color:#8ba6ba;font-size:10px;line-height:1.4}
+.executions-page .cron-accordion .cron-row-meta{color:#8ba6ba}
+.executions-page .cron-accordion .cron-row-meta code{background:rgba(45,71,93,.45);color:#9bb3c5}
+.executions-page .cron-accordion .cron-row-action{align-self:center;flex-shrink:0}
+.executions-page .cron-accordion-content{padding:0 14px 14px;border-top:1px solid rgba(91,125,151,.22);background:rgba(6,18,29,.28)}
+.executions-page .cron-history-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 2px 10px}
+.executions-page .cron-history-heading h4{margin:0;color:#eaf4fa;font-size:12px;font-weight:750}
+.executions-page .cron-history-heading p{margin:4px 0 0;color:#7f9bb0;font-size:10px}
+.executions-page .cron-history-heading>span{color:#60e5ad;font-size:10px;font-weight:750;white-space:nowrap}
+.executions-page .cron-history-table-wrap{width:100%;overflow:auto;border:1px solid rgba(83,117,145,.32);border-radius:9px}
+.executions-page .cron-history-table-wrap table{width:100%;border-collapse:collapse;white-space:nowrap}
+.executions-page .cron-history-table-wrap thead{background:#172b3d}
+.executions-page .cron-history-table-wrap th{padding:10px 11px;text-align:left;color:#a8bfd0;font-size:9px;font-weight:750;text-transform:uppercase;letter-spacing:.045em}
+.executions-page .cron-history-table-wrap td{padding:10px 11px;border-top:1px solid rgba(83,117,145,.24);color:#c5d5e0;font-size:10px;font-variant-numeric:tabular-nums}
+.executions-page .cron-history-table-wrap tbody tr:hover{background:rgba(60,103,133,.12)}
+.executions-page .cron-history-table-wrap .cron-history-number{color:#65e8b1;font-weight:750}
+.executions-page .cron-history-table-wrap .cron-history-error{color:#fb7185;font-weight:750}
+.executions-page .cron-history-footnote,.executions-page .cron-history-filter-note{margin:9px 2px 0;color:#7893a8;font-size:10px;line-height:1.5}
+@media(max-width:720px){
+ .executions-page .cron-accordion-head{padding:0 10px;gap:8px}
+ .executions-page .cron-accordion-toggle{gap:8px}
+ .executions-page .cron-accordion .cron-row-action{align-self:center}
+ .executions-page .cron-accordion .cron-run-compact{min-width:auto;padding:7px 8px;font-size:10px}
+ .executions-page .cron-accordion-content{padding:0 9px 10px}
+ .executions-page .cron-history-table-wrap th,.executions-page .cron-history-table-wrap td{padding:8px}
+}
+
+
+/* Filtros compactos e linha única recolhida por automação */
+.executions-page .cron-history-filters{padding:10px;margin:0 0 12px;background:rgba(8,22,35,.72);border:1px solid rgba(83,117,145,.28)}
+.executions-page .cron-history-filters .ops-toolbar{display:grid;grid-template-columns:minmax(240px,2fr) repeat(3,minmax(130px,1fr));gap:8px;padding:0}
+.executions-page .cron-history-filters .ops-search,
+.executions-page .cron-history-filters .ops-select{min-width:0;width:100%;margin:0}
+.executions-page .cron-accordion-head{min-height:58px}
+.executions-page .cron-accordion-toggle{padding:10px 0}
+.executions-page .cron-accordion .cron-row-title{align-items:center}
+.executions-page .cron-accordion .cron-row-title strong{font-size:13px}
+.executions-page .cron-accordion-expanded-tools{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 2px 10px;border-bottom:1px solid rgba(91,125,151,.2)}
+.executions-page .cron-accordion-expanded-tools .cron-row-description{margin:0 0 6px}
+.executions-page .cron-accordion-expanded-tools .cron-row-meta{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.executions-page .cron-accordion-expanded-tools .cron-run-compact{flex-shrink:0;border-color:rgba(91,125,151,.4);background:#14283a;color:#dceaf3}
+.executions-page .cron-accordion-expanded-tools .cron-run-compact:hover:not(:disabled){border-color:#39d99b;background:rgba(32,212,134,.1);color:#65e8b1}
+@media(max-width:850px){
+ .executions-page .cron-history-filters .ops-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .executions-page .cron-history-filters .ops-search{grid-column:1/-1}
+}
+@media(max-width:560px){
+ .executions-page .cron-history-filters .ops-toolbar{grid-template-columns:1fr}
+ .executions-page .cron-history-filters .ops-search{grid-column:auto}
+ .executions-page .cron-accordion-expanded-tools{align-items:flex-start;flex-direction:column}
+}
+
+
+/* Correção: os accordions de cron devem ocupar uma coluna de largura total.
+   Evita herdar o grid de cards de outros painéis e elimina o espaço vazio lateral. */
+.executions-page .cron-groups,
+.executions-page .cron-group,
+.executions-page .cron-list{width:100%;min-width:0}
+.executions-page .cron-list{display:flex;flex-direction:column;align-items:stretch;gap:0}
+.executions-page .cron-list>.cron-accordion{display:block;position:relative;flex:0 0 auto;width:100%;max-width:none;min-width:0;grid-column:1/-1;box-sizing:border-box}
+.executions-page .cron-accordion-head,
+.executions-page .cron-accordion-content{width:100%;min-width:0;box-sizing:border-box}
+.executions-page .cron-accordion-content{display:block}

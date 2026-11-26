@@ -36,15 +36,19 @@ export function ClassificacaoCategorias() {
     setError("");
     try {
       const all: PreviewRow[] = [];
-      for (let from = 0; ; from += 1000) {
-        const result = await supabase
-          .from("product_category_classification_preview")
-          .select("product_id,title,marketplace_category,current_category_id,current_category,commercial_category_source,suggested_category_id,suggested_category,classification_reason,confidence,active")
-          .order("title", { ascending: true })
-          .range(from, from + 999);
+      let cursor: { title: string; id: string } | null = null;
+      for (;;) {
+        const result = await supabase.rpc("get_product_category_classification_preview_page", {
+          p_after_title: cursor?.title ?? null,
+          p_after_id: cursor?.id ?? null,
+          p_limit: 1000,
+        });
         if (result.error) throw result.error;
-        all.push(...((result.data || []) as PreviewRow[]));
-        if (!result.data || result.data.length < 1000) break;
+        const page = (result.data || []) as PreviewRow[];
+        all.push(...page);
+        if (page.length < 1000) break;
+        const last = page[page.length - 1];
+        cursor = { title: last.title, id: last.product_id };
       }
       setRows(all);
     } catch (e) {
